@@ -4,8 +4,9 @@ export const DEFAULT_SPEED = 1.0;
 export const SPEED_MIN = 0.5;
 export const SPEED_MAX = 2.0;
 
-export const FLUSH_DEBOUNCE_MS = 250;
-export const SENTENCE_TERMINATORS = /[.!?]\s*$/;
+export const IDLE_FLUSH_MS = 600;
+export const SENTENCE_BOUNDARY = /[.!?][ \t\n]+|\n/;
+export const ENDS_WITH_TERMINATOR = /[.!?][ \t]*$/;
 
 export function optionsUrlFromWs(wsUrl: string): string {
   let httpUrl = wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');

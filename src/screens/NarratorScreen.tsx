@@ -18,7 +18,6 @@ import { useSettings } from '../store/settings-store';
 
 export function NarratorScreen() {
   const settings = useSettings();
-  const [text, setText] = useState('');
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
@@ -62,12 +61,10 @@ export function NarratorScreen() {
   }
 
   const handleChange = (next: string) => {
-    setText(next);
-    narrator.setText(next);
+    narrator.acceptInput(next);
   };
 
   const handleClear = () => {
-    setText('');
     narrator.cancel();
   };
 
@@ -100,7 +97,11 @@ export function NarratorScreen() {
         </View>
 
         <View style={styles.editorWrap}>
-          <ScriptEditor value={text} onChange={handleChange} editable={narrator.status !== 'error'} />
+          <ScriptEditor
+            value={narrator.editorBuffer}
+            onChange={handleChange}
+            editable={narrator.status !== 'error'}
+          />
         </View>
 
         <View style={styles.actions}>
@@ -108,11 +109,15 @@ export function NarratorScreen() {
             <Text style={styles.secondaryText}>Stop &amp; clear</Text>
           </Pressable>
           <Pressable
-            style={[styles.button, styles.primary, !text && styles.buttonDisabled]}
-            onPress={() => narrator.flush()}
-            disabled={!text}
+            style={[
+              styles.button,
+              styles.primary,
+              !narrator.editorBuffer && styles.buttonDisabled,
+            ]}
+            onPress={() => narrator.speakRest()}
+            disabled={!narrator.editorBuffer}
           >
-            <Text style={styles.primaryText}>Flush</Text>
+            <Text style={styles.primaryText}>Speak rest</Text>
           </Pressable>
         </View>
 
