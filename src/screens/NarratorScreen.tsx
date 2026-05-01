@@ -3,12 +3,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScriptEditor } from '../components/ScriptEditor';
 import { SettingsForm } from '../components/SettingsForm';
 import { SpeedPicker } from '../components/SpeedPicker';
