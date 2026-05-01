@@ -8,6 +8,10 @@ export const IDLE_FLUSH_MS = 600;
 export const SENTENCE_BOUNDARY = /[.!?][ \t\n]+|\n/;
 export const ENDS_WITH_TERMINATOR = /[.!?][ \t]*$/;
 
+export const RECONNECT_INITIAL_MS = 1000;
+export const RECONNECT_MAX_MS = 30000;
+export const RECONNECT_MULTIPLIER = 2;
+
 export function optionsUrlFromWs(wsUrl: string): string {
   let httpUrl = wsUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
   httpUrl = httpUrl.replace(/\/tts\/stream(\?.*)?$/, '/options');

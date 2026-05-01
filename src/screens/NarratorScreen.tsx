@@ -81,10 +81,20 @@ export function NarratorScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.statusRow}>
+        <Pressable
+          style={styles.statusRow}
+          onPress={() => {
+            if (narrator.status === 'reconnecting' || narrator.status === 'paused') {
+              narrator.reconnectNow();
+            }
+          }}
+        >
           <View style={[styles.dot, dotStyle(narrator.status)]} />
           <Text style={styles.statusText}>{statusLabel(narrator)}</Text>
-        </View>
+          {narrator.status === 'reconnecting' || narrator.status === 'paused' ? (
+            <Text style={styles.statusAction}>Tap to retry</Text>
+          ) : null}
+        </Pressable>
 
         <View style={styles.controls}>
           <VoicePicker
@@ -132,7 +142,11 @@ export function NarratorScreen() {
 function statusLabel(n: ReturnType<typeof useNarrator>): string {
   if (n.errorMessage && n.status === 'error') return `Error: ${n.errorMessage}`;
   if (n.status === 'connecting') return 'Connecting…';
-  if (n.status === 'closed') return 'Disconnected';
+  if (n.status === 'reconnecting') {
+    const seconds = Math.max(0, Math.ceil((n.reconnectIn ?? 0) / 1000));
+    return seconds > 0 ? `Reconnecting in ${seconds}s…` : 'Reconnecting…';
+  }
+  if (n.status === 'paused') return 'Paused (app backgrounded)';
   if (n.status === 'idle') return 'Idle';
   if (n.isSpeaking)
     return n.currentSegmentText ? `Speaking: ${n.currentSegmentText}` : 'Speaking…';
@@ -141,8 +155,9 @@ function statusLabel(n: ReturnType<typeof useNarrator>): string {
 
 function dotStyle(status: string) {
   if (status === 'ready') return { backgroundColor: '#34c759' };
-  if (status === 'connecting') return { backgroundColor: '#ff9f0a' };
-  if (status === 'error' || status === 'closed') return { backgroundColor: '#ff3b30' };
+  if (status === 'connecting' || status === 'reconnecting')
+    return { backgroundColor: '#ff9f0a' };
+  if (status === 'error') return { backgroundColor: '#ff3b30' };
   return { backgroundColor: '#8e8e93' };
 }
 
@@ -171,6 +186,7 @@ const styles = StyleSheet.create({
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { fontSize: 13, color: '#444', flex: 1 },
+  statusAction: { fontSize: 13, color: '#0a84ff', fontWeight: '600' },
   controls: {
     paddingHorizontal: 20,
     gap: 10,
