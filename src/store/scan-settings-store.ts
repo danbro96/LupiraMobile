@@ -12,7 +12,7 @@ const KEY_QUALITY = 'lupira.scan.jpegQuality';
 
 const DEFAULT_AUTO = true;
 const DEFAULT_THRESHOLD = 0.75;
-const DEFAULT_MIN_FRAMES = 8;
+const DEFAULT_MIN_FRAMES = 4;
 const DEFAULT_W_STABILITY = 0.5;
 const DEFAULT_W_SHARPNESS = 0.3;
 const DEFAULT_W_COVERAGE = 0.2;

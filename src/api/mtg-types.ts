@@ -54,16 +54,42 @@ export type RecognitionConfidence = 'low' | 'medium' | 'high';
 export type CardCandidateResponse = {
   printing: CardPrintingResponse;
   combinedScore: number;
+  ocrAggregateScore: number;
   nameScore: number;
+  typeLineScore: number;
+  rulesTextScore: number;
+  powerToughnessScore: number;
+  bottomMetadataScore: number;
   hammingScore: number;
+  setTypeWeight: number;
   hammingDistance?: number | null;
   matchedByPHash: boolean;
   matchedByName: boolean;
 };
 
+export type ScanZoneTexts = {
+  name: string;
+  typeLine: string;
+  rulesText: string;
+  powerToughness: string;
+  bottomMetadata: string;
+};
+
+export type ScanSetSymbol = {
+  setCode: string;
+  hammingDistance: number;
+  score: number;
+};
+
 export type ScanDebug = {
-  ocrText?: string | null;
+  zones: ScanZoneTexts;
+  setSymbol?: ScanSetSymbol | null;
   imagePHash?: number | null;
+  cropped: boolean;
+  cropConfidence: number;
+  croppedWidth: number;
+  croppedHeight: number;
+  ocrRegionCount: number;
   pHashCandidateCount: number;
   ocrCandidateCount: number;
   ocrLatencyMs: number;

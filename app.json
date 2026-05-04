@@ -7,14 +7,17 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Lupira MTG needs the camera to scan Magic: The Gathering cards."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +25,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA"
+      ],
+      "package": "com.danbro96.LupiraMobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -42,7 +51,20 @@
           "cameraPermissionText": "Lupira MTG needs the camera to scan Magic: The Gathering cards.",
           "enableFrameProcessors": true
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b85d3a81-589d-450b-9121-8c9c64a310fc"
+      }
+    }
   }
 }

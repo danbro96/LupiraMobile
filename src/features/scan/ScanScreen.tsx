@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  AppState,
+  AppStateStatus,
   Image,
   LayoutChangeEvent,
   Pressable,
@@ -17,7 +19,7 @@ import {
   useCameraPermission,
 } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError, mtgApi } from '../../api/mtg-client';
 import {
@@ -36,6 +38,7 @@ import {
 import { cropToQuad } from './detection/cropToQuad';
 import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
 
@@ -46,6 +49,12 @@ type CapturedShot = {
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
+  const isFocused = useIsFocused();
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => setAppState(next));
+    return () => sub.remove();
+  }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const cameraRef = useRef<Camera | null>(null);
@@ -92,11 +101,13 @@ export function ScanScreen() {
   });
 
   const capturingRef = useRef(false);
+  const [capturing, setCapturing] = useState(false);
 
   const captureAndScan = useCallback(
     async (quad: Quad | null, frameSize: FrameSize | null) => {
       if (!cameraRef.current || capturingRef.current) return;
       capturingRef.current = true;
+      setCapturing(true);
       try {
         const photo = await cameraRef.current.takePhoto({
           flash: 'off',
@@ -127,10 +138,19 @@ export function ScanScreen() {
         scan.mutate(uploadUri);
       } finally {
         capturingRef.current = false;
+        setCapturing(false);
       }
     },
     [scan, settings.jpegQuality],
   );
+
+  const uploadStatus: 'idle' | 'pending' | 'success' | 'error' = scan.isPending
+    ? 'pending'
+    : scan.isError
+      ? 'error'
+      : scan.isSuccess
+        ? 'success'
+        : 'idle';
 
   const onAutoCapture = useCallback(
     (quad: Quad, frameSize: FrameSize) => {
@@ -140,7 +160,8 @@ export function ScanScreen() {
   );
 
   const detection = useCardDetection({
-    enabled: !shot && !scan.isPending && hasPermission && settings.autoCaptureEnabled && settings.loaded,
+    enabled: !shot && !scan.isPending && hasPermission && settings.loaded,
+    autoCaptureEnabled: settings.autoCaptureEnabled,
     threshold: settings.captureThreshold,
     minStableFrames: settings.minStableFrames,
     weightStability: settings.weightStability,
@@ -274,7 +295,7 @@ export function ScanScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive
+        isActive={isFocused && appState === 'active' && !shot}
         photo
         pixelFormat="rgb"
         frameProcessor={detection.frameProcessor}
@@ -293,12 +314,20 @@ export function ScanScreen() {
       ) : null}
 
       {showDebug ? (
-        <DebugMetricsPanel
-          metrics={detection.metrics}
-          stableFrames={detection.stableFrames}
-          threshold={overlayThreshold}
-          minStableFrames={overlayMinFrames}
-        />
+        <ErrorBoundary label="DebugMetricsPanel">
+          <DebugMetricsPanel
+            metrics={detection.metrics}
+            stableFrames={detection.stableFrames}
+            threshold={overlayThreshold}
+            minStableFrames={overlayMinFrames}
+            weightStability={settings.weightStability}
+            weightSharpness={settings.weightSharpness}
+            weightCoverage={settings.weightCoverage}
+            autoCaptureEnabled={settings.autoCaptureEnabled}
+            capturing={capturing}
+            uploadStatus={uploadStatus}
+          />
+        </ErrorBoundary>
       ) : null}
 
       <View style={styles.cameraOverlay} pointerEvents="box-none">
@@ -354,20 +383,70 @@ function ResultList({
         />
       ))}
 
-      <View style={styles.debugBlock}>
-        <Text style={styles.debugTitle}>Debug</Text>
-        <Text style={styles.debugLine}>OCR latency: {data.debug.ocrLatencyMs}ms</Text>
-        <Text style={styles.debugLine}>pHash latency: {data.debug.pHashLatencyMs}ms</Text>
-        <Text style={styles.debugLine}>
-          pHash candidates: {data.debug.pHashCandidateCount} · OCR candidates: {data.debug.ocrCandidateCount}
-        </Text>
-        {data.debug.ocrText ? (
-          <Text style={styles.debugLine} numberOfLines={3}>
-            OCR text: {data.debug.ocrText}
-          </Text>
-        ) : null}
-      </View>
+      <BackendDebugBlock data={data} />
     </View>
+  );
+}
+
+function BackendDebugBlock({ data }: { data: ScanResponse }) {
+  const d = data.debug;
+  return (
+    <View style={styles.debugBlock}>
+      <Text style={styles.debugTitle}>Backend debug</Text>
+
+      <Text style={styles.debugSubtitle}>Pipeline</Text>
+      <Text style={styles.debugLine}>
+        OCR {d.ocrLatencyMs}ms · pHash {d.pHashLatencyMs}ms
+      </Text>
+      <Text style={styles.debugLine}>
+        pHash candidates: {d.pHashCandidateCount} · OCR candidates: {d.ocrCandidateCount}
+      </Text>
+      <Text style={styles.debugLine}>OCR regions: {d.ocrRegionCount}</Text>
+      <Text style={styles.debugLine}>
+        imagePHash: {d.imagePHash != null ? d.imagePHash.toString() : '—'}
+      </Text>
+
+      <Text style={styles.debugSubtitle}>Crop (server-side)</Text>
+      <Text style={styles.debugLine}>
+        cropped: {d.cropped ? 'yes' : 'no'} · confidence {d.cropConfidence.toFixed(2)}
+      </Text>
+      <Text style={styles.debugLine}>
+        cropped size: {d.croppedWidth}x{d.croppedHeight}
+      </Text>
+
+      <Text style={styles.debugSubtitle}>Set symbol</Text>
+      {d.setSymbol ? (
+        <>
+          <Text style={styles.debugLine}>
+            set: {d.setSymbol.setCode.toUpperCase()} · score {d.setSymbol.score.toFixed(2)} · h={d.setSymbol.hammingDistance}
+          </Text>
+        </>
+      ) : (
+        <Text style={styles.debugLine}>not detected</Text>
+      )}
+
+      <Text style={styles.debugSubtitle}>OCR zones</Text>
+      <ZoneLine label="name" value={d.zones.name} />
+      <ZoneLine label="type" value={d.zones.typeLine} />
+      <ZoneLine label="rules" value={d.zones.rulesText} />
+      <ZoneLine label="P/T" value={d.zones.powerToughness} />
+      <ZoneLine label="bottom" value={d.zones.bottomMetadata} />
+
+      <Text style={styles.debugSubtitle}>Raw response</Text>
+      <Text style={styles.debugLine} selectable>
+        {JSON.stringify(data, null, 2)}
+      </Text>
+    </View>
+  );
+}
+
+function ZoneLine({ label, value }: { label: string; value: string }) {
+  const trimmed = value?.trim() ?? '';
+  return (
+    <Text style={styles.debugLine} numberOfLines={4}>
+      <Text style={styles.zoneLabel}>{label}: </Text>
+      {trimmed.length > 0 ? trimmed : '(empty)'}
+    </Text>
   );
 }
 
@@ -405,8 +484,17 @@ function CandidateRow({
           {candidate.printing.setCode.toUpperCase()} · #{candidate.printing.collectorNumber} · {candidate.printing.rarity}
         </Text>
         <Text style={styles.candidateScores}>
-          combined {candidate.combinedScore.toFixed(2)} · name {candidate.nameScore.toFixed(2)} · pHash {candidate.hammingScore.toFixed(2)}
-          {candidate.hammingDistance != null ? ` (h=${candidate.hammingDistance})` : ''}
+          combined {candidate.combinedScore.toFixed(2)} · pHash {candidate.hammingScore.toFixed(2)}
+          {candidate.hammingDistance != null ? ` (h=${candidate.hammingDistance})` : ''} · ocr {candidate.ocrAggregateScore.toFixed(2)}
+        </Text>
+        <Text style={styles.candidateScores}>
+          name {candidate.nameScore.toFixed(2)} · type {candidate.typeLineScore.toFixed(2)} · rules {candidate.rulesTextScore.toFixed(2)}
+        </Text>
+        <Text style={styles.candidateScores}>
+          P/T {candidate.powerToughnessScore.toFixed(2)} · bottom {candidate.bottomMetadataScore.toFixed(2)} · setW {candidate.setTypeWeight.toFixed(2)}
+        </Text>
+        <Text style={styles.candidateScores}>
+          matched: {candidate.matchedByPHash ? 'pHash' : '—'} {candidate.matchedByName ? '+ name' : ''}
         </Text>
       </View>
       <Pressable
@@ -511,7 +599,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   debugTitle: { color: '#cbd1da', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  debugLine: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
+  debugSubtitle: {
+    color: '#3b82f6',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'monospace',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  debugLine: { color: '#9aa3b2', fontSize: 11, fontFamily: 'monospace' },
+  zoneLabel: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   secondaryButton: {
     borderColor: '#3b82f6',
