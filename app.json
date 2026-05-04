@@ -2,6 +2,7 @@
   "expo": {
     "name": "LupiraMobile",
     "slug": "LupiraMobile",
+    "scheme": "lupiramtg",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -28,7 +29,13 @@
     },
     "plugins": [
       "expo-audio",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Lupira MTG needs the camera to scan Magic: The Gathering cards."
+        }
+      ]
     ]
   }
 }

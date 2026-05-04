@@ -4,6 +4,10 @@ export const DEFAULT_SPEED = 1.0;
 export const SPEED_MIN = 0.5;
 export const SPEED_MAX = 2.0;
 
+// Lupira MTG defaults — overrideable from the in-app settings screen
+// so dev builds can point at localhost without rebuilding.
+export const DEFAULT_MTG_API_URL = 'https://mtg.lupira.com';
+
 export const IDLE_FLUSH_MS = 600;
 export const SENTENCE_BOUNDARY = /[.!?][ \t\n]+|\n/;
 export const ENDS_WITH_TERMINATOR = /[.!?][ \t]*$/;
