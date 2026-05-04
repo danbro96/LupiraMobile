@@ -7,6 +7,7 @@ export type SearchStackParamList = {
 
 export type ScanStackParamList = {
   Scan: undefined;
+  ScanSettings: undefined;
   Selection: undefined;
   PickCollection: { selectionId: string };
   CardDetail: { printingId: string };

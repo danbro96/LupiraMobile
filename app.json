@@ -35,6 +35,13 @@
         {
           "cameraPermission": "Lupira MTG needs the camera to scan Magic: The Gathering cards."
         }
+      ],
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Lupira MTG needs the camera to scan Magic: The Gathering cards.",
+          "enableFrameProcessors": true
+        }
       ]
     ]
   }

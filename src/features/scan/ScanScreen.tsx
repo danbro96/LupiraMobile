@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  LayoutChangeEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+} from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,24 +27,45 @@ import {
 } from '../../api/mtg-types';
 import { ScanStackParamList } from '../../navigation/types';
 import { useCurrentSelection } from './useCurrentSelection';
+import { useScanSettings } from '../../store/scan-settings-store';
+import {
+  type FrameSize,
+  type Quad,
+  useCardDetection,
+} from './detection/useCardDetection';
+import { cropToQuad } from './detection/cropToQuad';
+import { DetectionOverlay } from './components/DetectionOverlay';
+import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
 
 type CapturedShot = {
   uri: string;
+  cropped: boolean;
 };
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView | null>(null);
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera | null>(null);
   const [shot, setShot] = useState<CapturedShot | null>(null);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
   const queryClient = useQueryClient();
+
+  const settings = useScanSettings();
+  useEffect(() => {
+    if (!settings.loaded) void settings.load();
+  }, [settings]);
 
   const { ensure: ensureSelection, currentSelectionId } = useCurrentSelection();
 
   const scan = useMutation({
-    mutationFn: (uri: string) => mtgApi.scanCard({ uri, mimeType: 'image/jpeg', fileName: 'scan.jpg' }),
+    mutationFn: (uri: string) =>
+      mtgApi.scanCard({ uri, mimeType: 'image/jpeg', fileName: 'scan.jpg' }),
   });
 
   const selectionQuery = useQuery({
@@ -65,17 +91,67 @@ export function ScanScreen() {
     },
   });
 
-  const onCapture = useCallback(async () => {
-    if (!cameraRef.current) return;
-    const picture = await cameraRef.current.takePictureAsync({
-      quality: 0.5,
-      base64: false,
-      skipProcessing: false,
-    });
-    if (!picture?.uri) return;
-    setShot({ uri: picture.uri });
-    scan.mutate(picture.uri);
-  }, [scan]);
+  const capturingRef = useRef(false);
+
+  const captureAndScan = useCallback(
+    async (quad: Quad | null, frameSize: FrameSize | null) => {
+      if (!cameraRef.current || capturingRef.current) return;
+      capturingRef.current = true;
+      try {
+        const photo = await cameraRef.current.takePhoto({
+          flash: 'off',
+        });
+        const photoUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+
+        let uploadUri = photoUri;
+        let cropped = false;
+        if (quad && frameSize) {
+          try {
+            const result = await cropToQuad({
+              photoUri,
+              photoWidth: photo.width,
+              photoHeight: photo.height,
+              quad,
+              frameSize,
+              jpegQuality: settings.jpegQuality,
+            });
+            uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
+            cropped = true;
+          } catch (e) {
+            // Crop failed -> fall through and upload the raw still so the user is not blocked.
+            console.warn('cropToQuad failed, falling back to uncropped upload', e);
+          }
+        }
+
+        setShot({ uri: uploadUri, cropped });
+        scan.mutate(uploadUri);
+      } finally {
+        capturingRef.current = false;
+      }
+    },
+    [scan, settings.jpegQuality],
+  );
+
+  const onAutoCapture = useCallback(
+    (quad: Quad, frameSize: FrameSize) => {
+      void captureAndScan(quad, frameSize);
+    },
+    [captureAndScan],
+  );
+
+  const detection = useCardDetection({
+    enabled: !shot && !scan.isPending && hasPermission && settings.autoCaptureEnabled && settings.loaded,
+    threshold: settings.captureThreshold,
+    minStableFrames: settings.minStableFrames,
+    weightStability: settings.weightStability,
+    weightSharpness: settings.weightSharpness,
+    weightCoverage: settings.weightCoverage,
+    onAutoCapture,
+  });
+
+  const onManualCapture = useCallback(() => {
+    void captureAndScan(detection.quad.value, detection.metrics.value.frameSize);
+  }, [captureAndScan, detection.quad, detection.metrics]);
 
   const onAdd = useCallback(
     async (candidate: CardCandidateResponse) => {
@@ -109,16 +185,19 @@ export function ScanScreen() {
 
   const selectionCount = selectionQuery.data?.cards.length ?? 0;
   const goToSelection = () => navigation.navigate('Selection');
+  const goToSettings = () => navigation.navigate('ScanSettings');
 
-  if (!permission) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator style={styles.center} />
-      </SafeAreaView>
-    );
-  }
+  const onCameraLayout = useCallback((e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setContainerSize({ width, height });
+  }, []);
 
-  if (!permission.granted) {
+  const overlayThreshold = settings.captureThreshold;
+  const overlayMinFrames = settings.minStableFrames;
+
+  const showDebug = useMemo(() => settings.showDebugOverlay, [settings.showDebugOverlay]);
+
+  if (!hasPermission) {
     return (
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.permissionWrap}>
@@ -126,7 +205,7 @@ export function ScanScreen() {
           <Text style={styles.permissionBody}>
             Lupira MTG uses the camera to scan Magic: The Gathering cards. Tap below to grant access.
           </Text>
-          <Pressable onPress={requestPermission} style={styles.primaryButton}>
+          <Pressable onPress={() => void requestPermission()} style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>Grant access</Text>
           </Pressable>
         </View>
@@ -139,6 +218,11 @@ export function ScanScreen() {
       <SafeAreaView style={styles.container} edges={['bottom']}>
         <ScrollView contentContainerStyle={styles.resultScroll}>
           <Image source={{ uri: shot.uri }} style={styles.resultPreview} resizeMode="contain" />
+          {shot.cropped ? (
+            <Text style={styles.croppedNote}>Sent perspective-corrected card crop.</Text>
+          ) : (
+            <Text style={styles.croppedNote}>Sent raw frame (no quad detected).</Text>
+          )}
 
           {scan.isPending ? (
             <View style={styles.statusRow}>
@@ -176,14 +260,58 @@ export function ScanScreen() {
     );
   }
 
+  if (!device) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator style={styles.center} />
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+    <View style={styles.container} onLayout={onCameraLayout}>
+      <Camera
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive
+        photo
+        pixelFormat="rgb"
+        frameProcessor={detection.frameProcessor}
+      />
+
+      {containerSize.width > 0 ? (
+        <DetectionOverlay
+          quad={detection.quad}
+          metrics={detection.metrics}
+          stableFrames={detection.stableFrames}
+          containerWidth={containerSize.width}
+          containerHeight={containerSize.height}
+          threshold={overlayThreshold}
+          minStableFrames={overlayMinFrames}
+        />
+      ) : null}
+
+      {showDebug ? (
+        <DebugMetricsPanel
+          metrics={detection.metrics}
+          stableFrames={detection.stableFrames}
+          threshold={overlayThreshold}
+          minStableFrames={overlayMinFrames}
+        />
+      ) : null}
+
       <View style={styles.cameraOverlay} pointerEvents="box-none">
-        <View style={styles.viewfinderFrame} />
         <View style={styles.captureBar}>
-          <Pressable onPress={onCapture} style={styles.shutter} accessibilityLabel="Capture card" />
+          <Pressable
+            onPress={onManualCapture}
+            style={styles.shutter}
+            accessibilityLabel="Capture card"
+          />
         </View>
+        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings">
+          <Text style={styles.gearGlyph}>⚙︎</Text>
+        </Pressable>
         {selectionCount > 0 ? (
           <Pressable style={styles.selectionBadge} onPress={goToSelection}>
             <Text style={styles.selectionBadgeText}>Selection · {selectionCount}</Text>
@@ -295,17 +423,8 @@ function CandidateRow({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  camera: { flex: 1 },
-  cameraOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  viewfinderFrame: {
-    width: '78%',
-    aspectRatio: 5 / 7,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-    opacity: 0.7,
-  },
-  captureBar: { position: 'absolute', bottom: 48, alignSelf: 'center' },
+  cameraOverlay: { ...StyleSheet.absoluteFillObject },
+  captureBar: { position: 'absolute', bottom: 48, alignSelf: 'center', left: 0, right: 0, alignItems: 'center' },
   shutter: {
     width: 72,
     height: 72,
@@ -314,6 +433,18 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#3b82f6',
   },
+  gearButton: {
+    position: 'absolute',
+    top: 48,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(8,12,22,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gearGlyph: { color: '#fff', fontSize: 20 },
   selectionBadge: {
     position: 'absolute',
     top: 48,
@@ -338,6 +469,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   resultScroll: { padding: 16, gap: 16 },
   resultPreview: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1a1f29' },
+  croppedNote: { color: '#6e7686', fontSize: 12, fontStyle: 'italic' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   statusText: { color: '#cbd1da', fontSize: 14 },
   errorBox: { backgroundColor: '#2a1414', padding: 12, borderRadius: 8 },
