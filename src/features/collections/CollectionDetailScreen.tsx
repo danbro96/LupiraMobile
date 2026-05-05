@@ -18,6 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { mtgApi } from '../../api/mtg-client';
 import { CardInstanceResponse } from '../../api/mtg-types';
 import { CollectionsStackParamList } from '../../navigation/types';
+import { Icon } from '../../components/Icon';
 
 type Nav = NativeStackNavigationProp<CollectionsStackParamList, 'CollectionDetail'>;
 type Route = RouteProp<CollectionsStackParamList, 'CollectionDetail'>;
@@ -129,8 +130,8 @@ function CardRow({ card, onRemove }: { card: CardInstanceResponse; onRemove: () 
           {card.foil ? ' · Foil' : ''}
         </Text>
       </View>
-      <Pressable onPress={onRemove} style={styles.removeButton}>
-        <Text style={styles.removeButtonText}>×</Text>
+      <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={6}>
+        <Icon name="close-circle" size={22} color="destructive" />
       </Pressable>
     </View>
   );

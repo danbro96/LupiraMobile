@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ScanScreen } from '../features/scan/ScanScreen';
 import { ScanSettingsScreen } from '../features/scan/ScanSettingsScreen';
+import { ScanPreviewScreen } from '../features/scan/ScanPreviewScreen';
 import { SelectionScreen } from '../features/scan/SelectionScreen';
 import { PickCollectionScreen } from '../features/scan/PickCollectionScreen';
 import { CardDetailScreen } from '../features/search/CardDetailScreen';
@@ -24,6 +25,11 @@ export function ScanStack() {
         name="ScanSettings"
         component={ScanSettingsScreen}
         options={{ title: 'Scan settings' }}
+      />
+      <Stack.Screen
+        name="ScanPreview"
+        component={ScanPreviewScreen}
+        options={{ title: 'Preview' }}
       />
       <Stack.Screen name="Selection" component={SelectionScreen} options={{ title: 'Selection' }} />
       <Stack.Screen

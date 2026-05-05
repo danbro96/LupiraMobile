@@ -6,8 +6,16 @@ export type SearchStackParamList = {
 };
 
 export type ScanStackParamList = {
-  Scan: undefined;
+  Scan: { pendingUpload?: { uri: string; cropped: boolean } } | undefined;
   ScanSettings: undefined;
+  ScanPreview: {
+    /** File URI of the (possibly cropped) image queued for upload. */
+    uri: string;
+    /** Whether the URI points to a perspective-corrected crop (vs raw still). */
+    cropped: boolean;
+    /** File URI of the raw, uncropped still — for the inspect-raw toggle. */
+    originalUri: string;
+  };
   Selection: undefined;
   PickCollection: { selectionId: string };
   CardDetail: { printingId: string };

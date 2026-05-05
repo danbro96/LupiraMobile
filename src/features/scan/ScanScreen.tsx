@@ -21,7 +21,7 @@ import {
   usePhotoOutput,
 } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError, mtgApi } from '../../api/mtg-client';
 import {
@@ -41,8 +41,10 @@ import { cropToQuad } from './detection/cropToQuad';
 import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Icon } from '../../components/Icon';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
+type Route = RouteProp<ScanStackParamList, 'Scan'>;
 
 type CapturedShot = {
   uri: string;
@@ -51,6 +53,7 @@ type CapturedShot = {
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<Route>();
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   useEffect(() => {
@@ -140,16 +143,33 @@ export function ScanScreen() {
           }
         }
 
-        setShot({ uri: uploadUri, cropped });
-        scan.mutate(uploadUri);
+        if (settings.previewBeforeUpload) {
+          // Preview gate: hand off to ScanPreviewScreen, which will navigate
+          // back with `pendingUpload` to fire the mutation if user confirms.
+          navigation.navigate('ScanPreview', { uri: uploadUri, cropped, originalUri: photoUri });
+        } else {
+          setShot({ uri: uploadUri, cropped });
+          scan.mutate(uploadUri);
+        }
       } finally {
         photo?.dispose();
         capturingRef.current = false;
         setCapturing(false);
       }
     },
-    [photoOutput, scan, settings.jpegQuality],
+    [navigation, photoOutput, scan, settings.jpegQuality, settings.previewBeforeUpload],
   );
+
+  // After ScanPreview confirms, it navigates back here with the URI in params.
+  // Pick it up, fire the mutation, and clear the param so we don't re-fire on
+  // future re-renders.
+  useEffect(() => {
+    const pending = route.params?.pendingUpload;
+    if (!pending) return;
+    setShot({ uri: pending.uri, cropped: pending.cropped });
+    scan.mutate(pending.uri);
+    navigation.setParams({ pendingUpload: undefined });
+  }, [route.params?.pendingUpload, navigation, scan]);
 
   const uploadStatus: 'idle' | 'pending' | 'success' | 'error' = scan.isPending
     ? 'pending'
@@ -244,13 +264,21 @@ export function ScanScreen() {
   if (shot) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.resultScroll}>
+        <ScrollView contentContainerStyle={styles.resultScrollSticky}>
           <Image source={{ uri: shot.uri }} style={styles.resultPreview} resizeMode="contain" />
-          {shot.cropped ? (
-            <Text style={styles.croppedNote}>Sent perspective-corrected card crop.</Text>
-          ) : (
-            <Text style={styles.croppedNote}>Sent raw frame (no quad detected).</Text>
-          )}
+
+          <View style={styles.resultMetaRow}>
+            <View style={[styles.chip, shot.cropped ? styles.chipSuccess : styles.chipWarning]}>
+              <Icon
+                name={shot.cropped ? 'crop' : 'image-outline'}
+                size={12}
+                color={shot.cropped ? 'success' : 'warning'}
+              />
+              <Text style={[styles.chipText, { color: shot.cropped ? '#22c55e' : '#f59e0b' }]}>
+                {shot.cropped ? 'cropped' : 'raw frame'}
+              </Text>
+            </View>
+          </View>
 
           {scan.isPending ? (
             <View style={styles.statusRow}>
@@ -272,18 +300,20 @@ export function ScanScreen() {
               addPending={addToSelection.isPending}
             />
           ) : null}
-
-          <View style={styles.actions}>
-            <Pressable onPress={onRetake} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>Retake</Text>
-            </Pressable>
-            <Pressable onPress={goToSelection} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>
-                Selection {selectionCount > 0 ? `(${selectionCount})` : ''}
-              </Text>
-            </Pressable>
-          </View>
         </ScrollView>
+
+        <View style={styles.stickyActions}>
+          <Pressable onPress={onRetake} style={styles.secondaryButton}>
+            <Icon name="arrow-undo-outline" size={18} color="primary" />
+            <Text style={styles.secondaryButtonText}>Retake</Text>
+          </Pressable>
+          <Pressable onPress={goToSelection} style={styles.primaryButton}>
+            <Icon name="layers-outline" size={18} color="white" />
+            <Text style={styles.primaryButtonText}>
+              Selection{selectionCount > 0 ? ` (${selectionCount})` : ''}
+            </Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
@@ -335,23 +365,52 @@ export function ScanScreen() {
         </ErrorBoundary>
       ) : null}
 
+      <FrameTheCardHint metrics={detection.metrics} />
+
       <View style={styles.cameraOverlay} pointerEvents="box-none">
         <View style={styles.captureBar}>
           <Pressable
             onPress={onManualCapture}
             style={styles.shutter}
             accessibilityLabel="Capture card"
-          />
+          >
+            <Icon name="camera" size={28} color="primary" />
+          </Pressable>
         </View>
-        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings">
-          <Text style={styles.gearGlyph}>⚙︎</Text>
+        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
+          <Icon name="settings-outline" size={20} color="white" />
         </Pressable>
         {selectionCount > 0 ? (
           <Pressable style={styles.selectionBadge} onPress={goToSelection}>
-            <Text style={styles.selectionBadgeText}>Selection · {selectionCount}</Text>
+            <Icon name="layers" size={14} color="white" />
+            <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
           </Pressable>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+function FrameTheCardHint({ metrics }: { metrics: ReturnType<typeof useCardDetection>['metrics'] }) {
+  // Re-render at rAF cadence to track the worklet shared value cheaply.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let raf: number;
+    const loop = () => {
+      setTick((n) => (n + 1) & 0xffff);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const m = metrics.getDirty();
+  if (m.hasQuad || m.frameSize.width === 0) return null;
+
+  return (
+    <View style={styles.frameHintWrap} pointerEvents="none">
+      <Icon name="scan-outline" size={56} tint="rgba(255,255,255,0.45)" />
+      <Text style={styles.frameHintText}>Position a card in view</Text>
     </View>
   );
 }
@@ -507,7 +566,8 @@ function CandidateRow({
         disabled={addPending}
         style={[styles.addButton, addPending && styles.disabled]}
       >
-        <Text style={styles.addButtonText}>+ Add</Text>
+        <Icon name="add-circle" size={16} color="white" />
+        <Text style={styles.addButtonText}>Add</Text>
       </Pressable>
     </View>
   );
@@ -525,6 +585,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderWidth: 4,
     borderColor: '#3b82f6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   gearButton: {
     position: 'absolute',
@@ -537,31 +599,69 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  gearGlyph: { color: '#fff', fontSize: 20 },
   selectionBadge: {
     position: 'absolute',
     top: 48,
     right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#3b82f6',
     borderRadius: 999,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  selectionBadgeText: { color: '#fff', fontWeight: '700' },
+  selectionBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  frameHintWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  frameHintText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   permissionWrap: { flex: 1, padding: 24, justifyContent: 'center', gap: 16 },
   permissionTitle: { color: '#f5f5f5', fontSize: 24, fontWeight: '700' },
   permissionBody: { color: '#cbd1da', fontSize: 14, lineHeight: 20 },
   primaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: '#3b82f6',
     borderRadius: 8,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    alignItems: 'center',
-    flex: 1,
   },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   resultScroll: { padding: 16, gap: 16 },
+  /** Same as resultScroll but pads the bottom for the sticky action bar. */
+  resultScrollSticky: { padding: 16, gap: 16, paddingBottom: 96 },
   resultPreview: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1a1f29' },
+  resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  chipSuccess: { backgroundColor: '#16331f', borderColor: '#22c55e' },
+  chipWarning: { backgroundColor: '#33231a', borderColor: '#f59e0b' },
+  chipText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   croppedNote: { color: '#6e7686', fontSize: 12, fontStyle: 'italic' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   statusText: { color: '#cbd1da', fontSize: 14 },
@@ -589,10 +689,13 @@ const styles = StyleSheet.create({
   candidateMeta: { color: '#9aa3b2', fontSize: 12 },
   candidateScores: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
   addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: '#3b82f6',
     borderRadius: 6,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
   },
   addButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   disabled: { opacity: 0.5 },
@@ -616,14 +719,32 @@ const styles = StyleSheet.create({
   debugLine: { color: '#9aa3b2', fontSize: 11, fontFamily: 'monospace' },
   zoneLabel: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  /** Sticky bottom action bar floating over the result-screen ScrollView. */
+  stickyActions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+    backgroundColor: 'rgba(14, 17, 23, 0.95)',
+    borderTopWidth: 1,
+    borderTopColor: '#1a1f29',
+  },
   secondaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     borderColor: '#3b82f6',
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    alignItems: 'center',
-    flex: 1,
   },
   secondaryButtonText: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
 });

@@ -128,6 +128,18 @@ export function ScanSettingsScreen() {
             />
           </Row>
           <Helper>Live HUD with score, stability, sharpness, coverage, fps.</Helper>
+
+          <Row>
+            <Text style={styles.label}>Preview before upload</Text>
+            <Switch
+              value={settings.previewBeforeUpload}
+              onValueChange={(v) => void settings.setPreviewBeforeUpload(v)}
+              trackColor={{ true: '#3b82f6', false: '#2c3340' }}
+            />
+          </Row>
+          <Helper>
+            When on, every capture stops at a preview screen with Send / Retake before reaching the backend.
+          </Helper>
         </Section>
 
         <Pressable style={styles.resetButton} onPress={onReset}>

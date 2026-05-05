@@ -9,6 +9,7 @@ const KEY_W_SHARPNESS = 'lupira.scan.wSharpness';
 const KEY_W_COVERAGE = 'lupira.scan.wCoverage';
 const KEY_DEBUG = 'lupira.scan.debugOverlay';
 const KEY_QUALITY = 'lupira.scan.jpegQuality';
+const KEY_PREVIEW_BEFORE_UPLOAD = 'lupira.scan.previewBeforeUpload';
 
 const DEFAULT_AUTO = true;
 const DEFAULT_THRESHOLD = 0.75;
@@ -18,6 +19,7 @@ const DEFAULT_W_SHARPNESS = 0.3;
 const DEFAULT_W_COVERAGE = 0.2;
 const DEFAULT_DEBUG = false;
 const DEFAULT_QUALITY = 80;
+const DEFAULT_PREVIEW_BEFORE_UPLOAD = false;
 
 export const SCAN_THRESHOLD_BOUNDS = { min: 0.3, max: 0.95 } as const;
 export const SCAN_MIN_FRAMES_BOUNDS = { min: 4, max: 16 } as const;
@@ -32,6 +34,7 @@ type ScanSettings = {
   weightCoverage: number;
   showDebugOverlay: boolean;
   jpegQuality: number;
+  previewBeforeUpload: boolean;
   loaded: boolean;
 };
 
@@ -43,6 +46,7 @@ type Actions = {
   setWeights: (stability: number, sharpness: number, coverage: number) => Promise<void>;
   setShowDebugOverlay: (v: boolean) => Promise<void>;
   setJpegQuality: (v: number) => Promise<void>;
+  setPreviewBeforeUpload: (v: boolean) => Promise<void>;
   resetToDefaults: () => Promise<void>;
 };
 
@@ -71,10 +75,11 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
   weightCoverage: DEFAULT_W_COVERAGE,
   showDebugOverlay: DEFAULT_DEBUG,
   jpegQuality: DEFAULT_QUALITY,
+  previewBeforeUpload: DEFAULT_PREVIEW_BEFORE_UPLOAD,
   loaded: false,
 
   load: async () => {
-    const [auto, thr, frames, ws, wsh, wc, dbg, q] = await Promise.all([
+    const [auto, thr, frames, ws, wsh, wc, dbg, q, preview] = await Promise.all([
       SecureStore.getItemAsync(KEY_AUTO),
       SecureStore.getItemAsync(KEY_THRESHOLD),
       SecureStore.getItemAsync(KEY_MIN_FRAMES),
@@ -83,6 +88,7 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       SecureStore.getItemAsync(KEY_W_COVERAGE),
       SecureStore.getItemAsync(KEY_DEBUG),
       SecureStore.getItemAsync(KEY_QUALITY),
+      SecureStore.getItemAsync(KEY_PREVIEW_BEFORE_UPLOAD),
     ]);
     set({
       autoCaptureEnabled: parseBool(auto, DEFAULT_AUTO),
@@ -93,6 +99,7 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       weightCoverage: clamp(parseNum(wc, DEFAULT_W_COVERAGE), 0, 1),
       showDebugOverlay: parseBool(dbg, DEFAULT_DEBUG),
       jpegQuality: Math.round(clamp(parseNum(q, DEFAULT_QUALITY), SCAN_QUALITY_BOUNDS.min, SCAN_QUALITY_BOUNDS.max)),
+      previewBeforeUpload: parseBool(preview, DEFAULT_PREVIEW_BEFORE_UPLOAD),
       loaded: true,
     });
   },
@@ -137,6 +144,11 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
     set({ jpegQuality: clamped });
   },
 
+  setPreviewBeforeUpload: async (v) => {
+    await SecureStore.setItemAsync(KEY_PREVIEW_BEFORE_UPLOAD, v ? '1' : '0');
+    set({ previewBeforeUpload: v });
+  },
+
   resetToDefaults: async () => {
     await Promise.all([
       SecureStore.deleteItemAsync(KEY_AUTO),
@@ -147,6 +159,7 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       SecureStore.deleteItemAsync(KEY_W_COVERAGE),
       SecureStore.deleteItemAsync(KEY_DEBUG),
       SecureStore.deleteItemAsync(KEY_QUALITY),
+      SecureStore.deleteItemAsync(KEY_PREVIEW_BEFORE_UPLOAD),
     ]);
     set({
       autoCaptureEnabled: DEFAULT_AUTO,
@@ -157,6 +170,7 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       weightCoverage: DEFAULT_W_COVERAGE,
       showDebugOverlay: DEFAULT_DEBUG,
       jpegQuality: DEFAULT_QUALITY,
+      previewBeforeUpload: DEFAULT_PREVIEW_BEFORE_UPLOAD,
     });
   },
 }));

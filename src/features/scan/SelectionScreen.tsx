@@ -17,6 +17,7 @@ import { mtgApi } from '../../api/mtg-client';
 import { SelectionEntryResponse } from '../../api/mtg-types';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
+import { Icon } from '../../components/Icon';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Selection'>;
 
@@ -37,6 +38,9 @@ export function SelectionScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['selection', currentSelectionId] }),
   });
 
+  const cards = selection.data?.cards ?? [];
+  const isEmpty = !currentSelectionId || cards.length === 0;
+
   if (!currentSelectionId) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -56,56 +60,56 @@ export function SelectionScreen() {
       ) : null}
 
       <FlatList
-        data={selection.data?.cards ?? []}
+        data={cards}
         keyExtractor={c => c.instanceId}
         renderItem={({ item }) => (
           <EntryRow
             entry={item}
-            onRemove={() =>
-              Alert.alert('Remove card?', `Drop ${item.printing.name} from this selection?`, [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Remove', style: 'destructive', onPress: () => removeCard.mutate(item.instanceId) },
-              ])
-            }
+            onRemove={() => removeCard.mutate(item.instanceId)}
           />
         )}
         ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.title}>Selection</Text>
-            <Text style={styles.subtitle}>
-              {selection.data ? `${selection.data.cards.length} card(s) ready to commit` : ''}
-            </Text>
-          </View>
+          cards.length > 0 ? (
+            <View style={styles.header}>
+              <Text style={styles.title}>Selection</Text>
+              <Text style={styles.subtitle}>
+                {cards.length} card{cards.length === 1 ? '' : 's'} ready to commit
+              </Text>
+            </View>
+          ) : null
         }
         ListEmptyComponent={selection.isLoading ? null : <Empty />}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, cards.length === 0 && styles.listEmpty]}
       />
 
-      <View style={styles.footer}>
-        <Pressable
-          onPress={() =>
-            Alert.alert(
-              'Discard selection?',
-              'This clears the current selection on this device. The cards stay in their existing collections (if any).',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Discard', style: 'destructive', onPress: () => setCurrent(null) },
-              ],
-            )
-          }
-          style={styles.dangerButton}
-          disabled={!selection.data || selection.data.cards.length === 0}
-        >
-          <Text style={styles.dangerButtonText}>Discard</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => navigation.navigate('PickCollection', { selectionId: currentSelectionId })}
-          style={[styles.primaryButton, (!selection.data || selection.data.cards.length === 0) && styles.disabled]}
-          disabled={!selection.data || selection.data.cards.length === 0}
-        >
-          <Text style={styles.primaryButtonText}>Commit to collection…</Text>
-        </Pressable>
-      </View>
+      {!isEmpty ? (
+        <View style={styles.footer}>
+          <Pressable
+            onPress={() =>
+              Alert.alert(
+                'Discard selection?',
+                'This clears the current selection on this device. The cards stay in their existing collections (if any).',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Discard', style: 'destructive', onPress: () => setCurrent(null) },
+                ],
+              )
+            }
+            style={styles.discardButton}
+            hitSlop={6}
+          >
+            <Icon name="trash-outline" size={16} color="destructive" />
+            <Text style={styles.discardButtonText}>Discard</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate('PickCollection', { selectionId: currentSelectionId })}
+            style={styles.primaryButton}
+          >
+            <Icon name="checkmark-circle" size={18} color="white" />
+            <Text style={styles.primaryButtonText}>Commit to collection</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -126,8 +130,8 @@ function EntryRow({ entry, onRemove }: { entry: SelectionEntryResponse; onRemove
         </Text>
         <Text style={styles.rowConfidence}>confidence {entry.confidence.toFixed(2)}</Text>
       </View>
-      <Pressable onPress={onRemove} style={styles.removeButton}>
-        <Text style={styles.removeButtonText}>×</Text>
+      <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={6}>
+        <Icon name="close-circle" size={22} color="destructive" />
       </Pressable>
     </View>
   );
@@ -136,8 +140,9 @@ function EntryRow({ entry, onRemove }: { entry: SelectionEntryResponse; onRemove
 function Empty() {
   return (
     <View style={styles.emptyWrap}>
-      <Text style={styles.emptyTitle}>No selection yet</Text>
-      <Text style={styles.emptyBody}>Scan a card to start one.</Text>
+      <Icon name="layers-outline" size={64} tint="#3a4252" />
+      <Text style={styles.emptyTitle}>No cards yet</Text>
+      <Text style={styles.emptyBody}>Scan some cards to build a selection.</Text>
     </View>
   );
 }
@@ -149,6 +154,7 @@ const styles = StyleSheet.create({
   title: { color: '#f5f5f5', fontSize: 28, fontWeight: '700' },
   subtitle: { color: '#9aa3b2', fontSize: 14 },
   list: { padding: 16, gap: 12 },
+  listEmpty: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   row: {
     flexDirection: 'row',
     backgroundColor: '#1a1f29',
@@ -166,40 +172,39 @@ const styles = StyleSheet.create({
   removeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: '#2c3340',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeButtonText: { color: '#f97373', fontSize: 18, fontWeight: '700' },
   errorText: { color: '#f97373', fontSize: 14, padding: 16 },
   emptyWrap: { padding: 24, alignItems: 'center', gap: 8 },
-  emptyTitle: { color: '#f5f5f5', fontSize: 18, fontWeight: '600' },
-  emptyBody: { color: '#6e7686', fontSize: 14 },
+  emptyTitle: { color: '#f5f5f5', fontSize: 18, fontWeight: '600', marginTop: 8 },
+  emptyBody: { color: '#6e7686', fontSize: 14, textAlign: 'center' },
   footer: {
     flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
     gap: 12,
     backgroundColor: '#0e1117',
     borderTopWidth: 1,
     borderTopColor: '#1a1f29',
   },
-  dangerButton: {
-    borderColor: '#f97373',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  discardButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
-  dangerButtonText: { color: '#f97373', fontSize: 14, fontWeight: '600' },
+  discardButtonText: { color: '#f97373', fontSize: 14, fontWeight: '600' },
   primaryButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     backgroundColor: '#3b82f6',
     borderRadius: 8,
     paddingVertical: 12,
-    alignItems: 'center',
-    flex: 1,
   },
-  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
+  primaryButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });

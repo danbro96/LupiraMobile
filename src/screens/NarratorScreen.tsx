@@ -15,6 +15,7 @@ import { SpeedPicker } from '../components/SpeedPicker';
 import { VoicePicker } from '../components/VoicePicker';
 import { useNarrator } from '../hooks/use-narrator';
 import { useSettings } from '../store/settings-store';
+import { Icon } from '../components/Icon';
 
 export function NarratorScreen() {
   const settings = useSettings();
@@ -132,7 +133,10 @@ export function NarratorScreen() {
         </View>
 
         {narrator.errorMessage ? (
-          <Text style={styles.error}>⚠︎ {narrator.errorMessage}</Text>
+          <View style={styles.errorRow}>
+            <Icon name="warning" size={14} color="destructive" />
+            <Text style={styles.error}>{narrator.errorMessage}</Text>
+          </View>
         ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -212,10 +216,15 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   secondaryText: { color: '#111', fontSize: 16, fontWeight: '500' },
   buttonDisabled: { opacity: 0.4 },
-  error: {
-    color: '#b00020',
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 20,
     paddingBottom: 12,
+  },
+  error: {
+    color: '#b00020',
     fontSize: 13,
   },
 });

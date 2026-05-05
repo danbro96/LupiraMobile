@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,9 +17,12 @@ import { mtgApi } from '../../api/mtg-client';
 import { CollectionResponse } from '../../api/mtg-types';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
+import { Icon } from '../../components/Icon';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'PickCollection'>;
 type Route = RouteProp<ScanStackParamList, 'PickCollection'>;
+
+const ARM_TIMEOUT_MS = 5000;
 
 export function PickCollectionScreen() {
   const navigation = useNavigation<Nav>();
@@ -28,6 +31,8 @@ export function PickCollectionScreen() {
   const queryClient = useQueryClient();
 
   const [newName, setNewName] = useState('');
+  /** Two-tap-to-commit gate: id of the row that's "armed" awaiting confirmation. */
+  const [armedId, setArmedId] = useState<string | null>(null);
 
   const collections = useQuery({
     queryKey: ['collections'],
@@ -60,6 +65,14 @@ export function PickCollectionScreen() {
     },
   });
 
+  // Auto-disarm after 5 seconds of inactivity so a forgotten armed state can't
+  // commit on a stray later tap when the user has stopped paying attention.
+  useEffect(() => {
+    if (!armedId) return;
+    const t = setTimeout(() => setArmedId(null), ARM_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [armedId]);
+
   const onCreate = async () => {
     const name = newName.trim();
     if (!name) return;
@@ -71,23 +84,36 @@ export function PickCollectionScreen() {
     }
   };
 
+  const onRowPress = (id: string) => {
+    if (armedId === id) {
+      commit.mutate(id);
+      setArmedId(null);
+    } else {
+      setArmedId(id);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.header}>
         <Text style={styles.title}>Choose a collection</Text>
+        <Text style={styles.subtitle}>Tap a collection, then tap again to commit.</Text>
       </View>
 
       <View style={styles.createBlock}>
         <Text style={styles.label}>Or create a new one</Text>
         <View style={styles.createRow}>
-          <TextInput
-            value={newName}
-            onChangeText={setNewName}
-            placeholder="Collection name"
-            placeholderTextColor="#6e7686"
-            style={styles.input}
-            maxLength={64}
-          />
+          <View style={styles.inputWrap}>
+            <Icon name="add" size={18} color="muted" />
+            <TextInput
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Collection name"
+              placeholderTextColor="#6e7686"
+              style={styles.input}
+              maxLength={64}
+            />
+          </View>
           <Pressable
             onPress={onCreate}
             disabled={!newName.trim() || createCollection.isPending || commit.isPending}
@@ -99,7 +125,7 @@ export function PickCollectionScreen() {
             {createCollection.isPending || commit.isPending ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.createButtonText}>Create &amp; commit</Text>
+              <Text style={styles.createButtonText}>Create</Text>
             )}
           </Pressable>
         </View>
@@ -113,8 +139,9 @@ export function PickCollectionScreen() {
         renderItem={({ item }) => (
           <CollectionRow
             collection={item}
+            armed={armedId === item.id}
             disabled={commit.isPending}
-            onPress={() => commit.mutate(item.id)}
+            onPress={() => onRowPress(item.id)}
           />
         )}
         contentContainerStyle={styles.list}
@@ -130,10 +157,12 @@ export function PickCollectionScreen() {
 
 function CollectionRow({
   collection,
+  armed,
   disabled,
   onPress,
 }: {
   collection: CollectionResponse;
+  armed: boolean;
   disabled: boolean;
   onPress: () => void;
 }) {
@@ -141,40 +170,55 @@ function CollectionRow({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.row, disabled && styles.disabled]}
+      style={[styles.row, armed && styles.rowArmed, disabled && styles.disabled]}
     >
+      <Icon name={armed ? 'folder-open' : 'folder-outline'} size={20} color={armed ? 'primary' : 'muted'} />
       <View style={styles.rowText}>
         <Text style={styles.rowName}>{collection.name}</Text>
-        <Text style={styles.rowMeta}>{collection.cardCount} card(s)</Text>
+        {armed ? (
+          <Text style={styles.rowArmedHint}>Tap again to commit</Text>
+        ) : (
+          <Text style={styles.rowMeta}>
+            {collection.cardCount} card{collection.cardCount === 1 ? '' : 's'}
+          </Text>
+        )}
       </View>
-      <Text style={styles.rowChevron}>›</Text>
+      <Icon name={armed ? 'checkmark-circle' : 'chevron-forward'} size={20} color={armed ? 'primary' : 'faint'} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0e1117' },
-  header: { padding: 16 },
+  header: { padding: 16, gap: 4 },
   title: { color: '#f5f5f5', fontSize: 24, fontWeight: '700' },
+  subtitle: { color: '#9aa3b2', fontSize: 13 },
   createBlock: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
   label: { color: '#9aa3b2', fontSize: 14 },
   createRow: { flexDirection: 'row', gap: 8 },
-  input: {
+  inputWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     backgroundColor: '#1a1f29',
-    color: '#f5f5f5',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
     borderWidth: 1,
     borderColor: '#2c3340',
+  },
+  input: {
+    flex: 1,
+    color: '#f5f5f5',
+    paddingVertical: 10,
+    fontSize: 16,
   },
   createButton: {
     backgroundColor: '#3b82f6',
     borderRadius: 8,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   createButtonText: { color: '#fff', fontWeight: '600' },
   disabled: { opacity: 0.5 },
@@ -183,13 +227,17 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     backgroundColor: '#1a1f29',
     borderRadius: 8,
     padding: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
+  rowArmed: { borderColor: '#3b82f6', backgroundColor: '#1c2433' },
   rowText: { flex: 1, gap: 2 },
   rowName: { color: '#f5f5f5', fontSize: 16, fontWeight: '600' },
   rowMeta: { color: '#9aa3b2', fontSize: 12 },
-  rowChevron: { color: '#6e7686', fontSize: 24 },
+  rowArmedHint: { color: '#3b82f6', fontSize: 12, fontWeight: '600' },
   emptyText: { color: '#6e7686', fontSize: 14, textAlign: 'center', padding: 16 },
 });

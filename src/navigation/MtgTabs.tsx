@@ -1,5 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import { MtgStack } from './MtgStack';
 import { ScanStack } from './ScanStack';
 import { CollectionsStack } from './CollectionsStack';
@@ -18,10 +19,46 @@ export function MtgTabs() {
         tabBarInactiveTintColor: '#6e7686',
       }}
     >
-      <Tab.Screen name="SearchTab" component={MtgStack} options={{ title: 'Cards' }} />
-      <Tab.Screen name="ScanTab" component={ScanStack} options={{ title: 'Scan' }} />
-      <Tab.Screen name="CollectionsTab" component={CollectionsStack} options={{ title: 'Collections' }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'Me' }} />
+      <Tab.Screen
+        name="SearchTab"
+        component={MtgStack}
+        options={{
+          title: 'Cards',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ScanTab"
+        component={ScanStack}
+        options={{
+          title: 'Scan',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'scan' : 'scan-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="CollectionsTab"
+        component={CollectionsStack}
+        options={{
+          title: 'Collections',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'folder' : 'folder-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileScreen}
+        options={{
+          title: 'Me',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          ),
+        }}
+      />
     </Tab.Navigator>
   );
 }
