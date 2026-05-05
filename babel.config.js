@@ -3,8 +3,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Must be listed last per react-native-worklets-core docs.
-      'react-native-worklets-core/plugin',
+      // Must be listed last per react-native-worklets docs.
+      'react-native-worklets/plugin',
     ],
   };
 };

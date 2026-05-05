@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -43,13 +43,6 @@
         "expo-camera",
         {
           "cameraPermission": "Lupira MTG needs the camera to scan Magic: The Gathering cards."
-        }
-      ],
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "Lupira MTG needs the camera to scan Magic: The Gathering cards.",
-          "enableFrameProcessors": true
         }
       ],
       [

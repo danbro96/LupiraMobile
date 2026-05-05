@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { ISharedValue } from 'react-native-worklets-core';
+import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics } from '../detection/useCardDetection';
 
 type Props = {
-  metrics: ISharedValue<DetectionMetrics>;
-  stableFrames: ISharedValue<number>;
+  metrics: Synchronizable<DetectionMetrics>;
+  stableFrames: Synchronizable<number>;
   threshold: number;
   minStableFrames: number;
   weightStability: number;
@@ -39,8 +39,8 @@ export function DebugMetricsPanel({
     return () => clearInterval(id);
   }, []);
 
-  const m = metrics.value;
-  const stable = stableFrames.value;
+  const m = metrics.getDirty();
+  const stable = stableFrames.getDirty();
   const meets = m.score >= threshold;
 
   return (

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import {
+  type CameraFrameOutput,
   type Frame,
-  runAtTargetFps,
-  useFrameProcessor,
+  useFrameOutput,
 } from 'react-native-vision-camera';
-import { useSharedValue, Worklets, type ISharedValue } from 'react-native-worklets-core';
+import { runOnJS, type Synchronizable } from 'react-native-worklets';
 import {
   ColorConversionCodes,
   ContourApproximationModes,
@@ -16,6 +16,7 @@ import {
   OpenCV,
   RetrievalModes,
 } from 'react-native-fast-opencv';
+import { useSyncedValue } from './useSyncedValue';
 
 export type Point = { x: number; y: number };
 export type Quad = [Point, Point, Point, Point];
@@ -39,26 +40,18 @@ export type DetectionMetrics = {
   candidateQuadCount: number;
   historyDepth: number;
   edgePixelCount: number;
-  /** Contours whose area passed MIN_AREA_FRACTION. */
   largeContourCount: number;
-  /** Vertex count of the approxPolyDP of the largest contour seen this frame. */
+  /** Re-purposed: fill ratio of the largest contour as a 0-100 percentage. */
   bestApproxVertexCount: number;
-  /** Aspect ratio (shorter/longer) of the largest contour's quad approx, or 0. */
   bestApproxAspect: number;
-  /** Counter of how many times the worklet body has entered runAsync. */
   framesProcessed: number;
-  /** Byte length of the most recent ArrayBuffer pulled from the frame. */
   lastBufferBytes: number;
-  /** Last error string from the OpenCV pipeline ('' on success). */
   lastError: string;
-  /** Name of the last successful pipeline step before any error/no-result. */
   lastStep: string;
 };
 
 export type CardDetectionParams = {
-  /** Whether the detection pipeline should run at all (camera screen active). */
   enabled: boolean;
-  /** Whether to trigger auto-capture once the score has held above threshold. */
   autoCaptureEnabled: boolean;
   threshold: number;
   minStableFrames: number;
@@ -69,10 +62,10 @@ export type CardDetectionParams = {
 };
 
 export type CardDetectionState = {
-  quad: ISharedValue<Quad | null>;
-  metrics: ISharedValue<DetectionMetrics>;
-  stableFrames: ISharedValue<number>;
-  frameProcessor: ReturnType<typeof useFrameProcessor>;
+  quad: Synchronizable<Quad | null>;
+  metrics: Synchronizable<DetectionMetrics>;
+  stableFrames: Synchronizable<number>;
+  frameOutput: CameraFrameOutput;
 };
 
 const INITIAL_METRICS: DetectionMetrics = {
@@ -101,57 +94,38 @@ const INITIAL_METRICS: DetectionMetrics = {
   lastStep: '',
 };
 
-// Aspect-ratio target for an MTG card (2.5" x 3.5"). Matches min(w,h)/max(w,h).
 const MTG_ASPECT = 2.5 / 3.5;
 const ASPECT_TOLERANCE = 0.3;
-
-// Fraction of the detection frame the card must cover to be considered.
 const MIN_AREA_FRACTION = 0.05;
-
-// Required ratio of (contour area) / (min-area-rect area) for a contour to be
-// considered card-shaped. Real cards fill > 0.85 of their bounding rectangle
-// when shot flat, ~0.75-0.85 at typical hand-held tilts, ~0.70 at heavy
-// perspective. L-shapes, table edges, and clutter sit well below 0.7.
 const FILL_RATIO_MIN = 0.7;
-
-// Epsilon fractions tried in order when searching for a 4-point polygon
-// approximation. Smaller = tighter fit (more vertices); larger = looser.
 const APPROX_EPSILON_FRACTIONS = [0.02, 0.03, 0.04, 0.05, 0.06] as const;
-
-// Width to which frames are downscaled before contour finding.
 const DETECT_WIDTH = 480;
-
-// Per-corner average pixel-distance ceiling used to normalize stability.
 const STABILITY_CEILING = 24;
-
-// Rolling history depth for stability estimation.
 const STABILITY_HISTORY = 8;
 
 /**
- * Per-frame card detection pipeline:
- *   downscale -> grayscale -> blur -> Canny -> findContours
- *   -> approxPolyDP -> filter to convex 4-pt quads with MTG aspect
+ * Per-frame card detection pipeline (vision-camera v5 / new arch):
+ *   downscale -> grayscale -> blur -> Canny -> morphClose -> findContours
+ *   -> filter by minAreaRect fill-ratio + aspect
+ *   -> recover trapezoid corners via approxPolyDP with adaptive epsilon
  *   -> rank by area
- *   -> compute stability and coverage scores (sharpness reserved; always 0 for v1)
  *
- * The frame processor writes shared values that drive both the Skia overlay
- * and the auto-capture trigger. JS-side React state is intentionally NOT
- * updated each frame; the overlay reads the shared values directly.
+ * The Camera mounting this output MUST set `pixelFormat="rgb"` so frames arrive
+ * as 4-channel RGBA, which `bufferToMat` then loads.
  *
- * The Camera mounting this processor MUST be set to `pixelFormat="rgb"` so
- * frames arrive as 4-channel RGBA, which `frameBufferToMat` then loads.
+ * Frame disposal is mandatory in v5; the `finally` block calls `frame.dispose()`
+ * after `OpenCV.clearBuffers()` regardless of success/failure.
  */
 export function useCardDetection(params: CardDetectionParams): CardDetectionState {
-  const quad = useSharedValue<Quad | null>(null);
-  const metrics = useSharedValue<DetectionMetrics>(INITIAL_METRICS);
-  const stableFrames = useSharedValue<number>(0);
+  const quad = useSyncedValue<Quad | null>(null);
+  const metrics = useSyncedValue<DetectionMetrics>(INITIAL_METRICS);
+  const stableFrames = useSyncedValue<number>(0);
+  const history = useSyncedValue<Quad[]>([]);
+  const lastFrameAt = useSyncedValue<number>(0);
+  const ema = useSyncedValue<number>(0);
+  const framesProcessedShared = useSyncedValue<number>(0);
 
-  const history = useSharedValue<Quad[]>([]);
-  const lastFrameAt = useSharedValue<number>(0);
-  const ema = useSharedValue<number>(0);
-  const framesProcessedShared = useSharedValue<number>(0);
-
-  const tunables = useSharedValue<{
+  const tunables = useSyncedValue<{
     enabled: boolean;
     autoCaptureEnabled: boolean;
     threshold: number;
@@ -170,7 +144,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   });
 
   useEffect(() => {
-    tunables.value = {
+    tunables.setBlocking({
       enabled: params.enabled,
       autoCaptureEnabled: params.autoCaptureEnabled,
       threshold: params.threshold,
@@ -178,7 +152,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
       wStability: params.weightStability,
       wSharpness: params.weightSharpness,
       wCoverage: params.weightCoverage,
-    };
+    });
   }, [
     tunables,
     params.enabled,
@@ -193,292 +167,225 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   const onAutoCaptureRef = useRef(params.onAutoCapture);
   onAutoCaptureRef.current = params.onAutoCapture;
 
-  const triggerAutoCapture = useMemo(
-    () =>
-      Worklets.createRunOnJS((q: Quad, size: FrameSize) => {
-        onAutoCaptureRef.current(q, size);
-      }),
-    [],
-  );
+  const triggerAutoCapture = (q: Quad, size: FrameSize) => {
+    onAutoCaptureRef.current(q, size);
+  };
 
-  const frameProcessor = useFrameProcessor(
-    (frame: Frame) => {
+  const frameOutput = useFrameOutput({
+    pixelFormat: 'rgb',
+    dropFramesWhileBusy: true,
+    onFrame: (frame: Frame) => {
       'worklet';
 
-      const tune = tunables.value;
-      if (!tune.enabled) {
-        quad.value = null;
-        metrics.value = {
-          ...INITIAL_METRICS,
-          frameSize: { width: frame.width, height: frame.height },
-          pixelFormat: frame.pixelFormat,
-          orientation: frame.orientation,
-          isMirrored: frame.isMirrored,
-          bytesPerRow: frame.bytesPerRow,
-          planesCount: frame.planesCount,
-          framesProcessed: framesProcessedShared.value,
-          lastStep: 'detection-disabled',
-        };
-        stableFrames.value = 0;
-        return;
-      }
+      try {
+        const tune = tunables.getDirty();
+        if (!tune.enabled) {
+          quad.setBlocking(null);
+          metrics.setBlocking({
+            ...INITIAL_METRICS,
+            frameSize: { width: frame.width, height: frame.height },
+            pixelFormat: frame.pixelFormat,
+            orientation: frame.orientation,
+            isMirrored: frame.isMirrored,
+            bytesPerRow: frame.bytesPerRow,
+            planesCount: frame.isPlanar ? frame.getPlanes().length : 0,
+            framesProcessed: framesProcessedShared.getDirty(),
+            lastStep: 'detection-disabled',
+          });
+          stableFrames.setBlocking(0);
+          return;
+        }
 
-      runAtTargetFps(15, () => {
-        'worklet';
-        // Process synchronously on the camera thread. runAsync was queuing work
-        // faster than OpenCV could finish on Android, causing native crashes.
-        (() => {
-          'worklet';
+        const now = Date.now();
+        const lastAt = lastFrameAt.getDirty();
+        const dtMs = lastAt === 0 ? 0 : now - lastAt;
+        lastFrameAt.setBlocking(now);
+        const instantFps = dtMs > 0 ? 1000 / dtMs : 0;
+        const prevEma = ema.getDirty();
+        const newEma = prevEma === 0 ? instantFps : prevEma * 0.85 + instantFps * 0.15;
+        ema.setBlocking(newEma);
 
-          const now = Date.now();
-          const dtMs = lastFrameAt.value === 0 ? 0 : now - lastFrameAt.value;
-          lastFrameAt.value = now;
-          const instantFps = dtMs > 0 ? 1000 / dtMs : 0;
-          ema.value = ema.value === 0 ? instantFps : ema.value * 0.85 + instantFps * 0.15;
+        const frameW = frame.width;
+        const frameH = frame.height;
+        const detW = Math.min(DETECT_WIDTH, frameW);
+        const detH = Math.round((detW * frameH) / frameW);
+        const scale = frameW / detW;
+        const framePixelFormat = frame.pixelFormat;
+        const frameOrientation = frame.orientation;
+        const frameIsMirrored = frame.isMirrored;
+        const frameBytesPerRow = frame.bytesPerRow;
+        const framePlanesCount = frame.isPlanar ? frame.getPlanes().length : 0;
 
-          const frameW = frame.width;
-          const frameH = frame.height;
-          // Don't upscale tiny preview frames — that just softens edges.
-          const detW = Math.min(DETECT_WIDTH, frameW);
-          const detH = Math.round((detW * frameH) / frameW);
-          const scale = frameW / detW;
-          const framePixelFormat = frame.pixelFormat;
-          const frameOrientation = frame.orientation;
-          const frameIsMirrored = frame.isMirrored;
-          const frameBytesPerRow = frame.bytesPerRow;
-          const framePlanesCount = frame.planesCount;
+        let detectedQuad: Quad | null = null;
+        let bestArea = 0;
+        let contourCountForMetrics = 0;
+        let candidateQuadCount = 0;
+        let edgePixelCount = 0;
+        let largeContourCount = 0;
+        let bestApproxVertexCount = 0;
+        let bestApproxAspect = 0;
+        let bestSeenArea = 0;
+        let lastStep = 'enter';
+        let lastBufferBytes = 0;
+        const framesProcessedNow = framesProcessedShared.getDirty() + 1;
+        framesProcessedShared.setBlocking(framesProcessedNow);
 
-          let detectedQuad: Quad | null = null;
-          let bestArea = 0;
-          let contourCountForMetrics = 0;
-          let candidateQuadCount = 0;
-          let edgePixelCount = 0;
-          let largeContourCount = 0;
-          let bestApproxVertexCount = 0;
-          let bestApproxAspect = 0;
-          let bestSeenArea = 0;
-          let lastStep = 'enter';
-          let lastBufferBytes = 0;
-          framesProcessedShared.value = framesProcessedShared.value + 1;
-          const framesProcessedNow = framesProcessedShared.value;
+        let pipelineError = '';
+        try {
+          lastStep = 'getPixelBuffer';
+          const buffer = frame.getPixelBuffer();
+          lastBufferBytes = buffer.byteLength;
+          lastStep = 'Uint8Array';
+          const data = new Uint8Array(buffer);
+          lastStep = 'bufferToMat';
+          const src = OpenCV.bufferToMat('uint8', frameH, frameW, 4, data);
 
-          let pipelineError = '';
-          try {
-            lastStep = 'toArrayBuffer';
-            const buffer = frame.toArrayBuffer();
-            lastBufferBytes = buffer.byteLength;
-            lastStep = 'Uint8Array';
-            const data = new Uint8Array(buffer);
-            lastStep = 'bufferToMat';
-            const src = OpenCV.bufferToMat('uint8', frameH, frameW, 4, data);
+          lastStep = 'createSmall';
+          const small = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC4);
+          const sizeSmall = OpenCV.createObject(ObjectType.Size, detW, detH);
+          lastStep = 'resize';
+          OpenCV.invoke('resize', src, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
 
-            lastStep = 'createSmall';
-            const small = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC4);
-            const sizeSmall = OpenCV.createObject(ObjectType.Size, detW, detH);
-            lastStep = 'resize';
-            OpenCV.invoke('resize', src, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
+          lastStep = 'cvtColor';
+          const gray = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          OpenCV.invoke('cvtColor', small, gray, ColorConversionCodes.COLOR_RGBA2GRAY);
 
-            lastStep = 'cvtColor';
-            const gray = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
-            OpenCV.invoke('cvtColor', small, gray, ColorConversionCodes.COLOR_RGBA2GRAY);
+          lastStep = 'GaussianBlur';
+          const blurred = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          const blurKsize = OpenCV.createObject(ObjectType.Size, 5, 5);
+          OpenCV.invoke('GaussianBlur', gray, blurred, blurKsize, 0);
 
-            lastStep = 'GaussianBlur';
-            const blurred = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
-            const blurKsize = OpenCV.createObject(ObjectType.Size, 5, 5);
-            OpenCV.invoke('GaussianBlur', gray, blurred, blurKsize, 0);
+          lastStep = 'Canny';
+          const edges = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          OpenCV.invoke('Canny', blurred, edges, 30, 100);
 
-            lastStep = 'Canny';
-            const edges = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
-            OpenCV.invoke('Canny', blurred, edges, 30, 100);
+          lastStep = 'morphClose';
+          const morphKernel = OpenCV.invoke(
+            'getStructuringElement',
+            MorphShapes.MORPH_RECT,
+            OpenCV.createObject(ObjectType.Size, 5, 5),
+          );
+          const closed = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          OpenCV.invoke('morphologyEx', edges, closed, MorphTypes.MORPH_CLOSE, morphKernel);
 
-            lastStep = 'morphClose';
-            // Bridge tiny gaps in the Canny output so card outlines close into a
-            // single contour. 5x5 rect kernel is enough for typical-noise frames.
-            const morphKernel = OpenCV.invoke(
-              'getStructuringElement',
-              MorphShapes.MORPH_RECT,
-              OpenCV.createObject(ObjectType.Size, 5, 5),
-            );
-            const closed = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
-            OpenCV.invoke('morphologyEx', edges, closed, MorphTypes.MORPH_CLOSE, morphKernel);
+          lastStep = 'countNonZero';
+          edgePixelCount = OpenCV.invoke('countNonZero', closed).value;
 
-            lastStep = 'countNonZero';
-            edgePixelCount = OpenCV.invoke('countNonZero', closed).value;
+          lastStep = 'findContours';
+          const contours = OpenCV.createObject(ObjectType.MatVector);
+          OpenCV.invoke(
+            'findContours',
+            closed,
+            contours,
+            RetrievalModes.RETR_EXTERNAL,
+            ContourApproximationModes.CHAIN_APPROX_SIMPLE,
+          );
 
-            lastStep = 'findContours';
-            const contours = OpenCV.createObject(ObjectType.MatVector);
-            OpenCV.invoke(
-              'findContours',
-              closed,
-              contours,
-              RetrievalModes.RETR_EXTERNAL,
-              ContourApproximationModes.CHAIN_APPROX_SIMPLE,
-            );
+          lastStep = 'toJSValue.contours';
+          const contourCount = OpenCV.toJSValue(contours).array.length;
+          contourCountForMetrics = contourCount;
+          const minArea = detW * detH * MIN_AREA_FRACTION;
 
-            lastStep = 'toJSValue.contours';
-            const contourCount = OpenCV.toJSValue(contours).array.length;
-            contourCountForMetrics = contourCount;
-            const minArea = detW * detH * MIN_AREA_FRACTION;
+          for (let i = 0; i < contourCount; i += 1) {
+            const contour = OpenCV.copyObjectFromVector(contours, i);
+            const area = OpenCV.invoke('contourArea', contour, false).value;
+            if (area < minArea) continue;
+            largeContourCount += 1;
 
-            for (let i = 0; i < contourCount; i += 1) {
-              const contour = OpenCV.copyObjectFromVector(contours, i);
-              const area = OpenCV.invoke('contourArea', contour, false).value;
-              if (area < minArea) continue;
-              largeContourCount += 1;
+            const rrect = OpenCV.invoke('minAreaRect', contour);
+            const rrectJs = OpenCV.toJSValue(rrect);
+            const rectArea = rrectJs.width * rrectJs.height;
+            if (rectArea <= 0) continue;
+            const fillRatio = area / rectArea;
+            const aspect =
+              Math.min(rrectJs.width, rrectJs.height) /
+              Math.max(rrectJs.width, rrectJs.height);
 
-              // minAreaRect always returns a rectangle; check whether the
-              // contour actually fills it (cards do; L-shapes and noise don't).
-              const rrect = OpenCV.invoke('minAreaRect', contour);
-              const rrectJs = OpenCV.toJSValue(rrect);
-              const rectArea = rrectJs.width * rrectJs.height;
-              if (rectArea <= 0) continue;
-              const fillRatio = area / rectArea;
-              const aspect =
-                Math.min(rrectJs.width, rrectJs.height) /
-                Math.max(rrectJs.width, rrectJs.height);
-
-              if (area > bestSeenArea) {
-                bestSeenArea = area;
-                bestApproxVertexCount = Math.round(fillRatio * 100); // re-purposed as fill-ratio %
-                bestApproxAspect = aspect;
-              }
-
-              if (fillRatio < FILL_RATIO_MIN) continue;
-              if (Math.abs(aspect - MTG_ASPECT) > ASPECT_TOLERANCE) continue;
-
-              // Try to recover the true 4-corner outline (handles trapezoid
-              // shapes from perspective-tilted shots). Fall back to the bounding
-              // rectangle's corners if no epsilon yields exactly 4 vertices.
-              const peri = OpenCV.invoke('arcLength', contour, true).value;
-              let corners: Quad | null = null;
-              for (const fraction of APPROX_EPSILON_FRACTIONS) {
-                const approx = OpenCV.createObject(ObjectType.PointVector);
-                OpenCV.invoke('approxPolyDP', contour, approx, fraction * peri, true);
-                const pts = OpenCV.toJSValue(approx).array;
-                if (pts.length === 4) {
-                  corners = [
-                    { x: pts[0].x, y: pts[0].y },
-                    { x: pts[1].x, y: pts[1].y },
-                    { x: pts[2].x, y: pts[2].y },
-                    { x: pts[3].x, y: pts[3].y },
-                  ];
-                  break;
-                }
-              }
-              if (!corners) {
-                corners = rotatedRectCorners(
-                  rrectJs.centerX,
-                  rrectJs.centerY,
-                  rrectJs.width,
-                  rrectJs.height,
-                  rrectJs.angle,
-                );
-              }
-              const ordered = orderQuadCorners(corners);
-
-              candidateQuadCount += 1;
-              if (area > bestArea) {
-                bestArea = area;
-                detectedQuad = ordered;
-              }
+            if (area > bestSeenArea) {
+              bestSeenArea = area;
+              bestApproxVertexCount = Math.round(fillRatio * 100);
+              bestApproxAspect = aspect;
             }
 
-            lastStep = 'done';
-          } catch (e: unknown) {
-            const raw = e instanceof Error ? e.message : String(e);
-            // Cap length so long native error strings can't blow up Text layout.
-            pipelineError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
-            quad.value = null;
-            metrics.value = {
-              ...INITIAL_METRICS,
-              frameSize: { width: frameW, height: frameH },
-              detectionFps: ema.value,
-              pixelFormat: framePixelFormat,
-              orientation: frameOrientation,
-              isMirrored: frameIsMirrored,
-              bytesPerRow: frameBytesPerRow,
-              planesCount: framePlanesCount,
-              framesProcessed: framesProcessedNow,
-              lastBufferBytes,
-              lastError: pipelineError,
-              lastStep,
-              edgePixelCount,
-              contourCount: contourCountForMetrics,
-              largeContourCount,
-              bestApproxVertexCount,
-              bestApproxAspect,
-            };
-            stableFrames.value = 0;
-            return;
-          } finally {
-            // Always release native Mats. Without this, a thrown frame leaks
-            // ~12 Mats which builds into native OOM and a hard crash.
-            OpenCV.clearBuffers();
+            if (fillRatio < FILL_RATIO_MIN) continue;
+            if (Math.abs(aspect - MTG_ASPECT) > ASPECT_TOLERANCE) continue;
+
+            const peri = OpenCV.invoke('arcLength', contour, true).value;
+            let corners: Quad | null = null;
+            for (const fraction of APPROX_EPSILON_FRACTIONS) {
+              const approx = OpenCV.createObject(ObjectType.PointVector);
+              OpenCV.invoke('approxPolyDP', contour, approx, fraction * peri, true);
+              const pts = OpenCV.toJSValue(approx).array;
+              if (pts.length === 4) {
+                corners = [
+                  { x: pts[0].x, y: pts[0].y },
+                  { x: pts[1].x, y: pts[1].y },
+                  { x: pts[2].x, y: pts[2].y },
+                  { x: pts[3].x, y: pts[3].y },
+                ];
+                break;
+              }
+            }
+            if (!corners) {
+              corners = rotatedRectCorners(
+                rrectJs.centerX,
+                rrectJs.centerY,
+                rrectJs.width,
+                rrectJs.height,
+                rrectJs.angle,
+              );
+            }
+            const ordered = orderQuadCorners(corners);
+
+            candidateQuadCount += 1;
+            if (area > bestArea) {
+              bestArea = area;
+              detectedQuad = ordered;
+            }
           }
 
-          if (!detectedQuad) {
-            quad.value = null;
-            history.value = [];
-            stableFrames.value = 0;
-            metrics.value = {
-              score: 0,
-              stability: 0,
-              sharpness: 0,
-              coverage: 0,
-              detectionFps: ema.value,
-              frameSize: { width: frameW, height: frameH },
-              hasQuad: false,
-              pixelFormat: framePixelFormat,
-              orientation: frameOrientation,
-              isMirrored: frameIsMirrored,
-              bytesPerRow: frameBytesPerRow,
-              planesCount: framePlanesCount,
-              contourCount: contourCountForMetrics,
-              candidateQuadCount,
-              historyDepth: 0,
-              edgePixelCount,
-              framesProcessed: framesProcessedNow,
-              lastBufferBytes,
-              lastError: pipelineError,
-              lastStep,
-              largeContourCount,
-              bestApproxVertexCount,
-              bestApproxAspect,
-            };
-            return;
-          }
-
-          const hist = history.value.slice();
-          hist.push(detectedQuad);
-          if (hist.length > STABILITY_HISTORY) hist.shift();
-          history.value = hist;
-
-          const stability = stabilityScore(detectedQuad, hist);
-          const sharpness = 0; // TODO: Laplacian-variance focus measure once verified on-device.
-          const coverage = coverageScore(detectedQuad, detW, detH);
-
-          const score =
-            tune.wStability * stability +
-            tune.wSharpness * sharpness +
-            tune.wCoverage * coverage;
-
-          // Detection-space -> frame-space.
-          const frameQuad: Quad = [
-            { x: detectedQuad[0].x * scale, y: detectedQuad[0].y * scale },
-            { x: detectedQuad[1].x * scale, y: detectedQuad[1].y * scale },
-            { x: detectedQuad[2].x * scale, y: detectedQuad[2].y * scale },
-            { x: detectedQuad[3].x * scale, y: detectedQuad[3].y * scale },
-          ];
-
-          quad.value = frameQuad;
-          metrics.value = {
-            score,
-            stability,
-            sharpness,
-            coverage,
-            detectionFps: ema.value,
+          lastStep = 'done';
+        } catch (e: unknown) {
+          const raw = e instanceof Error ? e.message : String(e);
+          pipelineError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+          quad.setBlocking(null);
+          metrics.setBlocking({
+            ...INITIAL_METRICS,
             frameSize: { width: frameW, height: frameH },
-            hasQuad: true,
+            detectionFps: newEma,
+            pixelFormat: framePixelFormat,
+            orientation: frameOrientation,
+            isMirrored: frameIsMirrored,
+            bytesPerRow: frameBytesPerRow,
+            planesCount: framePlanesCount,
+            framesProcessed: framesProcessedNow,
+            lastBufferBytes,
+            lastError: pipelineError,
+            lastStep,
+            edgePixelCount,
+            contourCount: contourCountForMetrics,
+            largeContourCount,
+            bestApproxVertexCount,
+            bestApproxAspect,
+          });
+          stableFrames.setBlocking(0);
+          return;
+        } finally {
+          OpenCV.clearBuffers();
+        }
+
+        if (!detectedQuad) {
+          quad.setBlocking(null);
+          history.setBlocking([]);
+          stableFrames.setBlocking(0);
+          metrics.setBlocking({
+            score: 0,
+            stability: 0,
+            sharpness: 0,
+            coverage: 0,
+            detectionFps: newEma,
+            frameSize: { width: frameW, height: frameH },
+            hasQuad: false,
             pixelFormat: framePixelFormat,
             orientation: frameOrientation,
             isMirrored: frameIsMirrored,
@@ -486,7 +393,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             planesCount: framePlanesCount,
             contourCount: contourCountForMetrics,
             candidateQuadCount,
-            historyDepth: hist.length,
+            historyDepth: 0,
             edgePixelCount,
             framesProcessed: framesProcessedNow,
             lastBufferBytes,
@@ -495,28 +402,80 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             largeContourCount,
             bestApproxVertexCount,
             bestApproxAspect,
-          };
+          });
+          return;
+        }
 
-          if (score >= tune.threshold) {
-            stableFrames.value = stableFrames.value + 1;
-            if (tune.autoCaptureEnabled && stableFrames.value >= tune.minStableFrames) {
-              stableFrames.value = 0;
-              tunables.value = { ...tune, enabled: false };
-              triggerAutoCapture(frameQuad, { width: frameW, height: frameH });
-            }
-          } else {
-            stableFrames.value = 0;
+        const prevHist = history.getDirty().slice();
+        prevHist.push(detectedQuad);
+        if (prevHist.length > STABILITY_HISTORY) prevHist.shift();
+        history.setBlocking(prevHist);
+
+        const stability = stabilityScore(detectedQuad, prevHist);
+        const sharpness = 0;
+        const coverage = coverageScore(detectedQuad, detW, detH);
+
+        const score =
+          tune.wStability * stability +
+          tune.wSharpness * sharpness +
+          tune.wCoverage * coverage;
+
+        const frameQuad: Quad = [
+          { x: detectedQuad[0].x * scale, y: detectedQuad[0].y * scale },
+          { x: detectedQuad[1].x * scale, y: detectedQuad[1].y * scale },
+          { x: detectedQuad[2].x * scale, y: detectedQuad[2].y * scale },
+          { x: detectedQuad[3].x * scale, y: detectedQuad[3].y * scale },
+        ];
+
+        quad.setBlocking(frameQuad);
+        metrics.setBlocking({
+          score,
+          stability,
+          sharpness,
+          coverage,
+          detectionFps: newEma,
+          frameSize: { width: frameW, height: frameH },
+          hasQuad: true,
+          pixelFormat: framePixelFormat,
+          orientation: frameOrientation,
+          isMirrored: frameIsMirrored,
+          bytesPerRow: frameBytesPerRow,
+          planesCount: framePlanesCount,
+          contourCount: contourCountForMetrics,
+          candidateQuadCount,
+          historyDepth: prevHist.length,
+          edgePixelCount,
+          framesProcessed: framesProcessedNow,
+          lastBufferBytes,
+          lastError: pipelineError,
+          lastStep,
+          largeContourCount,
+          bestApproxVertexCount,
+          bestApproxAspect,
+        });
+
+        if (score >= tune.threshold) {
+          const nextStable = stableFrames.getDirty() + 1;
+          stableFrames.setBlocking(nextStable);
+          if (tune.autoCaptureEnabled && nextStable >= tune.minStableFrames) {
+            stableFrames.setBlocking(0);
+            tunables.setBlocking({ ...tune, enabled: false });
+            runOnJS(triggerAutoCapture)(frameQuad, { width: frameW, height: frameH });
           }
-        })();
-      });
+        } else {
+          stableFrames.setBlocking(0);
+        }
+      } finally {
+        // v5 requires explicit Frame disposal; otherwise the camera pipeline stalls.
+        frame.dispose();
+      }
     },
-    [tunables, quad, metrics, stableFrames, history, lastFrameAt, ema, triggerAutoCapture],
-  );
+  });
 
-  return { quad, metrics, stableFrames, frameProcessor };
+  return { quad, metrics, stableFrames, frameOutput };
 }
 
-// --- Pure helpers (worklet-callable).
+// --- Pure helpers (worklet-safe).
 
 function clamp01(n: number): number {
   'worklet';

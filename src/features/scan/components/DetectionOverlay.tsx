@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Polygon } from 'react-native-svg';
-import type { ISharedValue } from 'react-native-worklets-core';
+import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics, FrameSize, Quad } from '../detection/useCardDetection';
 
 const ACCENT = '#3b82f6';
 const ACCENT_BRIGHT = '#60a5fa';
 
 type Props = {
-  quad: ISharedValue<Quad | null>;
-  metrics: ISharedValue<DetectionMetrics>;
-  stableFrames: ISharedValue<number>;
+  quad: Synchronizable<Quad | null>;
+  metrics: Synchronizable<DetectionMetrics>;
+  stableFrames: Synchronizable<number>;
   /** Width of the overlay container in screen pixels. */
   containerWidth: number;
   /** Height of the overlay container in screen pixels. */
@@ -47,9 +47,9 @@ export function DetectionOverlay({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  const m = metrics.value;
-  const q = quad.value;
-  const stable = stableFrames.value;
+  const m = metrics.getDirty();
+  const q = quad.getDirty();
+  const stable = stableFrames.getDirty();
 
   if (!q || !m.hasQuad || m.frameSize.width === 0 || m.frameSize.height === 0) {
     return null;

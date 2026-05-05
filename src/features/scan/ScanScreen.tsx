@@ -15,8 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Camera,
+  type CameraRef,
   useCameraDevice,
   useCameraPermission,
+  usePhotoOutput,
 } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
@@ -57,7 +59,8 @@ export function ScanScreen() {
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  const cameraRef = useRef<Camera | null>(null);
+  const cameraRef = useRef<CameraRef | null>(null);
+  const photoOutput = usePhotoOutput();
   const [shot, setShot] = useState<CapturedShot | null>(null);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
     width: 0,
@@ -105,14 +108,18 @@ export function ScanScreen() {
 
   const captureAndScan = useCallback(
     async (quad: Quad | null, frameSize: FrameSize | null) => {
-      if (!cameraRef.current || capturingRef.current) return;
+      if (capturingRef.current) return;
       capturingRef.current = true;
       setCapturing(true);
+      let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
-        const photo = await cameraRef.current.takePhoto({
-          flash: 'off',
-        });
-        const photoUri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+        photo = await photoOutput.capturePhoto({ flashMode: 'off' }, {});
+        // v5 photos are in-memory; persist to a temp file so cropToQuad and the
+        // multipart upload can both consume a `file://` URI as before.
+        const tempPath = await photo.saveToTemporaryFileAsync();
+        const photoUri = tempPath.startsWith('file://') ? tempPath : `file://${tempPath}`;
+        const photoWidth = photo.width;
+        const photoHeight = photo.height;
 
         let uploadUri = photoUri;
         let cropped = false;
@@ -120,8 +127,8 @@ export function ScanScreen() {
           try {
             const result = await cropToQuad({
               photoUri,
-              photoWidth: photo.width,
-              photoHeight: photo.height,
+              photoWidth,
+              photoHeight,
               quad,
               frameSize,
               jpegQuality: settings.jpegQuality,
@@ -129,7 +136,6 @@ export function ScanScreen() {
             uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
             cropped = true;
           } catch (e) {
-            // Crop failed -> fall through and upload the raw still so the user is not blocked.
             console.warn('cropToQuad failed, falling back to uncropped upload', e);
           }
         }
@@ -137,11 +143,12 @@ export function ScanScreen() {
         setShot({ uri: uploadUri, cropped });
         scan.mutate(uploadUri);
       } finally {
+        photo?.dispose();
         capturingRef.current = false;
         setCapturing(false);
       }
     },
-    [scan, settings.jpegQuality],
+    [photoOutput, scan, settings.jpegQuality],
   );
 
   const uploadStatus: 'idle' | 'pending' | 'success' | 'error' = scan.isPending
@@ -171,7 +178,7 @@ export function ScanScreen() {
   });
 
   const onManualCapture = useCallback(() => {
-    void captureAndScan(detection.quad.value, detection.metrics.value.frameSize);
+    void captureAndScan(detection.quad.getDirty(), detection.metrics.getDirty().frameSize);
   }, [captureAndScan, detection.quad, detection.metrics]);
 
   const onAdd = useCallback(
@@ -296,9 +303,7 @@ export function ScanScreen() {
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={isFocused && appState === 'active' && !shot}
-        photo
-        pixelFormat="rgb"
-        frameProcessor={detection.frameProcessor}
+        outputs={[photoOutput, detection.frameOutput]}
       />
 
       {containerSize.width > 0 ? (
