@@ -16,10 +16,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Camera,
   type CameraRef,
-  useCameraDevice,
+  useCameraDevices,
   useCameraPermission,
   usePhotoOutput,
 } from 'react-native-vision-camera';
+import { CommonResolutions } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -51,6 +52,10 @@ type Route = RouteProp<ScanStackParamList, 'Scan'>;
 type CapturedShot = {
   uri: string;
   cropped: boolean;
+  /** Width of the *source* photo (pre-crop) in pixels. */
+  sourceWidth: number;
+  /** Height of the *source* photo (pre-crop) in pixels. */
+  sourceHeight: number;
 };
 
 export function ScanScreen() {
@@ -66,18 +71,51 @@ export function ScanScreen() {
     return () => sub.remove();
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
-  // Lens choice. The wide-angle is the standard back camera and has continuous
-  // AF on every Galaxy S model. We previously gated this on
-  // `supportsFocusMetering`, but that flag only describes whether tap-to-focus
-  // (calling `controller.focus({x,y})`) is available — it does NOT reflect
-  // whether continuous AF runs. Filtering on it knocked us into the ultra-wide
-  // fallback on base S23 (which is fixed-focus), so the camera couldn't focus
-  // at all. Just prefer wide-angle and let continuous AF do its job.
-  const wide = useCameraDevice('back', { physicalDevices: ['wide-angle'] });
-  const anyBack = useCameraDevice('back');
-  const device = wide ?? anyBack;
+  // Lens choice. Earlier attempts (`useCameraDevice('back', { physicalDevices:
+  // ['wide-angle'] })`) returned a *logical* multicam device on Galaxy S23
+  // that reported `supportsFocusMetering: false` — meaning our explicit
+  // focusTo call silently threw and AF never engaged for capture. The fix is
+  // to enumerate every back camera and explicitly pick a *single-physical*
+  // wide-angle lens that actually exposes focus metering. We sort all back
+  // candidates with focus-metering-capable wide-angles first, then anything
+  // else with metering, then anything at all as a last resort.
+  const allDevices = useCameraDevices();
+  const deviceCandidates = useMemo(
+    () =>
+      allDevices
+        .filter((d) => d.position === 'back')
+        .map((d) => ({
+          device: d,
+          isPhysicalWide: d.type === 'wide-angle' && !d.isVirtualDevice,
+          hasAF: d.supportsFocusMetering,
+        })),
+    [allDevices],
+  );
+  const device = useMemo(() => {
+    const wideAF = deviceCandidates.find((c) => c.isPhysicalWide && c.hasAF);
+    if (wideAF) return wideAF.device;
+    const anyAF = deviceCandidates.find((c) => c.hasAF);
+    if (anyAF) return anyAF.device;
+    return deviceCandidates[0]?.device;
+  }, [deviceCandidates]);
   const cameraRef = useRef<CameraRef | null>(null);
-  const photoOutput = usePhotoOutput();
+  // Maximum-quality capture configuration. We can dial perf-vs-quality back
+  // later, but the current pipeline produced unusably soft stills.
+  // - `targetResolution: HIGHEST_4_3` asks for the largest sensor mode
+  //   available (~50 MP on a Galaxy S23 main lens). The default UHD_4_3
+  //   (12 MP) was leaving sensor detail on the table.
+  // - `qualityPrioritization: 'quality'` makes the capture pipeline wait for
+  //   AF/AE to settle instead of snapping the next preview frame (the v5
+  //   default leans toward speed; v4's `enableHighQualityPhotos` Camera prop
+  //   was the equivalent of this).
+  // - `quality: 1` and `containerFormat: 'jpeg'` together pin the in-memory
+  //   Photo to its highest-fidelity setting.
+  const photoOutput = usePhotoOutput({
+    targetResolution: CommonResolutions.HIGHEST_4_3,
+    qualityPrioritization: 'quality',
+    quality: 1,
+    containerFormat: 'jpeg',
+  });
   const [shot, setShot] = useState<CapturedShot | null>(null);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
     width: 0,
@@ -165,8 +203,42 @@ export function ScanScreen() {
       });
       let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
+        // Explicitly trigger AF to the centre of the preview and wait for it
+        // to settle before snapping. CameraX on Android does NOT reliably
+        // honour `qualityPrioritization: 'quality'` for focus-locking the way
+        // iOS does — the result is that capturePhoto grabs the next available
+        // frame, blurry or not, even with continuous AF running. Forcing a
+        // synchronous focusTo before capture gives the lens motor time to
+        // converge, which is the difference between a sharp scan and the
+        // soft mess we were seeing.
+        const cw = containerSize.width;
+        const ch = containerSize.height;
+        if (cameraRef.current && cw > 0 && ch > 0) {
+          try {
+            breadcrumb('capture', 'focus_lock_start', { x: cw / 2, y: ch / 2 });
+            await cameraRef.current.focusTo({ x: cw / 2, y: ch / 2 }, { modes: ['AF', 'AE'] });
+            // Tiny tail-end settle. focusTo's promise resolves when the AF
+            // routine reports done, but on some Android stacks the lens is
+            // still micro-adjusting for a frame or two after that signal.
+            await new Promise((r) => setTimeout(r, 80));
+            breadcrumb('capture', 'focus_lock_done');
+          } catch (e: unknown) {
+            // Some lens/device combos report `supportsFocusMetering: false`
+            // and throw here. Continuous AF will still be running in the
+            // background — fall through to capture.
+            const msg = e instanceof Error ? e.message : String(e);
+            breadcrumb('capture', 'focus_lock_skip', { error: msg }, 'warning');
+          }
+        }
         try {
-          photo = await photoOutput.capturePhoto({ flashMode: 'off', enableShutterSound: false }, {});
+          // `enableDistortionCorrection` undoes the wide-angle barrel curve
+          // that bows straight card edges in the corners — important because
+          // we're feeding the photo into a perspective warp that assumes the
+          // card edges are straight lines. Without it, OCR on edge text drifts.
+          photo = await photoOutput.capturePhoto(
+            { flashMode: 'off', enableShutterSound: false, enableDistortionCorrection: true },
+            {},
+          );
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           // ImageCapture throws this when it's between camera bindings (typical
@@ -223,10 +295,16 @@ export function ScanScreen() {
 
         if (settings.previewBeforeUpload) {
           breadcrumb('navigation', 'route_to_preview', { uri: uploadUri, cropped });
-          navigation.navigate('ScanPreview', { uri: uploadUri, cropped, originalUri: photoUri });
+          navigation.navigate('ScanPreview', {
+            uri: uploadUri,
+            cropped,
+            originalUri: photoUri,
+            sourceWidth: photoWidth,
+            sourceHeight: photoHeight,
+          });
         } else {
           breadcrumb('upload', 'upload_start', { cropped, uri: uploadUri });
-          setShot({ uri: uploadUri, cropped });
+          setShot({ uri: uploadUri, cropped, sourceWidth: photoWidth, sourceHeight: photoHeight });
           scan.mutate(uploadUri);
         }
       } finally {
@@ -244,7 +322,7 @@ export function ScanScreen() {
   useEffect(() => {
     const pending = route.params?.pendingUpload;
     if (!pending) return;
-    setShot({ uri: pending.uri, cropped: pending.cropped });
+    setShot({ uri: pending.uri, cropped: pending.cropped, sourceWidth: 0, sourceHeight: 0 });
     scan.mutate(pending.uri);
     navigation.setParams({ pendingUpload: undefined });
   }, [route.params?.pendingUpload, navigation, scan]);
@@ -440,11 +518,15 @@ export function ScanScreen() {
       {!shot ? (
         <View style={styles.lensBadge} pointerEvents="none">
           <Text style={styles.lensBadgeText}>
-            lens: {device?.id ?? 'no device'}
+            picked: {device?.id ?? 'none'} ({device?.type ?? '—'}{device?.isVirtualDevice ? ',virtual' : ''})
             {'\n'}
-            types: {device?.physicalDevices?.join(',') ?? '—'}
+            AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · all back: {deviceCandidates.length}
             {'\n'}
-            AF tap: {device?.supportsFocusMetering ? 'yes' : 'no'} · build-tag: opencv-pause-11
+            {deviceCandidates
+              .map((c) => `${c.device.id}:${c.device.type}${c.hasAF ? '+AF' : ''}${c.device.isVirtualDevice ? '(v)' : ''}`)
+              .join(' | ')}
+            {'\n'}
+            build-tag: lens-enum-17
           </Text>
         </View>
       ) : null}
@@ -488,6 +570,14 @@ export function ScanScreen() {
                   {shot.cropped ? 'cropped' : 'raw frame'}
                 </Text>
               </View>
+              {shot.sourceWidth > 0 ? (
+                <View style={[styles.chip, styles.chipNeutral]}>
+                  <Icon name="resize-outline" size={12} tint="#9aa3b2" />
+                  <Text style={[styles.chipText, { color: '#9aa3b2' }]}>
+                    src {shot.sourceWidth}×{shot.sourceHeight} ({((shot.sourceWidth * shot.sourceHeight) / 1_000_000).toFixed(1)} MP)
+                  </Text>
+                </View>
+              ) : null}
             </View>
 
             {scan.isPending ? (
@@ -822,6 +912,7 @@ const styles = StyleSheet.create({
   },
   chipSuccess: { backgroundColor: '#16331f', borderColor: '#22c55e' },
   chipWarning: { backgroundColor: '#33231a', borderColor: '#f59e0b' },
+  chipNeutral: { backgroundColor: '#1a1f29', borderColor: '#2c3340' },
   chipText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
   croppedNote: { color: '#6e7686', fontSize: 12, fontStyle: 'italic' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

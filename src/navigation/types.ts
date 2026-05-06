@@ -6,7 +6,14 @@ export type SearchStackParamList = {
 };
 
 export type ScanStackParamList = {
-  Scan: { pendingUpload?: { uri: string; cropped: boolean } } | undefined;
+  Scan: {
+    pendingUpload?: {
+      uri: string;
+      cropped: boolean;
+      sourceWidth: number;
+      sourceHeight: number;
+    };
+  } | undefined;
   ScanSettings: undefined;
   ScanPreview: {
     /** File URI of the (possibly cropped) image queued for upload. */
@@ -15,6 +22,10 @@ export type ScanStackParamList = {
     cropped: boolean;
     /** File URI of the raw, uncropped still — for the inspect-raw toggle. */
     originalUri: string;
+    /** Width of the source still in pixels (for src-MP debug chip). */
+    sourceWidth: number;
+    /** Height of the source still in pixels (for src-MP debug chip). */
+    sourceHeight: number;
   };
   Selection: undefined;
   PickCollection: { selectionId: string };

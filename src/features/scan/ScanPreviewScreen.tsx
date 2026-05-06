@@ -22,7 +22,7 @@ type Route = RouteProp<ScanStackParamList, 'ScanPreview'>;
 export function ScanPreviewScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
-  const { uri, cropped, originalUri } = route.params;
+  const { uri, cropped, originalUri, sourceWidth, sourceHeight } = route.params;
   const [showRaw, setShowRaw] = useState(false);
   const displayedUri = showRaw ? originalUri : uri;
 
@@ -31,7 +31,7 @@ export function ScanPreviewScreen() {
   }, [navigation]);
 
   const onSend = () => {
-    navigation.navigate('Scan', { pendingUpload: { uri, cropped } });
+    navigation.navigate('Scan', { pendingUpload: { uri, cropped, sourceWidth, sourceHeight } });
   };
 
   const onRetake = () => {

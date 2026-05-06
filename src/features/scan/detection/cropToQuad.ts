@@ -11,8 +11,13 @@ import {
 import type { FrameSize, Point, Quad } from './useCardDetection';
 import { Sentry } from '../../../observability/breadcrumb';
 
-const MTG_OUTPUT_WIDTH = 750;
-const MTG_OUTPUT_HEIGHT = 1050;
+// Cropped MTG card output. 2400×3360 ≈ 960 DPI for a 63×88 mm card — ~8 MP,
+// which keeps text and set-symbol detail intact even after the warpPerspective
+// downsample from a 50 MP source. Bigger than necessary but the user wants
+// max quality for now; we can step this back later if uploads become a
+// problem.
+const MTG_OUTPUT_WIDTH = 2400;
+const MTG_OUTPUT_HEIGHT = 3360;
 
 export type CropResult = {
   uri: string;
@@ -116,13 +121,15 @@ async function cropToQuadInner(args: {
   const outSize = OpenCV.createObject(ObjectType.Size, MTG_OUTPUT_WIDTH, MTG_OUTPUT_HEIGHT);
   const warped = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC3);
   const borderValue = OpenCV.createObject(ObjectType.Scalar, 0, 0, 0);
+  // INTER_CUBIC sharpens text edges noticeably vs INTER_LINEAR when warping a
+  // ~12 MP source down to MTG_OUTPUT — worth the small extra CPU per capture.
   OpenCV.invoke(
     'warpPerspective',
     rgb,
     warped,
     M,
     outSize,
-    InterpolationFlags.INTER_LINEAR,
+    InterpolationFlags.INTER_CUBIC,
     BorderTypes.BORDER_CONSTANT,
     borderValue,
   );
@@ -136,6 +143,11 @@ async function cropToQuadInner(args: {
   const cacheUri = cacheDir.endsWith('/') ? `${cacheDir}${fileName}` : `${cacheDir}/${fileName}`;
   const diskPath = cacheUri.replace(/^file:\/\//, '');
 
+  // JPEG at the user-configured quality (default 92, max 100). We tried PNG
+  // for true losslessness but the file size — ~10 MB at 2400×3360 — blew past
+  // the backend's 4 MB upload cap and surfaced as an empty-body 413 in the
+  // app. JPEG at compression 1.0 is visually indistinguishable from PNG for a
+  // downsampled photo and lands at ~1–2 MB.
   const compression = clamp01(jpegQuality / 100);
   OpenCV.saveMatToFile(bgr, diskPath, 'jpeg', compression);
 

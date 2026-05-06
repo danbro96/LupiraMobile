@@ -8,7 +8,10 @@ const KEY_W_STABILITY = 'lupira.scan.wStability';
 const KEY_W_SHARPNESS = 'lupira.scan.wSharpness';
 const KEY_W_COVERAGE = 'lupira.scan.wCoverage';
 const KEY_DEBUG = 'lupira.scan.debugOverlay';
-const KEY_QUALITY = 'lupira.scan.jpegQuality';
+// v2 bump: previous key persisted values capped at 95 with default 80; we now
+// default to 92 and allow up to 100. Ignore old values so existing installs
+// don't get stuck below the new sensible floor.
+const KEY_QUALITY = 'lupira.scan.jpegQuality.v2';
 const KEY_PREVIEW_BEFORE_UPLOAD = 'lupira.scan.previewBeforeUpload';
 
 const DEFAULT_AUTO = true;
@@ -18,12 +21,20 @@ const DEFAULT_W_STABILITY = 0.5;
 const DEFAULT_W_SHARPNESS = 0.3;
 const DEFAULT_W_COVERAGE = 0.2;
 const DEFAULT_DEBUG = false;
-const DEFAULT_QUALITY = 80;
+/**
+ * 92 is the practical sweet-spot for re-encoded JPEG: visually
+ * indistinguishable from quality 100 but ~30% smaller. Below ~88 the chroma
+ * subsampling artefacts on card art and set symbols become visible.
+ *
+ * The source photo is already JPEG-compressed by the camera HAL, so cropToQuad
+ * is the *second* JPEG round — under-compressing here compounds the artefacts.
+ */
+const DEFAULT_QUALITY = 92;
 const DEFAULT_PREVIEW_BEFORE_UPLOAD = false;
 
 export const SCAN_THRESHOLD_BOUNDS = { min: 0.3, max: 0.95 } as const;
 export const SCAN_MIN_FRAMES_BOUNDS = { min: 4, max: 16 } as const;
-export const SCAN_QUALITY_BOUNDS = { min: 60, max: 95 } as const;
+export const SCAN_QUALITY_BOUNDS = { min: 75, max: 100 } as const;
 
 type ScanSettings = {
   autoCaptureEnabled: boolean;
