@@ -66,6 +66,22 @@ export type CardDetectionState = {
   metrics: Synchronizable<DetectionMetrics>;
   stableFrames: Synchronizable<number>;
   frameOutput: CameraFrameOutput;
+  /**
+   * Re-enable detection after the worklet has self-disabled for an auto-capture
+   * that subsequently failed (e.g. camera was mid-rebind after an AppState
+   * transition and `capturePhoto` threw "Not bound to a valid Camera"). Without
+   * this, detection stays off until the next params.enabled toggle.
+   */
+  resume: () => void;
+  /**
+   * Pause the worklet pipeline from JS. Required around `capturePhoto` +
+   * `cropToQuad` because both the worklet and `cropToQuad` call
+   * `OpenCV.clearBuffers()` on the same global object store; if the worklet
+   * keeps running it wipes objects mid-warp ("Object with id … not found in
+   * storage"). Auto-capture self-disables in the worklet, but manual capture
+   * doesn't, hence this explicit hook.
+   */
+  pause: () => void;
 };
 
 const INITIAL_METRICS: DetectionMetrics = {
@@ -624,7 +640,25 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     },
   });
 
-  return { quad, metrics, stableFrames, frameOutput };
+  const resume = () => {
+    const cur = tunables.getDirty();
+    if (!cur.enabled) {
+      tunables.setBlocking({ ...cur, enabled: true });
+      stableFrames.setBlocking(0);
+      smoothedDetQuad.setBlocking(null);
+      smoothMissCount.setBlocking(0);
+      history.setBlocking([]);
+    }
+  };
+
+  const pause = () => {
+    const cur = tunables.getDirty();
+    if (cur.enabled) {
+      tunables.setBlocking({ ...cur, enabled: false });
+    }
+  };
+
+  return { quad, metrics, stableFrames, frameOutput, resume, pause };
 }
 
 // --- Pure helpers (worklet-safe). Each is fully self-contained; cross-helper

@@ -122,12 +122,42 @@ export function ScanScreen() {
 
   const capturingRef = useRef(false);
   const [capturing, setCapturing] = useState(false);
+  // Forward-references to `detection.resume` / `detection.pause` — used by
+  // captureAndScan to (a) silence the worklet before awaiting capturePhoto +
+  // cropToQuad so its per-frame OpenCV.clearBuffers() doesn't wipe objects
+  // mid-warp, and (b) re-arm detection if the capture short-circuits. Both
+  // populated once `detection` is initialised below.
+  const resumeDetectionRef = useRef<(() => void) | null>(null);
+  const pauseDetectionRef = useRef<(() => void) | null>(null);
+  // Latest values of these flags, accessible from the captureAndScan closure
+  // without re-creating the callback on every transition.
+  const isFocusedRef = useRef(isFocused);
+  isFocusedRef.current = isFocused;
+  const appStateRef = useRef(appState);
+  appStateRef.current = appState;
 
   const captureAndScan = useCallback(
     async (quad: Quad | null, frameSize: FrameSize | null) => {
       if (capturingRef.current) return;
+      // Camera2's ImageCapture detaches on AppState/focus changes and re-binds
+      // a moment later. A worklet auto-capture queued during that gap will
+      // throw "Not bound to a valid Camera". Skip cleanly instead of surfacing
+      // the red box.
+      if (!isFocusedRef.current || appStateRef.current !== 'active') {
+        breadcrumb('capture', 'capture_skipped_inactive', {
+          isFocused: isFocusedRef.current,
+          appState: appStateRef.current,
+        });
+        resumeDetectionRef.current?.();
+        return;
+      }
       capturingRef.current = true;
       setCapturing(true);
+      // Silence the worklet before any OpenCV-using awaits. Both the worklet
+      // and cropToQuad share fast-opencv's global object store; if the worklet
+      // keeps running, its per-frame clearBuffers() wipes objects cropToQuad
+      // is mid-way through, throwing "Object with id … not found in storage".
+      pauseDetectionRef.current?.();
       breadcrumb('capture', 'capture_start', {
         hasQuad: !!quad,
         frameW: frameSize?.width ?? 0,
@@ -135,7 +165,20 @@ export function ScanScreen() {
       });
       let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
-        photo = await photoOutput.capturePhoto({ flashMode: 'off', enableShutterSound: false }, {});
+        try {
+          photo = await photoOutput.capturePhoto({ flashMode: 'off', enableShutterSound: false }, {});
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          // ImageCapture throws this when it's between camera bindings (typical
+          // after AppState transitions). Recover silently — the user can try
+          // again now that the binding has settled.
+          if (msg.includes('Not bound to a valid Camera') || msg.includes('not bound')) {
+            breadcrumb('capture', 'capture_camera_unbound', { error: msg }, 'warning');
+            resumeDetectionRef.current?.();
+            return;
+          }
+          throw err;
+        }
         breadcrumb('capture', 'capture_taken', {
           width: photo.width,
           height: photo.height,
@@ -231,6 +274,8 @@ export function ScanScreen() {
     weightCoverage: settings.weightCoverage,
     onAutoCapture,
   });
+  resumeDetectionRef.current = detection.resume;
+  pauseDetectionRef.current = detection.pause;
 
   const onManualCapture = useCallback(() => {
     void captureAndScan(detection.quad.getDirty(), detection.metrics.getDirty().frameSize);
@@ -399,7 +444,7 @@ export function ScanScreen() {
             {'\n'}
             types: {device?.physicalDevices?.join(',') ?? '—'}
             {'\n'}
-            AF tap: {device?.supportsFocusMetering ? 'yes' : 'no'} · build-tag: jitter-smooth-9
+            AF tap: {device?.supportsFocusMetering ? 'yes' : 'no'} · build-tag: opencv-pause-11
           </Text>
         </View>
       ) : null}
