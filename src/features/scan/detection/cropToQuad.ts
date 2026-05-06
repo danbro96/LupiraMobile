@@ -9,6 +9,7 @@ import {
   OpenCV,
 } from 'react-native-fast-opencv';
 import type { FrameSize, Point, Quad } from './useCardDetection';
+import { Sentry } from '../../../observability/breadcrumb';
 
 const MTG_OUTPUT_WIDTH = 750;
 const MTG_OUTPUT_HEIGHT = 1050;
@@ -30,6 +31,30 @@ export type CropResult = {
  * cache directory and returned as a `file://` URI ready for multipart upload.
  */
 export async function cropToQuad(args: {
+  photoUri: string;
+  photoWidth: number;
+  photoHeight: number;
+  quad: Quad;
+  frameSize: FrameSize;
+  jpegQuality: number;
+}): Promise<CropResult> {
+  return Sentry.startSpan(
+    {
+      name: 'cropToQuad',
+      op: 'image.process',
+      attributes: {
+        'photo.width': args.photoWidth,
+        'photo.height': args.photoHeight,
+        'frame.width': args.frameSize.width,
+        'frame.height': args.frameSize.height,
+        'jpeg.quality': args.jpegQuality,
+      },
+    },
+    () => cropToQuadInner(args),
+  );
+}
+
+async function cropToQuadInner(args: {
   photoUri: string;
   photoWidth: number;
   photoHeight: number;

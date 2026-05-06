@@ -37,13 +37,13 @@ export type RegisterDeviceRequest = {
 };
 
 export type RegisterDeviceResponse = {
-  sub: string;
+  id: string;
   token: string;
   displayName?: string | null;
 };
 
 export type WhoAmIResponse = {
-  sub: string;
+  id: string;
   displayName?: string | null;
   createdAt: string;
   lastSeenAt: string;

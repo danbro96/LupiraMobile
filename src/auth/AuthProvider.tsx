@@ -45,7 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: displayName?.trim() || undefined,
         });
         await setSession(response.token, {
-          sub: response.sub,
+          // Backend returns the canonical user id under `id`; keep the local
+          // `AuthUser.sub` field name for back-compat with the persisted store.
+          sub: response.id,
           displayName: response.displayName ?? undefined,
         });
       } catch (e: unknown) {

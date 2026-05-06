@@ -1,4 +1,5 @@
 import { useAuth } from '../store/auth-store';
+import { Sentry } from '../observability/breadcrumb';
 import {
   AddCardToCollectionRequest,
   AddSelectionEntryRequest,
@@ -101,18 +102,30 @@ export const mtgApi = {
   getPrinting: (printingId: string, signal?: AbortSignal) =>
     fetchJson<CardPrintingResponse>(`/cards/${encodeURIComponent(printingId)}`, { init: { signal } }),
 
-  scanCard: (input: ScanInput, signal?: AbortSignal) => {
-    const form = new FormData();
-    // React Native FormData accepts a {uri, type, name} blob descriptor for multipart upload.
-    form.append('image', {
-      uri: input.uri,
-      type: input.mimeType ?? 'image/jpeg',
-      name: input.fileName ?? 'scan.jpg',
-    } as unknown as Blob);
-    return fetchJson<ScanResponse>('/scans', {
-      init: { method: 'POST', body: form, signal },
-    });
-  },
+  scanCard: (input: ScanInput, signal?: AbortSignal) =>
+    Sentry.startSpan(
+      {
+        name: 'POST /scans',
+        op: 'http.client',
+        attributes: {
+          'http.method': 'POST',
+          'http.route': '/scans',
+          'mime.type': input.mimeType ?? 'image/jpeg',
+        },
+      },
+      () => {
+        const form = new FormData();
+        // RN FormData accepts a {uri, type, name} blob descriptor for multipart upload.
+        form.append('image', {
+          uri: input.uri,
+          type: input.mimeType ?? 'image/jpeg',
+          name: input.fileName ?? 'scan.jpg',
+        } as unknown as Blob);
+        return fetchJson<ScanResponse>('/scans', {
+          init: { method: 'POST', body: form, signal },
+        });
+      },
+    ),
 
   health: (signal?: AbortSignal) =>
     fetchJson<{ status: string }>(`/healthz`, { authenticated: false, init: { signal } }),

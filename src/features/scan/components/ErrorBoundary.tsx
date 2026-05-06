@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Sentry } from '../../../observability/breadcrumb';
 
 type Props = {
   children: React.ReactNode;
@@ -17,8 +18,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { error };
   }
 
-  componentDidCatch(error: Error) {
-    console.warn(`[ErrorBoundary${this.props.label ? `:${this.props.label}` : ''}]`, error);
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    const label = this.props.label ?? 'unknown';
+    console.warn(`[ErrorBoundary:${label}]`, error);
+    Sentry.captureException(error, {
+      tags: { boundary: label },
+      contexts: { react: { componentStack: info.componentStack ?? '' } },
+    });
   }
 
   render() {

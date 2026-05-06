@@ -42,6 +42,7 @@ import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Icon } from '../../components/Icon';
+import { breadcrumb } from '../../observability/breadcrumb';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
 type Route = RouteProp<ScanStackParamList, 'Scan'>;
@@ -57,7 +58,10 @@ export function ScanScreen() {
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (next) => setAppState(next));
+    const sub = AppState.addEventListener('change', (next) => {
+      breadcrumb('appstate', `transition`, { from: AppState.currentState, to: next });
+      setAppState(next);
+    });
     return () => sub.remove();
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -114,9 +118,18 @@ export function ScanScreen() {
       if (capturingRef.current) return;
       capturingRef.current = true;
       setCapturing(true);
+      breadcrumb('capture', 'capture_start', {
+        hasQuad: !!quad,
+        frameW: frameSize?.width ?? 0,
+        frameH: frameSize?.height ?? 0,
+      });
       let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
         photo = await photoOutput.capturePhoto({ flashMode: 'off' }, {});
+        breadcrumb('capture', 'capture_taken', {
+          width: photo.width,
+          height: photo.height,
+        });
         // v5 photos are in-memory; persist to a temp file so cropToQuad and the
         // multipart upload can both consume a `file://` URI as before.
         const tempPath = await photo.saveToTemporaryFileAsync();
@@ -127,6 +140,11 @@ export function ScanScreen() {
         let uploadUri = photoUri;
         let cropped = false;
         if (quad && frameSize) {
+          breadcrumb('crop', 'crop_start', {
+            photoW: photoWidth,
+            photoH: photoHeight,
+            quality: settings.jpegQuality,
+          });
           try {
             const result = await cropToQuad({
               photoUri,
@@ -138,16 +156,23 @@ export function ScanScreen() {
             });
             uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
             cropped = true;
+            breadcrumb('crop', 'crop_done', {
+              outputW: result.width,
+              outputH: result.height,
+            });
           } catch (e) {
             console.warn('cropToQuad failed, falling back to uncropped upload', e);
+            breadcrumb('crop', 'crop_failed', { error: String(e) }, 'warning');
           }
+        } else {
+          breadcrumb('crop', 'crop_skipped', { reason: !quad ? 'no_quad' : 'no_frame_size' });
         }
 
         if (settings.previewBeforeUpload) {
-          // Preview gate: hand off to ScanPreviewScreen, which will navigate
-          // back with `pendingUpload` to fire the mutation if user confirms.
+          breadcrumb('navigation', 'route_to_preview', { uri: uploadUri, cropped });
           navigation.navigate('ScanPreview', { uri: uploadUri, cropped, originalUri: photoUri });
         } else {
+          breadcrumb('upload', 'upload_start', { cropped, uri: uploadUri });
           setShot({ uri: uploadUri, cropped });
           scan.mutate(uploadUri);
         }
@@ -200,6 +225,41 @@ export function ScanScreen() {
   const onManualCapture = useCallback(() => {
     void captureAndScan(detection.quad.getDirty(), detection.metrics.getDirty().frameSize);
   }, [captureAndScan, detection.quad, detection.metrics]);
+
+  // Bridge worklet-thread state into Sentry breadcrumbs. The worklet body
+  // can't call Sentry directly (different thread, different runtime), but we
+  // can sample its `lastStep` / `lastError` from the JS thread and emit a
+  // breadcrumb when either changes. This is the load-bearing piece for
+  // diagnosing native crashes — when the process dies inside the OpenCV
+  // pipeline, the most-recent breadcrumb tells us which step was running.
+  const lastSampledStep = useRef<string>('');
+  const lastSampledError = useRef<string>('');
+  useEffect(() => {
+    const id = setInterval(() => {
+      const m = detection.metrics.getDirty();
+      if (m.lastStep && m.lastStep !== lastSampledStep.current) {
+        lastSampledStep.current = m.lastStep;
+        breadcrumb('frame_processor', `step=${m.lastStep}`, {
+          framesProcessed: m.framesProcessed,
+          contourCount: m.contourCount,
+          edgePixelCount: m.edgePixelCount,
+          frameW: m.frameSize.width,
+          frameH: m.frameSize.height,
+          pixelFormat: m.pixelFormat,
+        });
+      }
+      if (m.lastError && m.lastError !== lastSampledError.current) {
+        lastSampledError.current = m.lastError;
+        breadcrumb(
+          'frame_processor',
+          `worklet_error`,
+          { error: m.lastError, lastStep: m.lastStep, framesProcessed: m.framesProcessed },
+          'error',
+        );
+      }
+    }, 500);
+    return () => clearInterval(id);
+  }, [detection.metrics]);
 
   const onAdd = useCallback(
     async (candidate: CardCandidateResponse) => {
