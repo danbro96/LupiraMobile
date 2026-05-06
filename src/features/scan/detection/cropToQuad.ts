@@ -64,13 +64,38 @@ async function cropToQuadInner(args: {
 }): Promise<CropResult> {
   const { photoUri, photoWidth, photoHeight, quad, frameSize, jpegQuality } = args;
 
-  const scaleX = photoWidth / frameSize.width;
-  const scaleY = photoHeight / frameSize.height;
+  // Frame and photo can have *different* aspect ratios (e.g. frame 1280x720 = 16:9,
+  // photo 4000x3000 = 4:3). The Camera HAL center-crops the larger-aspect output
+  // to fit the smaller-aspect output, so a uniform per-axis scale is wrong: it
+  // would map quad coords to a region that's stretched and offset wrong.
+  // Compute a single uniform scale + offset that maps the frame's visible area
+  // into the photo, with the cropped axis centered.
+  const photoAspect = photoWidth / photoHeight;
+  const frameAspect = frameSize.width / frameSize.height;
+  let uniformScale: number;
+  let offsetX = 0;
+  let offsetY = 0;
+  if (frameAspect > photoAspect) {
+    // Frame is wider than photo (e.g. 16:9 frame from 4:3 photo). Frame's x
+    // range covers the full photo width; the photo's top + bottom are cropped
+    // out of the frame view. So scaleX === scaleY === photoWidth/frameWidth,
+    // and an offsetY centers the visible band vertically in the photo.
+    uniformScale = photoWidth / frameSize.width;
+    const visibleHeight = frameSize.height * uniformScale;
+    offsetY = (photoHeight - visibleHeight) / 2;
+  } else {
+    // Frame is taller than photo (rare on phones but possible). Frame's y
+    // range covers the full photo height; the photo's left + right edges are
+    // cropped. Center the visible band horizontally.
+    uniformScale = photoHeight / frameSize.height;
+    const visibleWidth = frameSize.width * uniformScale;
+    offsetX = (photoWidth - visibleWidth) / 2;
+  }
   const photoQuad: Quad = [
-    { x: quad[0].x * scaleX, y: quad[0].y * scaleY },
-    { x: quad[1].x * scaleX, y: quad[1].y * scaleY },
-    { x: quad[2].x * scaleX, y: quad[2].y * scaleY },
-    { x: quad[3].x * scaleX, y: quad[3].y * scaleY },
+    { x: quad[0].x * uniformScale + offsetX, y: quad[0].y * uniformScale + offsetY },
+    { x: quad[1].x * uniformScale + offsetX, y: quad[1].y * uniformScale + offsetY },
+    { x: quad[2].x * uniformScale + offsetX, y: quad[2].y * uniformScale + offsetY },
+    { x: quad[3].x * uniformScale + offsetX, y: quad[3].y * uniformScale + offsetY },
   ];
 
   const base64 = await FileSystem.readAsStringAsync(photoUri, {

@@ -121,10 +121,34 @@ function CornerRing({
 }
 
 function projectQuad(q: Quad, frame: FrameSize, w: number, h: number): Quad {
-  // Camera frame may be in landscape native orientation while the preview is
-  // portrait; assume vision-camera has already rotated the frame to match the
-  // displayed orientation, so we fit by aspect "cover" against the container.
-  const frameAspect = frame.width / frame.height;
+  // The frame buffer is in sensor (landscape) orientation, but the camera
+  // PreviewView rotates it 90° to fit a portrait phone. So when frame and
+  // container orientations disagree, we have to rotate the quad coords too,
+  // otherwise the polygon is drawn in landscape coords on a portrait preview
+  // → wrong position and "double the size" of the actual card.
+  const frameLandscape = frame.width > frame.height;
+  const containerLandscape = w > h;
+  let qN: Quad;
+  let fW: number;
+  let fH: number;
+  if (frameLandscape !== containerLandscape) {
+    // Rotate 90° CW: bufferPoint(x, y) → displayPoint(frame.height - y, x).
+    // Net effect: long axis maps to display's vertical, short axis to horizontal.
+    qN = [
+      { x: frame.height - q[0].y, y: q[0].x },
+      { x: frame.height - q[1].y, y: q[1].x },
+      { x: frame.height - q[2].y, y: q[2].x },
+      { x: frame.height - q[3].y, y: q[3].x },
+    ];
+    fW = frame.height;
+    fH = frame.width;
+  } else {
+    qN = q;
+    fW = frame.width;
+    fH = frame.height;
+  }
+
+  const frameAspect = fW / fH;
   const containerAspect = w / h;
 
   let scale: number;
@@ -132,18 +156,18 @@ function projectQuad(q: Quad, frame: FrameSize, w: number, h: number): Quad {
   let dy = 0;
   if (frameAspect > containerAspect) {
     // Frame wider than container -> letterbox horizontally (overflow cut).
-    scale = h / frame.height;
-    dx = (w - frame.width * scale) / 2;
+    scale = h / fH;
+    dx = (w - fW * scale) / 2;
   } else {
-    scale = w / frame.width;
-    dy = (h - frame.height * scale) / 2;
+    scale = w / fW;
+    dy = (h - fH * scale) / 2;
   }
 
   return [
-    { x: q[0].x * scale + dx, y: q[0].y * scale + dy },
-    { x: q[1].x * scale + dx, y: q[1].y * scale + dy },
-    { x: q[2].x * scale + dx, y: q[2].y * scale + dy },
-    { x: q[3].x * scale + dx, y: q[3].y * scale + dy },
+    { x: qN[0].x * scale + dx, y: qN[0].y * scale + dy },
+    { x: qN[1].x * scale + dx, y: qN[1].y * scale + dy },
+    { x: qN[2].x * scale + dx, y: qN[2].y * scale + dy },
+    { x: qN[3].x * scale + dx, y: qN[3].y * scale + dy },
   ];
 }
 

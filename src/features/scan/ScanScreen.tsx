@@ -41,6 +41,7 @@ import { cropToQuad } from './detection/cropToQuad';
 import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { GuideFrame } from './components/GuideFrame';
 import { Icon } from '../../components/Icon';
 import { breadcrumb } from '../../observability/breadcrumb';
 
@@ -65,7 +66,16 @@ export function ScanScreen() {
     return () => sub.remove();
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
+  // Lens choice. The wide-angle is the standard back camera and has continuous
+  // AF on every Galaxy S model. We previously gated this on
+  // `supportsFocusMetering`, but that flag only describes whether tap-to-focus
+  // (calling `controller.focus({x,y})`) is available — it does NOT reflect
+  // whether continuous AF runs. Filtering on it knocked us into the ultra-wide
+  // fallback on base S23 (which is fixed-focus), so the camera couldn't focus
+  // at all. Just prefer wide-angle and let continuous AF do its job.
+  const wide = useCameraDevice('back', { physicalDevices: ['wide-angle'] });
+  const anyBack = useCameraDevice('back');
+  const device = wide ?? anyBack;
   const cameraRef = useRef<CameraRef | null>(null);
   const photoOutput = usePhotoOutput();
   const [shot, setShot] = useState<CapturedShot | null>(null);
@@ -125,7 +135,7 @@ export function ScanScreen() {
       });
       let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
-        photo = await photoOutput.capturePhoto({ flashMode: 'off' }, {});
+        photo = await photoOutput.capturePhoto({ flashMode: 'off', enableShutterSound: false }, {});
         breadcrumb('capture', 'capture_taken', {
           width: photo.width,
           height: photo.height,
@@ -321,63 +331,6 @@ export function ScanScreen() {
     );
   }
 
-  if (shot) {
-    return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.resultScrollSticky}>
-          <Image source={{ uri: shot.uri }} style={styles.resultPreview} resizeMode="contain" />
-
-          <View style={styles.resultMetaRow}>
-            <View style={[styles.chip, shot.cropped ? styles.chipSuccess : styles.chipWarning]}>
-              <Icon
-                name={shot.cropped ? 'crop' : 'image-outline'}
-                size={12}
-                color={shot.cropped ? 'success' : 'warning'}
-              />
-              <Text style={[styles.chipText, { color: shot.cropped ? '#22c55e' : '#f59e0b' }]}>
-                {shot.cropped ? 'cropped' : 'raw frame'}
-              </Text>
-            </View>
-          </View>
-
-          {scan.isPending ? (
-            <View style={styles.statusRow}>
-              <ActivityIndicator color="#3b82f6" />
-              <Text style={styles.statusText}>Recognizing…</Text>
-            </View>
-          ) : null}
-
-          {scan.isError ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{(scan.error as Error).message}</Text>
-            </View>
-          ) : null}
-
-          {scan.data ? (
-            <ResultList
-              data={scan.data}
-              onAdd={onAdd}
-              addPending={addToSelection.isPending}
-            />
-          ) : null}
-        </ScrollView>
-
-        <View style={styles.stickyActions}>
-          <Pressable onPress={onRetake} style={styles.secondaryButton}>
-            <Icon name="arrow-undo-outline" size={18} color="primary" />
-            <Text style={styles.secondaryButtonText}>Retake</Text>
-          </Pressable>
-          <Pressable onPress={goToSelection} style={styles.primaryButton}>
-            <Icon name="layers-outline" size={18} color="white" />
-            <Text style={styles.primaryButtonText}>
-              Selection{selectionCount > 0 ? ` (${selectionCount})` : ''}
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   if (!device) {
     return (
       <SafeAreaView style={styles.container}>
@@ -386,6 +339,12 @@ export function ScanScreen() {
     );
   }
 
+  // The Camera and `useCardDetection` stay mounted across the entire scan→
+  // result→retake cycle. Earlier we returned a separate result-screen tree
+  // when `shot` was set, which unmounted the Camera and detached the frame
+  // output — and on retake the new mount apparently never re-bound the worklet
+  // (detection silently stayed off until app restart). Keeping a single mount
+  // and toggling `isActive` avoids that whole class of bug.
   return (
     <View style={styles.container} onLayout={onCameraLayout}>
       <Camera
@@ -394,21 +353,27 @@ export function ScanScreen() {
         device={device}
         isActive={isFocused && appState === 'active' && !shot}
         outputs={[photoOutput, detection.frameOutput]}
+        // Tap anywhere on the preview → snap AF/AE/AWB to that point. Useful
+        // backup when continuous AF can't lock on a featureless surface.
+        enableNativeTapToFocusGesture
       />
 
-      {containerSize.width > 0 ? (
-        <DetectionOverlay
-          quad={detection.quad}
-          metrics={detection.metrics}
-          stableFrames={detection.stableFrames}
-          containerWidth={containerSize.width}
-          containerHeight={containerSize.height}
-          threshold={overlayThreshold}
-          minStableFrames={overlayMinFrames}
-        />
+      {!shot && containerSize.width > 0 ? (
+        <>
+          <GuideFrame containerWidth={containerSize.width} containerHeight={containerSize.height} />
+          <DetectionOverlay
+            quad={detection.quad}
+            metrics={detection.metrics}
+            stableFrames={detection.stableFrames}
+            containerWidth={containerSize.width}
+            containerHeight={containerSize.height}
+            threshold={overlayThreshold}
+            minStableFrames={overlayMinFrames}
+          />
+        </>
       ) : null}
 
-      {showDebug ? (
+      {!shot && showDebug ? (
         <ErrorBoundary label="DebugMetricsPanel">
           <DebugMetricsPanel
             metrics={detection.metrics}
@@ -425,28 +390,97 @@ export function ScanScreen() {
         </ErrorBoundary>
       ) : null}
 
-      <FrameTheCardHint metrics={detection.metrics} />
+      {!shot ? <FrameTheCardHint metrics={detection.metrics} /> : null}
 
-      <View style={styles.cameraOverlay} pointerEvents="box-none">
-        <View style={styles.captureBar}>
-          <Pressable
-            onPress={onManualCapture}
-            style={styles.shutter}
-            accessibilityLabel="Capture card"
-          >
-            <Icon name="camera" size={28} color="primary" />
-          </Pressable>
+      {!shot ? (
+        <View style={styles.lensBadge} pointerEvents="none">
+          <Text style={styles.lensBadgeText}>
+            lens: {device?.id ?? 'no device'}
+            {'\n'}
+            types: {device?.physicalDevices?.join(',') ?? '—'}
+            {'\n'}
+            AF tap: {device?.supportsFocusMetering ? 'yes' : 'no'} · build-tag: jitter-smooth-9
+          </Text>
         </View>
-        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
-          <Icon name="settings-outline" size={20} color="white" />
-        </Pressable>
-        {selectionCount > 0 ? (
-          <Pressable style={styles.selectionBadge} onPress={goToSelection}>
-            <Icon name="layers" size={14} color="white" />
-            <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
+      ) : null}
+
+      {!shot ? (
+        <View style={styles.cameraOverlay} pointerEvents="box-none">
+          <View style={styles.captureBar}>
+            <Pressable
+              onPress={onManualCapture}
+              style={styles.shutter}
+              accessibilityLabel="Capture card"
+            >
+              <Icon name="camera" size={28} color="primary" />
+            </Pressable>
+          </View>
+          <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
+            <Icon name="settings-outline" size={20} color="white" />
           </Pressable>
-        ) : null}
-      </View>
+          {selectionCount > 0 ? (
+            <Pressable style={styles.selectionBadge} onPress={goToSelection}>
+              <Icon name="layers" size={14} color="white" />
+              <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {shot ? (
+        <SafeAreaView style={[StyleSheet.absoluteFill, styles.resultOverlay]} edges={['bottom']}>
+          <ScrollView contentContainerStyle={styles.resultScrollSticky}>
+            <Image source={{ uri: shot.uri }} style={styles.resultPreview} resizeMode="contain" />
+
+            <View style={styles.resultMetaRow}>
+              <View style={[styles.chip, shot.cropped ? styles.chipSuccess : styles.chipWarning]}>
+                <Icon
+                  name={shot.cropped ? 'crop' : 'image-outline'}
+                  size={12}
+                  color={shot.cropped ? 'success' : 'warning'}
+                />
+                <Text style={[styles.chipText, { color: shot.cropped ? '#22c55e' : '#f59e0b' }]}>
+                  {shot.cropped ? 'cropped' : 'raw frame'}
+                </Text>
+              </View>
+            </View>
+
+            {scan.isPending ? (
+              <View style={styles.statusRow}>
+                <ActivityIndicator color="#3b82f6" />
+                <Text style={styles.statusText}>Recognizing…</Text>
+              </View>
+            ) : null}
+
+            {scan.isError ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{(scan.error as Error).message}</Text>
+              </View>
+            ) : null}
+
+            {scan.data ? (
+              <ResultList
+                data={scan.data}
+                onAdd={onAdd}
+                addPending={addToSelection.isPending}
+              />
+            ) : null}
+          </ScrollView>
+
+          <View style={styles.stickyActions}>
+            <Pressable onPress={onRetake} style={styles.secondaryButton}>
+              <Icon name="arrow-undo-outline" size={18} color="primary" />
+              <Text style={styles.secondaryButtonText}>Retake</Text>
+            </Pressable>
+            <Pressable onPress={goToSelection} style={styles.primaryButton}>
+              <Icon name="layers-outline" size={18} color="white" />
+              <Text style={styles.primaryButtonText}>
+                Selection{selectionCount > 0 ? ` (${selectionCount})` : ''}
+              </Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      ) : null}
     </View>
   );
 }
@@ -637,6 +671,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   cameraOverlay: { ...StyleSheet.absoluteFillObject },
+  lensBadge: {
+    position: 'absolute',
+    bottom: 140,
+    left: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  lensBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    lineHeight: 14,
+  },
   captureBar: { position: 'absolute', bottom: 48, alignSelf: 'center', left: 0, right: 0, alignItems: 'center' },
   shutter: {
     width: 72,
@@ -708,6 +758,12 @@ const styles = StyleSheet.create({
   resultScroll: { padding: 16, gap: 16 },
   /** Same as resultScroll but pads the bottom for the sticky action bar. */
   resultScrollSticky: { padding: 16, gap: 16, paddingBottom: 96 },
+  /**
+   * Opaque background for the result UI when it's overlaying the still-mounted
+   * Camera. We keep the Camera mounted across capture/retake so the worklet
+   * frame output never re-binds; the result panel just sits on top.
+   */
+  resultOverlay: { backgroundColor: '#0e1117' },
   resultPreview: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1a1f29' },
   resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   chip: {
