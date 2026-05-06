@@ -172,7 +172,11 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   };
 
   const frameOutput = useFrameOutput({
-    pixelFormat: 'rgb',
+    // YUV is the camera's native format on Android, so this is zero-conversion
+    // and avoids the 'unknown' fallback we observed when requesting 'rgb' on
+    // Galaxy S23. We only need luminance for edge detection — the Y plane is
+    // already grayscale, so we can skip cvtColor entirely.
+    pixelFormat: 'yuv',
     dropFramesWhileBusy: true,
     onFrame: (frame: Frame) => {
       'worklet';
@@ -207,14 +211,20 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
         const frameW = frame.width;
         const frameH = frame.height;
-        const detW = Math.min(DETECT_WIDTH, frameW);
-        const detH = Math.round((detW * frameH) / frameW);
-        const scale = frameW / detW;
         const framePixelFormat = frame.pixelFormat;
         const frameOrientation = frame.orientation;
         const frameIsMirrored = frame.isMirrored;
         const frameBytesPerRow = frame.bytesPerRow;
         const framePlanesCount = frame.isPlanar ? frame.getPlanes().length : 0;
+        // Y-plane derived dims; populated inside the try block once we have the
+        // actual buffer dimensions. Declared here so they're visible to the
+        // post-try success path that projects the detected quad back into
+        // frame-space coords.
+        let yWidth = 0;
+        let yHeight = 0;
+        let detWPlane = 0;
+        let detHPlane = 0;
+        let scalePlane = 1;
 
         let detectedQuad: Quad | null = null;
         let bestArea = 0;
@@ -232,28 +242,79 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
         let pipelineError = '';
         try {
+          // Defensive sanity checks before touching OpenCV — feeding bufferToMat
+          // a buffer of the wrong size is what segfaulted on the Galaxy S23
+          // when pixelFormat fell through to 'unknown'.
+          if (!frame.isPlanar) {
+            // We requested 'yuv' which should always be planar on Android. If
+            // the runtime delivers something else, skip rather than crash.
+            lastStep = 'skip:not-planar';
+            return;
+          }
+          const planes = frame.getPlanes();
+          if (planes.length === 0) {
+            lastStep = 'skip:no-planes';
+            return;
+          }
+          // Plane 0 is the Y (luminance) plane in YUV — already grayscale,
+          // exactly what edge detection needs. Skip RGBA→Gray conversion.
+          const yPlane = planes[0];
+          yWidth = yPlane.width;
+          yHeight = yPlane.height;
+          const yBytesPerRow = yPlane.bytesPerRow;
+
           lastStep = 'getPixelBuffer';
-          const buffer = frame.getPixelBuffer();
+          const buffer = yPlane.getPixelBuffer();
           lastBufferBytes = buffer.byteLength;
+
+          // Validate the buffer size matches what bufferToMat will read so we
+          // never walk past the end. Stride may be > yWidth due to alignment.
+          const expectedPadded = yBytesPerRow * yHeight;
+          if (buffer.byteLength < expectedPadded) {
+            lastStep = `skip:short-buffer(got=${buffer.byteLength},need=${expectedPadded})`;
+            return;
+          }
+
           lastStep = 'Uint8Array';
           const data = new Uint8Array(buffer);
+
+          // Build a tight (no-padding) grayscale Mat. When the plane stride
+          // matches its width, we wrap zero-copy. When there's row padding we
+          // copy each row's data columns into a fresh contiguous buffer —
+          // ~1MB at 1280x720, cheap.
           lastStep = 'bufferToMat';
-          const src = OpenCV.bufferToMat('uint8', frameH, frameW, 4, data);
+          let gray;
+          if (yBytesPerRow === yWidth) {
+            gray = OpenCV.bufferToMat('uint8', yHeight, yWidth, 1, data);
+          } else {
+            const tight = new Uint8Array(yWidth * yHeight);
+            for (let row = 0; row < yHeight; row += 1) {
+              const src = row * yBytesPerRow;
+              const dst = row * yWidth;
+              for (let col = 0; col < yWidth; col += 1) {
+                tight[dst + col] = data[src + col];
+              }
+            }
+            gray = OpenCV.bufferToMat('uint8', yHeight, yWidth, 1, tight);
+          }
+
+          // Detection-space dims sized off the Y-plane (the actual buffer dims
+          // we just wrapped).
+          detWPlane = Math.min(DETECT_WIDTH, yWidth);
+          detHPlane = Math.round((detWPlane * yHeight) / yWidth);
+          scalePlane = yWidth / detWPlane;
 
           lastStep = 'createSmall';
-          const small = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC4);
-          const sizeSmall = OpenCV.createObject(ObjectType.Size, detW, detH);
+          const small = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          const sizeSmall = OpenCV.createObject(ObjectType.Size, detWPlane, detHPlane);
           lastStep = 'resize';
-          OpenCV.invoke('resize', src, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
-
-          lastStep = 'cvtColor';
-          const gray = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
-          OpenCV.invoke('cvtColor', small, gray, ColorConversionCodes.COLOR_RGBA2GRAY);
+          OpenCV.invoke('resize', gray, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
 
           lastStep = 'GaussianBlur';
           const blurred = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
           const blurKsize = OpenCV.createObject(ObjectType.Size, 5, 5);
-          OpenCV.invoke('GaussianBlur', gray, blurred, blurKsize, 0);
+          // Blur the resized `small` (detection-space gray), not the full-size `gray`.
+          OpenCV.invoke('GaussianBlur', small, blurred, blurKsize, 0);
 
           lastStep = 'Canny';
           const edges = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
@@ -284,7 +345,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           lastStep = 'toJSValue.contours';
           const contourCount = OpenCV.toJSValue(contours).array.length;
           contourCountForMetrics = contourCount;
-          const minArea = detW * detH * MIN_AREA_FRACTION;
+          const minArea = detWPlane * detHPlane * MIN_AREA_FRACTION;
 
           for (let i = 0; i < contourCount; i += 1) {
             const contour = OpenCV.copyObjectFromVector(contours, i);
@@ -413,18 +474,25 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
         const stability = stabilityScore(detectedQuad, prevHist);
         const sharpness = 0;
-        const coverage = coverageScore(detectedQuad, detW, detH);
+        const coverage = coverageScore(detectedQuad, detWPlane, detHPlane);
 
         const score =
           tune.wStability * stability +
           tune.wSharpness * sharpness +
           tune.wCoverage * coverage;
 
+        // Project detection-space coords (Y-plane sensor space) back into
+        // frame-space (frame.width × frame.height) for the overlay and
+        // post-capture cropToQuad. When sensor and frame dims agree this is
+        // a uniform scale; if they ever disagree (rotation), the overlay will
+        // be off but detection still works for upload-cropping.
+        const sx = frameW / yWidth;
+        const sy = frameH / yHeight;
         const frameQuad: Quad = [
-          { x: detectedQuad[0].x * scale, y: detectedQuad[0].y * scale },
-          { x: detectedQuad[1].x * scale, y: detectedQuad[1].y * scale },
-          { x: detectedQuad[2].x * scale, y: detectedQuad[2].y * scale },
-          { x: detectedQuad[3].x * scale, y: detectedQuad[3].y * scale },
+          { x: detectedQuad[0].x * scalePlane * sx, y: detectedQuad[0].y * scalePlane * sy },
+          { x: detectedQuad[1].x * scalePlane * sx, y: detectedQuad[1].y * scalePlane * sy },
+          { x: detectedQuad[2].x * scalePlane * sx, y: detectedQuad[2].y * scalePlane * sy },
+          { x: detectedQuad[3].x * scalePlane * sx, y: detectedQuad[3].y * scalePlane * sy },
         ];
 
         quad.setBlocking(frameQuad);
