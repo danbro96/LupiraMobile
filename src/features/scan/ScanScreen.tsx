@@ -98,7 +98,7 @@ export function ScanScreen() {
       const selectionId = await ensureSelection();
       return mtgApi.selections.addCard(selectionId, {
         printingId: input.candidate.printing.id,
-        foil: false,
+        isFoil: false,
         language: 'en',
         condition: 'NM',
         confidence: input.candidate.combinedScore,

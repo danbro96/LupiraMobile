@@ -105,7 +105,7 @@ export type ScanResponse = {
 export type CardInstanceResponse = {
   instanceId: string;
   printing: CardPrintingResponse;
-  foil: boolean;
+  isFoil: boolean;
   language: string;
   condition: string;
   acquiredAt: string;
@@ -143,7 +143,7 @@ export type RenameCollectionRequest = { name: string };
 
 export type AddCardToCollectionRequest = {
   printingId: string;
-  foil?: boolean;
+  isFoil?: boolean;
   language?: string;
   condition?: string;
 };
@@ -153,7 +153,7 @@ export type MoveCardRequest = { toCollectionId: string };
 export type SelectionEntryResponse = {
   instanceId: string;
   printing: CardPrintingResponse;
-  foil: boolean;
+  isFoil: boolean;
   language: string;
   condition: string;
   confidence: number;
@@ -168,7 +168,7 @@ export type SelectionResponse = {
 
 export type AddSelectionEntryRequest = {
   printingId: string;
-  foil?: boolean;
+  isFoil?: boolean;
   language?: string;
   condition?: string;
   confidence?: number;

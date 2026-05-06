@@ -127,7 +127,7 @@ function CardRow({ card, onRemove }: { card: CardInstanceResponse; onRemove: () 
         <Text style={styles.rowName}>{card.printing.name}</Text>
         <Text style={styles.rowMeta}>
           {card.printing.setCode.toUpperCase()} · #{card.printing.collectorNumber} · {card.condition}
-          {card.foil ? ' · Foil' : ''}
+          {card.isFoil ? ' · Foil' : ''}
         </Text>
       </View>
       <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={6}>
