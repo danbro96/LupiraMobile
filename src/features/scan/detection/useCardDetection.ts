@@ -128,7 +128,12 @@ const FILL_RATIO_MIN = 0.7;
  */
 export const GUIDE_SHORT_FRACTION = 0.55;
 const APPROX_EPSILON_FRACTIONS = [0.02, 0.03, 0.04, 0.05, 0.06] as const;
-const DETECT_WIDTH = 480;
+// Width (long axis) of the downscaled buffer that actually runs through the
+// Canny + findContours pipeline. Lower is faster — work scales with pixel
+// count, so 360 is ~44% the cost of 480 with no measurable detection-quality
+// loss for a card filling most of the ROI. Detected coords are scaled back
+// up to buffer-space for the final projection, so this is invisible to the UI.
+const DETECT_WIDTH = 360;
 const STABILITY_CEILING = 24;
 const STABILITY_HISTORY = 8;
 /**

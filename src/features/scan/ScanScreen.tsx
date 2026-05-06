@@ -99,21 +99,20 @@ export function ScanScreen() {
     return deviceCandidates[0]?.device;
   }, [deviceCandidates]);
   const cameraRef = useRef<CameraRef | null>(null);
-  // Maximum-quality capture configuration. We can dial perf-vs-quality back
-  // later, but the current pipeline produced unusably soft stills.
-  // - `targetResolution: HIGHEST_4_3` asks for the largest sensor mode
-  //   available (~50 MP on a Galaxy S23 main lens). The default UHD_4_3
-  //   (12 MP) was leaving sensor detail on the table.
-  // - `qualityPrioritization: 'quality'` makes the capture pipeline wait for
-  //   AF/AE to settle instead of snapping the next preview frame (the v5
-  //   default leans toward speed; v4's `enableHighQualityPhotos` Camera prop
-  //   was the equivalent of this).
-  // - `quality: 1` and `containerFormat: 'jpeg'` together pin the in-memory
-  //   Photo to its highest-fidelity setting.
+  // Photo capture config tuned for "good enough" quality with reasonable
+  // capture latency.
+  // - `targetResolution: UHD_4_3` (≈12 MP) is the v5 default. Dropped from
+  //   HIGHEST_4_3 because the 50 MP modes on phones are usually pixel-binned
+  //   into ~12 MP anyway, and the bigger buffer just slows down capture +
+  //   warpPerspective without adding real detail.
+  // - `qualityPrioritization: 'quality'` is still required — combined with
+  //   our explicit focusTo call below it's what produces sharp stills.
+  // - `quality: 0.92` is visually indistinguishable from 1.0 but trims the
+  //   in-memory Photo size noticeably.
   const photoOutput = usePhotoOutput({
-    targetResolution: CommonResolutions.HIGHEST_4_3,
+    targetResolution: CommonResolutions.UHD_4_3,
     qualityPrioritization: 'quality',
-    quality: 1,
+    quality: 0.92,
     containerFormat: 'jpeg',
   });
   const [shot, setShot] = useState<CapturedShot | null>(null);
@@ -526,7 +525,7 @@ export function ScanScreen() {
               .map((c) => `${c.device.id}:${c.device.type}${c.hasAF ? '+AF' : ''}${c.device.isVirtualDevice ? '(v)' : ''}`)
               .join(' | ')}
             {'\n'}
-            build-tag: lens-enum-17
+            build-tag: perf-trim-18
           </Text>
         </View>
       ) : null}

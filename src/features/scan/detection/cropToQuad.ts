@@ -11,13 +11,12 @@ import {
 import type { FrameSize, Point, Quad } from './useCardDetection';
 import { Sentry } from '../../../observability/breadcrumb';
 
-// Cropped MTG card output. 2400×3360 ≈ 960 DPI for a 63×88 mm card — ~8 MP,
-// which keeps text and set-symbol detail intact even after the warpPerspective
-// downsample from a 50 MP source. Bigger than necessary but the user wants
-// max quality for now; we can step this back later if uploads become a
-// problem.
-const MTG_OUTPUT_WIDTH = 2400;
-const MTG_OUTPUT_HEIGHT = 3360;
+// Cropped MTG card output. 1200×1680 ≈ 480 DPI for a 63×88 mm card — ~2 MP,
+// the practical sweet spot. Tesseract/OCR pipelines cap useful resolution at
+// ~300–400 DPI for printed text, and pHash hashes a tiny thumbnail anyway —
+// going higher just inflates upload size without improving recognition.
+const MTG_OUTPUT_WIDTH = 1200;
+const MTG_OUTPUT_HEIGHT = 1680;
 
 export type CropResult = {
   uri: string;
