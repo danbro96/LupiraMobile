@@ -2,40 +2,25 @@
 
 export type SearchStackParamList = {
   Search: undefined;
-  CardDetail: { printingId: string };
+  CardDetail: { oracleId: string };
+  PrintingDetail: { oracleId: string; printingId: string };
 };
 
 export type ScanStackParamList = {
-  Scan: {
-    pendingUpload?: {
-      uri: string;
-      cropped: boolean;
-      sourceWidth: number;
-      sourceHeight: number;
-    };
-  } | undefined;
+  Scan: undefined;
   ScanSettings: undefined;
-  ScanPreview: {
-    /** File URI of the (possibly cropped) image queued for upload. */
-    uri: string;
-    /** Whether the URI points to a perspective-corrected crop (vs raw still). */
-    cropped: boolean;
-    /** File URI of the raw, uncropped still — for the inspect-raw toggle. */
-    originalUri: string;
-    /** Width of the source still in pixels (for src-MP debug chip). */
-    sourceWidth: number;
-    /** Height of the source still in pixels (for src-MP debug chip). */
-    sourceHeight: number;
-  };
+  ScanDebugLog: undefined;
   Selection: undefined;
   PickCollection: { selectionId: string };
-  CardDetail: { printingId: string };
+  CardDetail: { oracleId: string };
+  PrintingDetail: { oracleId: string; printingId: string };
 };
 
 export type CollectionsStackParamList = {
   Collections: undefined;
   CollectionDetail: { collectionId: string };
-  CardDetail: { printingId: string };
+  CardDetail: { oracleId: string };
+  PrintingDetail: { oracleId: string; printingId: string };
 };
 
 export type MtgTabParamList = {

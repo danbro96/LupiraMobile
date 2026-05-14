@@ -15,8 +15,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { mtgApi } from '../../api/mtg-client';
-import { CardInstanceResponse } from '../../api/mtg-types';
+import {
+  deleteCollectionsCollectionId,
+  deleteCollectionsCollectionIdCardsInstanceId,
+  getCollectionsCollectionId,
+  patchCollectionsCollectionId,
+} from '../../api/generated/collections/collections';
+import type {
+  CardInstanceResponse,
+  CollectionDetailResponse,
+} from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
 
@@ -31,11 +39,15 @@ export function CollectionDetailScreen() {
 
   const detail = useQuery({
     queryKey: ['collection', params.collectionId],
-    queryFn: () => mtgApi.collections.get(params.collectionId),
+    queryFn: async () => {
+      const envelope = await getCollectionsCollectionId(params.collectionId);
+      return envelope.data as CollectionDetailResponse;
+    },
   });
 
   const removeCard = useMutation({
-    mutationFn: (instanceId: string) => mtgApi.collections.removeCard(params.collectionId, instanceId),
+    mutationFn: (instanceId: string) =>
+      deleteCollectionsCollectionIdCardsInstanceId(params.collectionId, instanceId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['collection', params.collectionId] });
       await queryClient.invalidateQueries({ queryKey: ['collections'] });
@@ -44,7 +56,7 @@ export function CollectionDetailScreen() {
   });
 
   const remove = useMutation({
-    mutationFn: () => mtgApi.collections.delete(params.collectionId),
+    mutationFn: () => deleteCollectionsCollectionId(params.collectionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['collections'] });
       await queryClient.invalidateQueries({ queryKey: ['my-cards'] });
@@ -104,7 +116,7 @@ export function CollectionDetailScreen() {
         currentName={detail.data?.name ?? ''}
         onClose={() => setRenameOpen(false)}
         onSubmit={async name => {
-          await mtgApi.collections.rename(params.collectionId, { name });
+          await patchCollectionsCollectionId(params.collectionId, { name });
           await queryClient.invalidateQueries({ queryKey: ['collection', params.collectionId] });
           await queryClient.invalidateQueries({ queryKey: ['collections'] });
           setRenameOpen(false);

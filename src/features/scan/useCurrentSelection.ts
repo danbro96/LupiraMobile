@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import { useSelection } from '../../store/selection-store';
-import { mtgApi } from '../../api/mtg-client';
-import { ApiError } from '../../api/mtg-client';
+import {
+  getSelectionsSelectionId,
+  postSelections,
+} from '../../api/generated/selections/selections';
+import type { SelectionResponse } from '../../api/generated/models';
+import { ApiError } from '../../api/mutator';
 
 /**
  * Returns the current selection id, lazily creating one when missing or expired.
@@ -20,8 +24,9 @@ export function useCurrentSelection() {
   async function ensure(): Promise<string> {
     if (currentSelectionId) {
       try {
-        const fresh = await mtgApi.selections.get(currentSelectionId);
-        return fresh.id;
+        const envelope = await getSelectionsSelectionId(currentSelectionId);
+        // Mutator throws on non-2xx — 200 branch is the only one reachable.
+        return (envelope.data as SelectionResponse).id;
       } catch (e: unknown) {
         if (e instanceof ApiError && e.status === 404) {
           await setCurrent(null);
@@ -31,9 +36,10 @@ export function useCurrentSelection() {
       }
     }
 
-    const created = await mtgApi.selections.create();
-    await setCurrent(created.id);
-    return created.id;
+    const created = await postSelections();
+    const id = (created.data as SelectionResponse).id;
+    await setCurrent(id);
+    return id;
   }
 
   async function reset(): Promise<void> {

@@ -13,8 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { mtgApi } from '../../api/mtg-client';
-import { SelectionEntryResponse } from '../../api/mtg-types';
+import {
+  deleteSelectionsSelectionIdCardsInstanceId,
+  getSelectionsSelectionId,
+} from '../../api/generated/selections/selections';
+import type { SelectionEntryResponse, SelectionResponse } from '../../api/generated/models';
+import { asNumber } from '../../api/mutator';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -29,12 +33,17 @@ export function SelectionScreen() {
 
   const selection = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: () => mtgApi.selections.get(currentSelectionId!),
+    queryFn: async () => {
+      const envelope = await getSelectionsSelectionId(currentSelectionId!);
+      // Mutator throws on non-2xx — narrow off the void branch.
+      return envelope.data as SelectionResponse;
+    },
     enabled: !!currentSelectionId,
   });
 
   const removeCard = useMutation({
-    mutationFn: (instanceId: string) => mtgApi.selections.removeCard(currentSelectionId!, instanceId),
+    mutationFn: (instanceId: string) =>
+      deleteSelectionsSelectionIdCardsInstanceId(currentSelectionId!, instanceId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['selection', currentSelectionId] }),
   });
 
@@ -128,7 +137,7 @@ function EntryRow({ entry, onRemove }: { entry: SelectionEntryResponse; onRemove
         <Text style={styles.rowMeta}>
           {entry.printing.setCode.toUpperCase()} · #{entry.printing.collectorNumber} · {entry.printing.rarity}
         </Text>
-        <Text style={styles.rowConfidence}>confidence {entry.confidence.toFixed(2)}</Text>
+        <Text style={styles.rowConfidence}>confidence {asNumber(entry.confidence).toFixed(2)}</Text>
       </View>
       <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={6}>
         <Icon name="close-circle" size={22} color="destructive" />

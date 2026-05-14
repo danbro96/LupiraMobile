@@ -10,15 +10,22 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   SCAN_MIN_FRAMES_BOUNDS,
   SCAN_QUALITY_BOUNDS,
   SCAN_THRESHOLD_BOUNDS,
   useScanSettings,
 } from '../../store/scan-settings-store';
+import type { ScanStackParamList } from '../../navigation/types';
+import { Icon } from '../../components/Icon';
+
+type Nav = NativeStackNavigationProp<ScanStackParamList, 'ScanSettings'>;
 
 export function ScanSettingsScreen() {
   const settings = useScanSettings();
+  const navigation = useNavigation<Nav>();
 
   useEffect(() => {
     if (!settings.loaded) void settings.load();
@@ -77,7 +84,12 @@ export function ScanSettingsScreen() {
             step={0.05}
             valueLabel={settings.weightStability.toFixed(2)}
             onChange={(v) =>
-              void settings.setWeights(v, settings.weightSharpness, settings.weightCoverage)
+              void settings.setWeights(
+                v,
+                settings.weightSharpness,
+                settings.weightCoverage,
+                settings.weightBrightness,
+              )
             }
           />
           <SliderRow
@@ -88,7 +100,12 @@ export function ScanSettingsScreen() {
             step={0.05}
             valueLabel={settings.weightSharpness.toFixed(2)}
             onChange={(v) =>
-              void settings.setWeights(settings.weightStability, v, settings.weightCoverage)
+              void settings.setWeights(
+                settings.weightStability,
+                v,
+                settings.weightCoverage,
+                settings.weightBrightness,
+              )
             }
           />
           <SliderRow
@@ -99,10 +116,33 @@ export function ScanSettingsScreen() {
             step={0.05}
             valueLabel={settings.weightCoverage.toFixed(2)}
             onChange={(v) =>
-              void settings.setWeights(settings.weightStability, settings.weightSharpness, v)
+              void settings.setWeights(
+                settings.weightStability,
+                settings.weightSharpness,
+                v,
+                settings.weightBrightness,
+              )
             }
           />
-          <Helper>Weights do not have to sum to 1; the combined score is rescaled by usage.</Helper>
+          <SliderRow
+            label="Brightness"
+            value={settings.weightBrightness}
+            min={0}
+            max={1}
+            step={0.05}
+            valueLabel={settings.weightBrightness.toFixed(2)}
+            onChange={(v) =>
+              void settings.setWeights(
+                settings.weightStability,
+                settings.weightSharpness,
+                settings.weightCoverage,
+                v,
+              )
+            }
+          />
+          <Helper>
+            Per-signal contributions to the soft composite score. Each signal also has a hidden hard floor — if any single signal drops below its floor, the auto-capture timer resets regardless of these weights.
+          </Helper>
         </Section>
 
         <Section title="Output">
@@ -129,17 +169,18 @@ export function ScanSettingsScreen() {
           </Row>
           <Helper>Live HUD with score, stability, sharpness, coverage, fps.</Helper>
 
-          <Row>
-            <Text style={styles.label}>Preview before upload</Text>
-            <Switch
-              value={settings.previewBeforeUpload}
-              onValueChange={(v) => void settings.setPreviewBeforeUpload(v)}
-              trackColor={{ true: '#3b82f6', false: '#2c3340' }}
-            />
-          </Row>
-          <Helper>
-            When on, every capture stops at a preview screen with Send / Retake before reaching the backend.
-          </Helper>
+          <Pressable
+            onPress={() => navigation.navigate('ScanDebugLog')}
+            style={styles.navRow}
+          >
+            <View style={styles.navRowText}>
+              <Text style={styles.label}>Decision log</Text>
+              <Text style={styles.navRowSubtitle}>
+                Replay why auto-capture fired (or didn't) — last 200 transitions.
+              </Text>
+            </View>
+            <Icon name="chevron-forward" size={18} color="muted" />
+          </Pressable>
         </Section>
 
         <Pressable style={styles.resetButton} onPress={onReset}>
@@ -245,4 +286,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   resetText: { color: '#f97373', fontSize: 14, fontWeight: '600' },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#0e1117',
+  },
+  navRowText: { flex: 1, gap: 2 },
+  navRowSubtitle: { color: '#6e7686', fontSize: 12, lineHeight: 16 },
 });

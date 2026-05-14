@@ -13,8 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { mtgApi } from '../../api/mtg-client';
-import { CollectionResponse } from '../../api/mtg-types';
+import {
+  getCollections,
+  postCollections,
+} from '../../api/generated/collections/collections';
+import { postSelectionsSelectionIdCommit } from '../../api/generated/selections/selections';
+import type {
+  CollectionListResponse,
+  CollectionResponse,
+  CommitSelectionResponse,
+} from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -36,20 +44,28 @@ export function PickCollectionScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: () => mtgApi.collections.list(),
+    queryFn: async () => {
+      const envelope = await getCollections();
+      return envelope.data as CollectionListResponse;
+    },
   });
 
   const createCollection = useMutation({
-    mutationFn: (name: string) => mtgApi.collections.create({ name }),
+    mutationFn: async (name: string) => {
+      const envelope = await postCollections({ name });
+      return envelope.data as CollectionResponse;
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');
     },
   });
 
-  const commit = useMutation({
-    mutationFn: (collectionId: string) =>
-      mtgApi.selections.commit(params.selectionId, { collectionId }),
+  const commit = useMutation<CommitSelectionResponse, Error, string>({
+    mutationFn: async (collectionId: string) => {
+      const envelope = await postSelectionsSelectionIdCommit(params.selectionId, { collectionId });
+      return envelope.data as CommitSelectionResponse;
+    },
     onSuccess: async result => {
       if (result.remainingCount === 0) {
         await setCurrent(null);

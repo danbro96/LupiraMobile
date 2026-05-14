@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CollectionsListScreen } from '../features/collections/CollectionsListScreen';
 import { CollectionDetailScreen } from '../features/collections/CollectionDetailScreen';
 import { CardDetailScreen } from '../features/search/CardDetailScreen';
+import { PrintingDetailScreen } from '../features/search/PrintingDetailScreen';
 import { CollectionsStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<CollectionsStackParamList>();
@@ -20,6 +21,11 @@ export function CollectionsStack() {
       <Stack.Screen name="Collections" component={CollectionsListScreen} options={{ headerShown: false }} />
       <Stack.Screen name="CollectionDetail" component={CollectionDetailScreen} options={{ title: 'Collection' }} />
       <Stack.Screen name="CardDetail" component={CardDetailScreen} options={{ title: 'Card' }} />
+      <Stack.Screen
+        name="PrintingDetail"
+        component={PrintingDetailScreen}
+        options={{ title: 'Printing' }}
+      />
     </Stack.Navigator>
   );
 }

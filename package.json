@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "fetch:openapi": "node scripts/fetch-openapi.mjs",
+    "generate:api": "orval --config ./orval.config.ts",
+    "regen:api": "npm run fetch:openapi && npm run generate:api"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -54,6 +57,7 @@
     "@babel/plugin-transform-typescript": "^7.28.6",
     "@expo/config-plugins": "^55.0.8",
     "@types/react": "~19.2.10",
+    "orval": "^8.9.1",
     "typescript": "~5.9.2"
   },
   "private": true

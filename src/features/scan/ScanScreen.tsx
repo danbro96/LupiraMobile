@@ -1,13 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   AppState,
   AppStateStatus,
-  Image,
   LayoutChangeEvent,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -22,14 +20,15 @@ import {
 } from 'react-native-vision-camera';
 import { CommonResolutions } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ApiError, mtgApi } from '../../api/mtg-client';
+import { ApiError } from '../../api/mutator';
 import {
-  CardCandidateResponse,
-  RecognitionConfidence,
-  ScanResponse,
-} from '../../api/mtg-types';
+  getSelectionsSelectionId,
+  postSelectionsSelectionIdCards,
+} from '../../api/generated/selections/selections';
+import { scanCard } from '../../api/scan';
+import type { CardCandidateResponse } from '../../api/generated/models';
 import { ScanStackParamList } from '../../navigation/types';
 import { useCurrentSelection } from './useCurrentSelection';
 import { useScanSettings } from '../../store/scan-settings-store';
@@ -43,42 +42,44 @@ import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { GuideFrame } from './components/GuideFrame';
+import { CaptureGallery } from './components/CaptureGallery';
+import { DecisionStatusPill } from './components/DecisionStatusPill';
+import {
+  captureQueueReducer,
+  newCaptureId,
+  type CaptureId,
+} from './captureQueueReducer';
+import {
+  buildLogEntry,
+  deriveDecisionReason,
+  reasonsEqual,
+  useDecisionLog,
+  type DecisionReason,
+} from './decisionLogStore';
 import { Icon } from '../../components/Icon';
 import { breadcrumb } from '../../observability/breadcrumb';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
-type Route = RouteProp<ScanStackParamList, 'Scan'>;
-
-type CapturedShot = {
-  uri: string;
-  cropped: boolean;
-  /** Width of the *source* photo (pre-crop) in pixels. */
-  sourceWidth: number;
-  /** Height of the *source* photo (pre-crop) in pixels. */
-  sourceHeight: number;
-};
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
-  const route = useRoute<Route>();
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      breadcrumb('appstate', `transition`, { from: AppState.currentState, to: next });
+      breadcrumb('appstate', 'transition', { from: AppState.currentState, to: next });
       setAppState(next);
     });
     return () => sub.remove();
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
-  // Lens choice. Earlier attempts (`useCameraDevice('back', { physicalDevices:
-  // ['wide-angle'] })`) returned a *logical* multicam device on Galaxy S23
-  // that reported `supportsFocusMetering: false` — meaning our explicit
-  // focusTo call silently threw and AF never engaged for capture. The fix is
-  // to enumerate every back camera and explicitly pick a *single-physical*
-  // wide-angle lens that actually exposes focus metering. We sort all back
-  // candidates with focus-metering-capable wide-angles first, then anything
-  // else with metering, then anything at all as a last resort.
+
+  // Lens choice: enumerate every back camera and explicitly pick a
+  // single-physical wide-angle that exposes focus metering. The simpler
+  // `useCameraDevice('back', { physicalDevices: ['wide-angle'] })` returned a
+  // logical multicam on Galaxy S23 that reported supportsFocusMetering:false,
+  // and our focusTo before capture silently threw — leading to perpetually
+  // soft stills. See the perf-trim/focus-lock build history for details.
   const allDevices = useCameraDevices();
   const deviceCandidates = useMemo(
     () =>
@@ -98,24 +99,19 @@ export function ScanScreen() {
     if (anyAF) return anyAF.device;
     return deviceCandidates[0]?.device;
   }, [deviceCandidates]);
+
   const cameraRef = useRef<CameraRef | null>(null);
-  // Photo capture config tuned for "good enough" quality with reasonable
-  // capture latency.
-  // - `targetResolution: UHD_4_3` (≈12 MP) is the v5 default. Dropped from
-  //   HIGHEST_4_3 because the 50 MP modes on phones are usually pixel-binned
-  //   into ~12 MP anyway, and the bigger buffer just slows down capture +
-  //   warpPerspective without adding real detail.
-  // - `qualityPrioritization: 'quality'` is still required — combined with
-  //   our explicit focusTo call below it's what produces sharp stills.
-  // - `quality: 0.92` is visually indistinguishable from 1.0 but trims the
-  //   in-memory Photo size noticeably.
+  // High-quality, AF-aware photo output. The combination of UHD_4_3 +
+  // qualityPrioritization='quality' + the explicit focusTo call below is what
+  // gives us sharp stills on Android — `qualityPrioritization` alone isn't
+  // enough on CameraX.
   const photoOutput = usePhotoOutput({
     targetResolution: CommonResolutions.UHD_4_3,
     qualityPrioritization: 'quality',
     quality: 0.92,
     containerFormat: 'jpeg',
   });
-  const [shot, setShot] = useState<CapturedShot | null>(null);
+
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
     width: 0,
     height: 0,
@@ -129,21 +125,19 @@ export function ScanScreen() {
 
   const { ensure: ensureSelection, currentSelectionId } = useCurrentSelection();
 
-  const scan = useMutation({
-    mutationFn: (uri: string) =>
-      mtgApi.scanCard({ uri, mimeType: 'image/jpeg', fileName: 'scan.jpg' }),
-  });
-
   const selectionQuery = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: () => mtgApi.selections.get(currentSelectionId!),
+    queryFn: async () => {
+      const envelope = await getSelectionsSelectionId(currentSelectionId!);
+      return envelope.data;
+    },
     enabled: !!currentSelectionId,
   });
 
   const addToSelection = useMutation({
     mutationFn: async (input: { candidate: CardCandidateResponse; allowDuplicate: boolean }) => {
       const selectionId = await ensureSelection();
-      return mtgApi.selections.addCard(selectionId, {
+      const envelope = await postSelectionsSelectionIdCards(selectionId, {
         printingId: input.candidate.printing.id,
         isFoil: false,
         language: 'en',
@@ -151,35 +145,54 @@ export function ScanScreen() {
         confidence: input.candidate.combinedScore,
         allowDuplicate: input.allowDuplicate,
       });
+      return envelope.data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['selection'] });
     },
   });
 
-  const capturingRef = useRef(false);
-  const [capturing, setCapturing] = useState(false);
-  // Forward-references to `detection.resume` / `detection.pause` — used by
-  // captureAndScan to (a) silence the worklet before awaiting capturePhoto +
-  // cropToQuad so its per-frame OpenCV.clearBuffers() doesn't wipe objects
-  // mid-warp, and (b) re-arm detection if the capture short-circuits. Both
-  // populated once `detection` is initialised below.
+  // Capture queue. Each in-flight scan is a record in this list; the gallery
+  // renders the list directly. Concurrency safety lives entirely in the
+  // reducer — the orchestration code below is fire-and-forget per record.
+  const [records, dispatch] = useReducer(captureQueueReducer, [] as ReturnType<typeof captureQueueReducer>);
+
+  // Decision-log store handle. We pull `append` once into a ref-style local
+  // because zustand's hook returns a fresh function reference per render,
+  // and `captureAndScan` shouldn't capture stale ones.
+  const appendDecisionLog = useDecisionLog((s) => s.append);
+
+  // Forward refs to detection.pause/resume — captureAndScan is defined before
+  // the detection hook is initialised, so we wire these up after. The
+  // metrics-ref is the same shape: we need the latest worklet metrics
+  // snapshot at the moment auto-capture fires for the 'fired' log entry.
   const resumeDetectionRef = useRef<(() => void) | null>(null);
   const pauseDetectionRef = useRef<(() => void) | null>(null);
-  // Latest values of these flags, accessible from the captureAndScan closure
+  const detectionMetricsRefForLog = useRef<
+    | ReturnType<typeof useCardDetection>['metrics']
+    | null
+  >(null);
+  // AppState/isFocused snapshots, accessible from the captureAndScan closure
   // without re-creating the callback on every transition.
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
   const appStateRef = useRef(appState);
   appStateRef.current = appState;
+  // Single concurrent capture lock. fast-opencv's global object store cannot
+  // tolerate two cropToQuad calls in flight, and the worklet must be paused
+  // while either runs.
+  const capturingRef = useRef(false);
 
   const captureAndScan = useCallback(
-    async (quad: Quad | null, frameSize: FrameSize | null) => {
-      if (capturingRef.current) return;
-      // Camera2's ImageCapture detaches on AppState/focus changes and re-binds
-      // a moment later. A worklet auto-capture queued during that gap will
-      // throw "Not bound to a valid Camera". Skip cleanly instead of surfacing
-      // the red box.
+    async (quad: Quad, frameSize: FrameSize) => {
+      if (capturingRef.current) {
+        // Worklet fired again before we finished the prior crop. Drop it —
+        // the worklet's content cooldown will keep ignoring this card for a
+        // moment longer.
+        breadcrumb('capture', 'capture_dropped_busy');
+        return;
+      }
+      // Camera2's ImageCapture detaches across AppState/focus transitions.
       if (!isFocusedRef.current || appStateRef.current !== 'active') {
         breadcrumb('capture', 'capture_skipped_inactive', {
           isFocused: isFocusedRef.current,
@@ -188,151 +201,151 @@ export function ScanScreen() {
         resumeDetectionRef.current?.();
         return;
       }
+
       capturingRef.current = true;
-      setCapturing(true);
-      // Silence the worklet before any OpenCV-using awaits. Both the worklet
-      // and cropToQuad share fast-opencv's global object store; if the worklet
-      // keeps running, its per-frame clearBuffers() wipes objects cropToQuad
-      // is mid-way through, throwing "Object with id … not found in storage".
+      const id: CaptureId = newCaptureId();
+      dispatch({ type: 'capture/start', id, createdAt: Date.now() });
+      // Append a 'fired' record to the decision log at the exact moment the
+      // worklet's auto-capture handed off to JS. The polling effect runs at
+      // 500 ms cadence, so without this we'd often miss the fire altogether
+      // (between two ticks) — and the most useful entry in any debug
+      // session is the one where the trigger actually pulled.
+      const m = detectionMetricsRefForLog.current?.getDirty();
+      const cx = (quad[0].x + quad[2].x) / 2;
+      const cy = (quad[0].y + quad[2].y) / 2;
+      const firedReason: DecisionReason = {
+        kind: 'fired',
+        quadCentroid: { x: cx, y: cy },
+      };
+      if (m) {
+        appendDecisionLog(buildLogEntry(m, firedReason));
+      }
+      // Worklet must be silent during the whole OpenCV stretch.
       pauseDetectionRef.current?.();
+
       breadcrumb('capture', 'capture_start', {
-        hasQuad: !!quad,
-        frameW: frameSize?.width ?? 0,
-        frameH: frameSize?.height ?? 0,
+        id,
+        frameW: frameSize.width,
+        frameH: frameSize.height,
       });
+
       let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
       try {
-        // Explicitly trigger AF to the centre of the preview and wait for it
-        // to settle before snapping. CameraX on Android does NOT reliably
-        // honour `qualityPrioritization: 'quality'` for focus-locking the way
-        // iOS does — the result is that capturePhoto grabs the next available
-        // frame, blurry or not, even with continuous AF running. Forcing a
-        // synchronous focusTo before capture gives the lens motor time to
-        // converge, which is the difference between a sharp scan and the
-        // soft mess we were seeing.
+        // Force AF + AE to settle before snapping.
         const cw = containerSize.width;
         const ch = containerSize.height;
         if (cameraRef.current && cw > 0 && ch > 0) {
           try {
-            breadcrumb('capture', 'focus_lock_start', { x: cw / 2, y: ch / 2 });
             await cameraRef.current.focusTo({ x: cw / 2, y: ch / 2 }, { modes: ['AF', 'AE'] });
-            // Tiny tail-end settle. focusTo's promise resolves when the AF
-            // routine reports done, but on some Android stacks the lens is
-            // still micro-adjusting for a frame or two after that signal.
             await new Promise((r) => setTimeout(r, 80));
-            breadcrumb('capture', 'focus_lock_done');
           } catch (e: unknown) {
-            // Some lens/device combos report `supportsFocusMetering: false`
-            // and throw here. Continuous AF will still be running in the
-            // background — fall through to capture.
             const msg = e instanceof Error ? e.message : String(e);
             breadcrumb('capture', 'focus_lock_skip', { error: msg }, 'warning');
           }
         }
+
         try {
-          // `enableDistortionCorrection` undoes the wide-angle barrel curve
-          // that bows straight card edges in the corners — important because
-          // we're feeding the photo into a perspective warp that assumes the
-          // card edges are straight lines. Without it, OCR on edge text drifts.
           photo = await photoOutput.capturePhoto(
             { flashMode: 'off', enableShutterSound: false, enableDistortionCorrection: true },
             {},
           );
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          // ImageCapture throws this when it's between camera bindings (typical
-          // after AppState transitions). Recover silently — the user can try
-          // again now that the binding has settled.
           if (msg.includes('Not bound to a valid Camera') || msg.includes('not bound')) {
-            breadcrumb('capture', 'capture_camera_unbound', { error: msg }, 'warning');
-            resumeDetectionRef.current?.();
+            // Transient: drop the record and resume detection. The worklet
+            // will fire again on the next stable frame.
+            breadcrumb('capture', 'capture_camera_unbound', { id, error: msg }, 'warning');
+            dispatch({ type: 'capture/dismiss', id });
             return;
           }
           throw err;
         }
-        breadcrumb('capture', 'capture_taken', {
-          width: photo.width,
-          height: photo.height,
-        });
-        // v5 photos are in-memory; persist to a temp file so cropToQuad and the
-        // multipart upload can both consume a `file://` URI as before.
+
         const tempPath = await photo.saveToTemporaryFileAsync();
         const photoUri = tempPath.startsWith('file://') ? tempPath : `file://${tempPath}`;
         const photoWidth = photo.width;
         const photoHeight = photo.height;
 
-        let uploadUri = photoUri;
-        let cropped = false;
-        if (quad && frameSize) {
-          breadcrumb('crop', 'crop_start', {
-            photoW: photoWidth,
-            photoH: photoHeight,
-            quality: settings.jpegQuality,
+        breadcrumb('crop', 'crop_start', { id, photoW: photoWidth, photoH: photoHeight });
+        let uploadUri: string;
+        try {
+          const result = await cropToQuad({
+            photoUri,
+            photoWidth,
+            photoHeight,
+            quad,
+            frameSize,
+            jpegQuality: settings.jpegQuality,
           });
-          try {
-            const result = await cropToQuad({
-              photoUri,
-              photoWidth,
-              photoHeight,
-              quad,
-              frameSize,
-              jpegQuality: settings.jpegQuality,
-            });
-            uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
-            cropped = true;
-            breadcrumb('crop', 'crop_done', {
-              outputW: result.width,
-              outputH: result.height,
-            });
-          } catch (e) {
-            console.warn('cropToQuad failed, falling back to uncropped upload', e);
-            breadcrumb('crop', 'crop_failed', { error: String(e) }, 'warning');
-          }
-        } else {
-          breadcrumb('crop', 'crop_skipped', { reason: !quad ? 'no_quad' : 'no_frame_size' });
+          uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          breadcrumb('crop', 'crop_failed_aborting', { id, error: msg }, 'error');
+          dispatch({ type: 'capture/error', id, message: 'Crop failed' });
+          return;
         }
 
-        if (settings.previewBeforeUpload) {
-          breadcrumb('navigation', 'route_to_preview', { uri: uploadUri, cropped });
-          navigation.navigate('ScanPreview', {
-            uri: uploadUri,
-            cropped,
-            originalUri: photoUri,
-            sourceWidth: photoWidth,
-            sourceHeight: photoHeight,
-          });
-        } else {
-          breadcrumb('upload', 'upload_start', { cropped, uri: uploadUri });
-          setShot({ uri: uploadUri, cropped, sourceWidth: photoWidth, sourceHeight: photoHeight });
-          scan.mutate(uploadUri);
-        }
+        dispatch({
+          type: 'capture/uploading',
+          id,
+          uri: uploadUri,
+          sourceWidth: photoWidth,
+          sourceHeight: photoHeight,
+        });
+
+        // Fire-and-forget the upload so the next capture can start
+        // immediately. The reducer keys the response back by `id`.
+        void (async () => {
+          try {
+            const response = await scanCard({
+              uri: uploadUri,
+              mimeType: 'image/jpeg',
+              fileName: 'scan.jpg',
+            });
+            dispatch({ type: 'capture/recognised', id, response });
+
+            // Hybrid auto-add: only when the backend reports high confidence.
+            // Lower-confidence captures stay staged for tap-to-confirm review.
+            // Enum is PascalCase per the OpenAPI spec
+            // (`new JsonStringEnumConverter()` keeps C# enum names verbatim).
+            if (response.confidence === 'High' && response.candidates.length > 0) {
+              const top = response.candidates[0];
+              dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
+              addToSelection.mutate(
+                { candidate: top, allowDuplicate: false },
+                {
+                  onError: (err) => {
+                    if (err instanceof ApiError && err.status === 409) {
+                      // Already in the selection — fine, leave the green
+                      // check on the tile so the user knows it was matched.
+                      return;
+                    }
+                    breadcrumb(
+                      'upload',
+                      'auto_add_failed',
+                      { id, error: err instanceof Error ? err.message : String(err) },
+                      'warning',
+                    );
+                  },
+                },
+              );
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            breadcrumb('upload', 'scan_failed', { id, error: msg }, 'error');
+            dispatch({ type: 'capture/error', id, message: msg });
+          }
+        })();
       } finally {
         photo?.dispose();
         capturingRef.current = false;
-        setCapturing(false);
+        // Reopen the worklet ASAP so the user can sweep onto the next card
+        // while the previous upload is still in flight.
+        resumeDetectionRef.current?.();
       }
     },
-    [navigation, photoOutput, scan, settings.jpegQuality, settings.previewBeforeUpload],
+    [photoOutput, settings.jpegQuality, addToSelection, containerSize.width, containerSize.height],
   );
-
-  // After ScanPreview confirms, it navigates back here with the URI in params.
-  // Pick it up, fire the mutation, and clear the param so we don't re-fire on
-  // future re-renders.
-  useEffect(() => {
-    const pending = route.params?.pendingUpload;
-    if (!pending) return;
-    setShot({ uri: pending.uri, cropped: pending.cropped, sourceWidth: 0, sourceHeight: 0 });
-    scan.mutate(pending.uri);
-    navigation.setParams({ pendingUpload: undefined });
-  }, [route.params?.pendingUpload, navigation, scan]);
-
-  const uploadStatus: 'idle' | 'pending' | 'success' | 'error' = scan.isPending
-    ? 'pending'
-    : scan.isError
-      ? 'error'
-      : scan.isSuccess
-        ? 'success'
-        : 'idle';
 
   const onAutoCapture = useCallback(
     (quad: Quad, frameSize: FrameSize) => {
@@ -342,30 +355,27 @@ export function ScanScreen() {
   );
 
   const detection = useCardDetection({
-    enabled: !shot && !scan.isPending && hasPermission && settings.loaded,
+    enabled: hasPermission && settings.loaded,
     autoCaptureEnabled: settings.autoCaptureEnabled,
     threshold: settings.captureThreshold,
     minStableFrames: settings.minStableFrames,
     weightStability: settings.weightStability,
     weightSharpness: settings.weightSharpness,
     weightCoverage: settings.weightCoverage,
+    weightBrightness: settings.weightBrightness,
     onAutoCapture,
   });
   resumeDetectionRef.current = detection.resume;
   pauseDetectionRef.current = detection.pause;
+  detectionMetricsRefForLog.current = detection.metrics;
 
-  const onManualCapture = useCallback(() => {
-    void captureAndScan(detection.quad.getDirty(), detection.metrics.getDirty().frameSize);
-  }, [captureAndScan, detection.quad, detection.metrics]);
-
-  // Bridge worklet-thread state into Sentry breadcrumbs. The worklet body
-  // can't call Sentry directly (different thread, different runtime), but we
-  // can sample its `lastStep` / `lastError` from the JS thread and emit a
-  // breadcrumb when either changes. This is the load-bearing piece for
-  // diagnosing native crashes — when the process dies inside the OpenCV
-  // pipeline, the most-recent breadcrumb tells us which step was running.
+  // Bridge worklet-thread state into Sentry breadcrumbs at low frequency.
   const lastSampledStep = useRef<string>('');
   const lastSampledError = useRef<string>('');
+  // Last decision reason we appended to the log. Used to de-duplicate — a
+  // long blocked-sharpness stretch should be one entry, not 60 redundant
+  // copies that hide the moment the situation changed.
+  const lastSampledReason = useRef<DecisionReason | undefined>(undefined);
   useEffect(() => {
     const id = setInterval(() => {
       const m = detection.metrics.getDirty();
@@ -384,44 +394,63 @@ export function ScanScreen() {
         lastSampledError.current = m.lastError;
         breadcrumb(
           'frame_processor',
-          `worklet_error`,
+          'worklet_error',
           { error: m.lastError, lastStep: m.lastStep, framesProcessed: m.framesProcessed },
           'error',
         );
       }
+
+      // Decision-log: derive a structured reason from the current metrics
+      // and append on transitions only. `fired` events are appended
+      // separately from captureAndScan so they're never lost between ticks.
+      const reason = deriveDecisionReason(m, settings.captureThreshold);
+      if (!reasonsEqual(lastSampledReason.current, reason)) {
+        lastSampledReason.current = reason;
+        appendDecisionLog(buildLogEntry(m, reason));
+      }
     }, 500);
     return () => clearInterval(id);
-  }, [detection.metrics]);
+  }, [detection.metrics, settings.captureThreshold, appendDecisionLog]);
 
-  const onAdd = useCallback(
-    async (candidate: CardCandidateResponse) => {
-      try {
-        await addToSelection.mutateAsync({ candidate, allowDuplicate: false });
-      } catch (e: unknown) {
-        if (e instanceof ApiError && e.status === 409) {
-          Alert.alert(
-            'Already in selection',
-            'This printing is already in your current selection. Add another copy?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Add another',
-                onPress: () => addToSelection.mutate({ candidate, allowDuplicate: true }),
-              },
-            ],
-          );
-        } else {
-          Alert.alert('Add failed', (e as Error).message);
-        }
-      }
+  // Tile add (manual review) — used by the gallery's modal.
+  const onAddFromReview = useCallback(
+    (id: CaptureId, candidate: CardCandidateResponse) => {
+      addToSelection.mutate(
+        { candidate, allowDuplicate: false },
+        {
+          onSuccess: () => dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id }),
+          onError: (err) => {
+            if (err instanceof ApiError && err.status === 409) {
+              Alert.alert(
+                'Already in selection',
+                'This printing is already in your current selection. Add another copy?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Add another',
+                    onPress: () =>
+                      addToSelection.mutate(
+                        { candidate, allowDuplicate: true },
+                        {
+                          onSuccess: () =>
+                            dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id }),
+                        },
+                      ),
+                  },
+                ],
+              );
+            } else {
+              Alert.alert('Add failed', (err as Error).message);
+            }
+          },
+        },
+      );
     },
     [addToSelection],
   );
-
-  const onRetake = useCallback(() => {
-    setShot(null);
-    scan.reset();
-  }, [scan]);
+  const onDismissTile = useCallback((id: CaptureId) => {
+    dispatch({ type: 'capture/dismiss', id });
+  }, []);
 
   const selectionCount = selectionQuery.data?.cards.length ?? 0;
   const goToSelection = () => navigation.navigate('Selection');
@@ -431,9 +460,6 @@ export function ScanScreen() {
     const { width, height } = e.nativeEvent.layout;
     setContainerSize({ width, height });
   }, []);
-
-  const overlayThreshold = settings.captureThreshold;
-  const overlayMinFrames = settings.minStableFrames;
 
   const showDebug = useMemo(() => settings.showDebugOverlay, [settings.showDebugOverlay]);
 
@@ -461,26 +487,20 @@ export function ScanScreen() {
     );
   }
 
-  // The Camera and `useCardDetection` stay mounted across the entire scan→
-  // result→retake cycle. Earlier we returned a separate result-screen tree
-  // when `shot` was set, which unmounted the Camera and detached the frame
-  // output — and on retake the new mount apparently never re-bound the worklet
-  // (detection silently stayed off until app restart). Keeping a single mount
-  // and toggling `isActive` avoids that whole class of bug.
   return (
     <View style={styles.container} onLayout={onCameraLayout}>
       <Camera
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={isFocused && appState === 'active' && !shot}
+        // Camera is active whenever the tab is focused and the app is in the
+        // foreground. No more capture-result modal that needs to gate this.
+        isActive={isFocused && appState === 'active'}
         outputs={[photoOutput, detection.frameOutput]}
-        // Tap anywhere on the preview → snap AF/AE/AWB to that point. Useful
-        // backup when continuous AF can't lock on a featureless surface.
         enableNativeTapToFocusGesture
       />
 
-      {!shot && containerSize.width > 0 ? (
+      {containerSize.width > 0 ? (
         <>
           <GuideFrame containerWidth={containerSize.width} containerHeight={containerSize.height} />
           <DetectionOverlay
@@ -489,138 +509,89 @@ export function ScanScreen() {
             stableFrames={detection.stableFrames}
             containerWidth={containerSize.width}
             containerHeight={containerSize.height}
-            threshold={overlayThreshold}
-            minStableFrames={overlayMinFrames}
+            threshold={settings.captureThreshold}
+            minStableFrames={settings.minStableFrames}
           />
         </>
       ) : null}
 
-      {!shot && showDebug ? (
+      {showDebug ? (
         <ErrorBoundary label="DebugMetricsPanel">
           <DebugMetricsPanel
             metrics={detection.metrics}
             stableFrames={detection.stableFrames}
-            threshold={overlayThreshold}
-            minStableFrames={overlayMinFrames}
+            threshold={settings.captureThreshold}
+            minStableFrames={settings.minStableFrames}
             weightStability={settings.weightStability}
             weightSharpness={settings.weightSharpness}
             weightCoverage={settings.weightCoverage}
             autoCaptureEnabled={settings.autoCaptureEnabled}
-            capturing={capturing}
-            uploadStatus={uploadStatus}
+            capturing={false}
+            uploadStatus="idle"
           />
         </ErrorBoundary>
       ) : null}
 
-      {!shot ? <FrameTheCardHint metrics={detection.metrics} /> : null}
+      <FrameTheCardHint metrics={detection.metrics} hasRecords={records.length > 0} />
 
-      {!shot ? (
-        <View style={styles.lensBadge} pointerEvents="none">
-          <Text style={styles.lensBadgeText}>
-            picked: {device?.id ?? 'none'} ({device?.type ?? '—'}{device?.isVirtualDevice ? ',virtual' : ''})
-            {'\n'}
-            AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · all back: {deviceCandidates.length}
-            {'\n'}
-            {deviceCandidates
-              .map((c) => `${c.device.id}:${c.device.type}${c.hasAF ? '+AF' : ''}${c.device.isVirtualDevice ? '(v)' : ''}`)
-              .join(' | ')}
-            {'\n'}
-            build-tag: perf-trim-18
-          </Text>
-        </View>
-      ) : null}
+      <View style={styles.lensBadge} pointerEvents="none">
+        <Text style={styles.lensBadgeText}>
+          picked: {device?.id ?? 'none'} ({device?.type ?? '—'}{device?.isVirtualDevice ? ',virtual' : ''})
+          {'\n'}
+          AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · build-tag: decision-log-21
+        </Text>
+      </View>
 
-      {!shot ? (
-        <View style={styles.cameraOverlay} pointerEvents="box-none">
-          <View style={styles.captureBar}>
-            <Pressable
-              onPress={onManualCapture}
-              style={styles.shutter}
-              accessibilityLabel="Capture card"
-            >
-              <Icon name="camera" size={28} color="primary" />
-            </Pressable>
-          </View>
-          <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
-            <Icon name="settings-outline" size={20} color="white" />
+      <View style={styles.cameraOverlay} pointerEvents="box-none">
+        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
+          <Icon name="settings-outline" size={20} color="white" />
+        </Pressable>
+        {selectionCount > 0 ? (
+          <Pressable style={styles.selectionBadge} onPress={goToSelection}>
+            <Icon name="layers" size={14} color="white" />
+            <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
           </Pressable>
-          {selectionCount > 0 ? (
-            <Pressable style={styles.selectionBadge} onPress={goToSelection}>
-              <Icon name="layers" size={14} color="white" />
-              <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
+        ) : null}
+      </View>
 
-      {shot ? (
-        <SafeAreaView style={[StyleSheet.absoluteFill, styles.resultOverlay]} edges={['bottom']}>
-          <ScrollView contentContainerStyle={styles.resultScrollSticky}>
-            <Image source={{ uri: shot.uri }} style={styles.resultPreview} resizeMode="contain" />
+      <DecisionStatusPill />
 
-            <View style={styles.resultMetaRow}>
-              <View style={[styles.chip, shot.cropped ? styles.chipSuccess : styles.chipWarning]}>
-                <Icon
-                  name={shot.cropped ? 'crop' : 'image-outline'}
-                  size={12}
-                  color={shot.cropped ? 'success' : 'warning'}
-                />
-                <Text style={[styles.chipText, { color: shot.cropped ? '#22c55e' : '#f59e0b' }]}>
-                  {shot.cropped ? 'cropped' : 'raw frame'}
-                </Text>
-              </View>
-              {shot.sourceWidth > 0 ? (
-                <View style={[styles.chip, styles.chipNeutral]}>
-                  <Icon name="resize-outline" size={12} tint="#9aa3b2" />
-                  <Text style={[styles.chipText, { color: '#9aa3b2' }]}>
-                    src {shot.sourceWidth}×{shot.sourceHeight} ({((shot.sourceWidth * shot.sourceHeight) / 1_000_000).toFixed(1)} MP)
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+      <CaptureGallery records={records} onAdd={onAddFromReview} onDismiss={onDismissTile} />
 
-            {scan.isPending ? (
-              <View style={styles.statusRow}>
-                <ActivityIndicator color="#3b82f6" />
-                <Text style={styles.statusText}>Recognizing…</Text>
-              </View>
-            ) : null}
-
-            {scan.isError ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{(scan.error as Error).message}</Text>
-              </View>
-            ) : null}
-
-            {scan.data ? (
-              <ResultList
-                data={scan.data}
-                onAdd={onAdd}
-                addPending={addToSelection.isPending}
-              />
-            ) : null}
-          </ScrollView>
-
-          <View style={styles.stickyActions}>
-            <Pressable onPress={onRetake} style={styles.secondaryButton}>
-              <Icon name="arrow-undo-outline" size={18} color="primary" />
-              <Text style={styles.secondaryButtonText}>Retake</Text>
-            </Pressable>
-            <Pressable onPress={goToSelection} style={styles.primaryButton}>
-              <Icon name="layers-outline" size={18} color="white" />
-              <Text style={styles.primaryButtonText}>
-                Selection{selectionCount > 0 ? ` (${selectionCount})` : ''}
-              </Text>
-            </Pressable>
-          </View>
-        </SafeAreaView>
-      ) : null}
+      {/* Bottom-right "done" button — quick path into the Selection screen
+          when the user is finished sweeping. */}
+      <View style={styles.doneBar} pointerEvents="box-none">
+        <Pressable
+          onPress={goToSelection}
+          style={[
+            styles.doneButton,
+            selectionCount === 0 && styles.doneButtonDisabled,
+          ]}
+          disabled={selectionCount === 0}
+          accessibilityLabel="Review scanned selection"
+        >
+          <Icon name="layers-outline" size={18} color={selectionCount === 0 ? 'muted' : 'white'} />
+          <Text
+            style={[
+              styles.doneButtonText,
+              selectionCount === 0 && styles.doneButtonTextDisabled,
+            ]}
+          >
+            {selectionCount === 0 ? 'Aim at a card — capturing automatically' : `Review ${selectionCount}`}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-function FrameTheCardHint({ metrics }: { metrics: ReturnType<typeof useCardDetection>['metrics'] }) {
-  // Re-render at rAF cadence to track the worklet shared value cheaply.
+function FrameTheCardHint({
+  metrics,
+  hasRecords,
+}: {
+  metrics: ReturnType<typeof useCardDetection>['metrics'];
+  hasRecords: boolean;
+}) {
   const [, setTick] = useState(0);
   useEffect(() => {
     let raf: number;
@@ -633,170 +604,14 @@ function FrameTheCardHint({ metrics }: { metrics: ReturnType<typeof useCardDetec
   }, []);
 
   const m = metrics.getDirty();
-  if (m.hasQuad || m.frameSize.width === 0) return null;
+  // Hide the hint as soon as detection sees a quad OR the user already has
+  // captures in the gallery (they clearly know what they're doing).
+  if (m.hasQuad || m.frameSize.width === 0 || hasRecords) return null;
 
   return (
     <View style={styles.frameHintWrap} pointerEvents="none">
       <Icon name="scan-outline" size={56} tint="rgba(255,255,255,0.45)" />
       <Text style={styles.frameHintText}>Position a card in view</Text>
-    </View>
-  );
-}
-
-function ResultList({
-  data,
-  onAdd,
-  addPending,
-}: {
-  data: ScanResponse;
-  onAdd: (candidate: CardCandidateResponse) => void;
-  addPending: boolean;
-}) {
-  return (
-    <View style={styles.resultBlock}>
-      <View style={styles.confidenceRow}>
-        <Text style={styles.confidenceLabel}>Confidence</Text>
-        <ConfidenceBadge level={data.confidence} />
-      </View>
-
-      {data.candidates.length === 0 ? (
-        <Text style={styles.emptyText}>
-          No matching cards in the local catalog. Re-scan with better lighting or try a smaller crop.
-        </Text>
-      ) : null}
-
-      {data.candidates.map((c, idx) => (
-        <CandidateRow
-          key={c.printing.id}
-          candidate={c}
-          isTop={idx === 0}
-          onAdd={() => onAdd(c)}
-          addPending={addPending}
-        />
-      ))}
-
-      <BackendDebugBlock data={data} />
-    </View>
-  );
-}
-
-function BackendDebugBlock({ data }: { data: ScanResponse }) {
-  const d = data.debug;
-  return (
-    <View style={styles.debugBlock}>
-      <Text style={styles.debugTitle}>Backend debug</Text>
-
-      <Text style={styles.debugSubtitle}>Pipeline</Text>
-      <Text style={styles.debugLine}>
-        OCR {d.ocrLatencyMs}ms · pHash {d.pHashLatencyMs}ms
-      </Text>
-      <Text style={styles.debugLine}>
-        pHash candidates: {d.pHashCandidateCount} · OCR candidates: {d.ocrCandidateCount}
-      </Text>
-      <Text style={styles.debugLine}>OCR regions: {d.ocrRegionCount}</Text>
-      <Text style={styles.debugLine}>
-        imagePHash: {d.imagePHash != null ? d.imagePHash.toString() : '—'}
-      </Text>
-
-      <Text style={styles.debugSubtitle}>Crop (server-side)</Text>
-      <Text style={styles.debugLine}>
-        cropped: {d.cropped ? 'yes' : 'no'} · confidence {d.cropConfidence.toFixed(2)}
-      </Text>
-      <Text style={styles.debugLine}>
-        cropped size: {d.croppedWidth}x{d.croppedHeight}
-      </Text>
-
-      <Text style={styles.debugSubtitle}>Set symbol</Text>
-      {d.setSymbol ? (
-        <>
-          <Text style={styles.debugLine}>
-            set: {d.setSymbol.setCode.toUpperCase()} · score {d.setSymbol.score.toFixed(2)} · h={d.setSymbol.hammingDistance}
-          </Text>
-        </>
-      ) : (
-        <Text style={styles.debugLine}>not detected</Text>
-      )}
-
-      <Text style={styles.debugSubtitle}>OCR zones</Text>
-      <ZoneLine label="name" value={d.zones.name} />
-      <ZoneLine label="type" value={d.zones.typeLine} />
-      <ZoneLine label="rules" value={d.zones.rulesText} />
-      <ZoneLine label="P/T" value={d.zones.powerToughness} />
-      <ZoneLine label="bottom" value={d.zones.bottomMetadata} />
-
-      <Text style={styles.debugSubtitle}>Raw response</Text>
-      <Text style={styles.debugLine} selectable>
-        {JSON.stringify(data, null, 2)}
-      </Text>
-    </View>
-  );
-}
-
-function ZoneLine({ label, value }: { label: string; value: string }) {
-  const trimmed = value?.trim() ?? '';
-  return (
-    <Text style={styles.debugLine} numberOfLines={4}>
-      <Text style={styles.zoneLabel}>{label}: </Text>
-      {trimmed.length > 0 ? trimmed : '(empty)'}
-    </Text>
-  );
-}
-
-function ConfidenceBadge({ level }: { level: RecognitionConfidence }) {
-  const color = level === 'high' ? '#22c55e' : level === 'medium' ? '#f59e0b' : '#f97373';
-  return (
-    <View style={[styles.badge, { backgroundColor: color + '22', borderColor: color }]}>
-      <Text style={[styles.badgeText, { color }]}>{level.toUpperCase()}</Text>
-    </View>
-  );
-}
-
-function CandidateRow({
-  candidate,
-  isTop,
-  onAdd,
-  addPending,
-}: {
-  candidate: CardCandidateResponse;
-  isTop: boolean;
-  onAdd: () => void;
-  addPending: boolean;
-}) {
-  const thumb = candidate.printing.images?.artCrop ?? candidate.printing.images?.normal ?? null;
-  return (
-    <View style={[styles.candidateRow, isTop && styles.candidateRowTop]}>
-      {thumb ? (
-        <Image source={{ uri: thumb }} style={styles.candidateThumb} />
-      ) : (
-        <View style={[styles.candidateThumb, styles.candidateThumbPlaceholder]} />
-      )}
-      <View style={styles.candidateText}>
-        <Text style={styles.candidateName}>{candidate.printing.name}</Text>
-        <Text style={styles.candidateMeta}>
-          {candidate.printing.setCode.toUpperCase()} · #{candidate.printing.collectorNumber} · {candidate.printing.rarity}
-        </Text>
-        <Text style={styles.candidateScores}>
-          combined {candidate.combinedScore.toFixed(2)} · pHash {candidate.hammingScore.toFixed(2)}
-          {candidate.hammingDistance != null ? ` (h=${candidate.hammingDistance})` : ''} · ocr {candidate.ocrAggregateScore.toFixed(2)}
-        </Text>
-        <Text style={styles.candidateScores}>
-          name {candidate.nameScore.toFixed(2)} · type {candidate.typeLineScore.toFixed(2)} · rules {candidate.rulesTextScore.toFixed(2)}
-        </Text>
-        <Text style={styles.candidateScores}>
-          P/T {candidate.powerToughnessScore.toFixed(2)} · bottom {candidate.bottomMetadataScore.toFixed(2)} · setW {candidate.setTypeWeight.toFixed(2)}
-        </Text>
-        <Text style={styles.candidateScores}>
-          matched: {candidate.matchedByPHash ? 'pHash' : '—'} {candidate.matchedByName ? '+ name' : ''}
-        </Text>
-      </View>
-      <Pressable
-        onPress={onAdd}
-        disabled={addPending}
-        style={[styles.addButton, addPending && styles.disabled]}
-      >
-        <Icon name="add-circle" size={16} color="white" />
-        <Text style={styles.addButtonText}>Add</Text>
-      </Pressable>
     </View>
   );
 }
@@ -807,9 +622,8 @@ const styles = StyleSheet.create({
   cameraOverlay: { ...StyleSheet.absoluteFillObject },
   lensBadge: {
     position: 'absolute',
-    bottom: 140,
+    top: 100,
     left: 12,
-    right: 12,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -820,17 +634,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'monospace',
     lineHeight: 14,
-  },
-  captureBar: { position: 'absolute', bottom: 48, alignSelf: 'center', left: 0, right: 0, alignItems: 'center' },
-  shutter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#fff',
-    borderWidth: 4,
-    borderColor: '#3b82f6',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   gearButton: {
     position: 'absolute',
@@ -889,113 +692,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  resultScroll: { padding: 16, gap: 16 },
-  /** Same as resultScroll but pads the bottom for the sticky action bar. */
-  resultScrollSticky: { padding: 16, gap: 16, paddingBottom: 96 },
-  /**
-   * Opaque background for the result UI when it's overlaying the still-mounted
-   * Camera. We keep the Camera mounted across capture/retake so the worklet
-   * frame output never re-binds; the result panel just sits on top.
-   */
-  resultOverlay: { backgroundColor: '#0e1117' },
-  resultPreview: { width: '100%', height: 280, borderRadius: 12, backgroundColor: '#1a1f29' },
-  resultMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chipSuccess: { backgroundColor: '#16331f', borderColor: '#22c55e' },
-  chipWarning: { backgroundColor: '#33231a', borderColor: '#f59e0b' },
-  chipNeutral: { backgroundColor: '#1a1f29', borderColor: '#2c3340' },
-  chipText: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  croppedNote: { color: '#6e7686', fontSize: 12, fontStyle: 'italic' },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statusText: { color: '#cbd1da', fontSize: 14 },
-  errorBox: { backgroundColor: '#2a1414', padding: 12, borderRadius: 8 },
-  errorText: { color: '#f97373', fontSize: 14 },
-  resultBlock: { gap: 12 },
-  confidenceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  confidenceLabel: { color: '#9aa3b2', fontSize: 14 },
-  badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, borderWidth: 1 },
-  badgeText: { fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-  emptyText: { color: '#6e7686', fontSize: 14, textAlign: 'center', padding: 16 },
-  candidateRow: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1f29',
-    borderRadius: 8,
-    padding: 8,
-    gap: 12,
-    alignItems: 'center',
-  },
-  candidateRowTop: { borderColor: '#3b82f6', borderWidth: 1 },
-  candidateThumb: { width: 56, height: 56, borderRadius: 6, backgroundColor: '#2c3340' },
-  candidateThumbPlaceholder: { backgroundColor: '#2c3340' },
-  candidateText: { flex: 1, gap: 2 },
-  candidateName: { color: '#f5f5f5', fontSize: 15, fontWeight: '600' },
-  candidateMeta: { color: '#9aa3b2', fontSize: 12 },
-  candidateScores: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#3b82f6',
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  disabled: { opacity: 0.5 },
-  debugBlock: {
-    backgroundColor: '#101622',
-    borderRadius: 8,
-    padding: 12,
-    gap: 4,
-    marginTop: 8,
-  },
-  debugTitle: { color: '#cbd1da', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1 },
-  debugSubtitle: {
-    color: '#3b82f6',
-    fontSize: 10,
-    fontWeight: '700',
-    fontFamily: 'monospace',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginTop: 8,
-  },
-  debugLine: { color: '#9aa3b2', fontSize: 11, fontFamily: 'monospace' },
-  zoneLabel: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  /** Sticky bottom action bar floating over the result-screen ScrollView. */
-  stickyActions: {
+
+  doneBar: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 116,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-    backgroundColor: 'rgba(14, 17, 23, 0.95)',
-    borderTopWidth: 1,
-    borderTopColor: '#1a1f29',
+    alignItems: 'center',
   },
-  secondaryButton: {
-    flex: 1,
+  doneButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    borderColor: '#3b82f6',
-    borderWidth: 1,
-    borderRadius: 8,
+    backgroundColor: '#3b82f6',
+    borderRadius: 999,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
   },
-  secondaryButtonText: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
+  doneButtonDisabled: {
+    backgroundColor: 'rgba(8,12,22,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  doneButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  doneButtonTextDisabled: { color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
 });

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth, AuthUser } from '../store/auth-store';
-import { mtgApi } from '../api/mtg-client';
+import { postMeRegister } from '../api/generated/me/me';
 
 type AuthContextValue = {
   loaded: boolean;
@@ -41,9 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBusy(true);
       setError(null);
       try {
-        const response = await mtgApi.registerDevice({
+        const envelope = await postMeRegister({
           displayName: displayName?.trim() || undefined,
         });
+        const response = envelope.data;
         await setSession(response.token, {
           // Backend returns the canonical user id under `id`; keep the local
           // `AuthUser.sub` field name for back-compat with the persisted store.
@@ -51,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: response.displayName ?? undefined,
         });
       } catch (e: unknown) {
-        setError((e as Error).message);
+        setError(e instanceof Error ? e.message : String(e));
       } finally {
         setBusy(false);
       }

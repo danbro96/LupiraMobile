@@ -50,11 +50,30 @@ export function DebugMetricsPanel({
         <Row label="stab" value={fmt(m.stability)} />
         <Row label="sharp" value={fmt(m.sharpness)} />
         <Row label="cover" value={fmt(m.coverage)} />
+        <Row label="bright" value={`${Math.round(m.brightness)} (${fmt(m.brightnessFit)})`} />
         <Row label="thr" value={fmt(threshold)} />
         <Row
           label="frames"
           value={`${stable}/${minStableFrames}`}
           accent={stable > 0 ? '#22c55e' : '#cbd1da'}
+        />
+      </Section>
+
+      <Section title="Gate">
+        <Row
+          label="floors"
+          value={m.hardFloorPass ? 'pass' : 'FAIL'}
+          accent={m.hardFloorPass ? '#22c55e' : '#f97373'}
+        />
+        <Row
+          label="band"
+          value={m.inHysteresis ? 'in' : 'out'}
+          accent={m.inHysteresis ? '#22c55e' : '#cbd1da'}
+        />
+        <Row
+          label="cooldown"
+          value={m.cooldownActive ? 'BLOCK' : 'clear'}
+          accent={m.cooldownActive ? '#f59e0b' : '#22c55e'}
         />
       </Section>
 

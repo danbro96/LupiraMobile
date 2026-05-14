@@ -4,22 +4,29 @@ import * as SecureStore from 'expo-secure-store';
 const KEY_AUTO = 'lupira.scan.autoCapture';
 const KEY_THRESHOLD = 'lupira.scan.captureThreshold';
 const KEY_MIN_FRAMES = 'lupira.scan.minStableFrames';
-const KEY_W_STABILITY = 'lupira.scan.wStability';
-const KEY_W_SHARPNESS = 'lupira.scan.wSharpness';
-const KEY_W_COVERAGE = 'lupira.scan.wCoverage';
+// v3 bump: the worklet's decision policy was rewritten to (a) actually use the
+// sharpness signal (Laplacian variance — was hardcoded 0 prior), (b) introduce
+// a brightness signal, and (c) gate via hysteresis + per-signal hard floors.
+// New defaults rebalance the weights across all four signals so the soft
+// composite reaches 1.0 cleanly. Old `.v2` values are ignored on load to push
+// existing installs onto the new model.
+const KEY_W_STABILITY = 'lupira.scan.wStability.v3';
+const KEY_W_SHARPNESS = 'lupira.scan.wSharpness.v3';
+const KEY_W_COVERAGE = 'lupira.scan.wCoverage.v3';
+const KEY_W_BRIGHTNESS = 'lupira.scan.wBrightness.v3';
 const KEY_DEBUG = 'lupira.scan.debugOverlay';
 // v2 bump: previous key persisted values capped at 95 with default 80; we now
 // default to 92 and allow up to 100. Ignore old values so existing installs
 // don't get stuck below the new sensible floor.
 const KEY_QUALITY = 'lupira.scan.jpegQuality.v2';
-const KEY_PREVIEW_BEFORE_UPLOAD = 'lupira.scan.previewBeforeUpload';
 
 const DEFAULT_AUTO = true;
-const DEFAULT_THRESHOLD = 0.75;
+const DEFAULT_THRESHOLD = 0.78;
 const DEFAULT_MIN_FRAMES = 4;
-const DEFAULT_W_STABILITY = 0.5;
+const DEFAULT_W_STABILITY = 0.35;
 const DEFAULT_W_SHARPNESS = 0.3;
-const DEFAULT_W_COVERAGE = 0.2;
+const DEFAULT_W_COVERAGE = 0.25;
+const DEFAULT_W_BRIGHTNESS = 0.1;
 const DEFAULT_DEBUG = false;
 /**
  * 92 is the practical sweet-spot for re-encoded JPEG: visually
@@ -30,11 +37,23 @@ const DEFAULT_DEBUG = false;
  * is the *second* JPEG round — under-compressing here compounds the artefacts.
  */
 const DEFAULT_QUALITY = 92;
-const DEFAULT_PREVIEW_BEFORE_UPLOAD = false;
 
 export const SCAN_THRESHOLD_BOUNDS = { min: 0.3, max: 0.95 } as const;
-export const SCAN_MIN_FRAMES_BOUNDS = { min: 4, max: 16 } as const;
+export const SCAN_MIN_FRAMES_BOUNDS = { min: 2, max: 16 } as const;
 export const SCAN_QUALITY_BOUNDS = { min: 75, max: 100 } as const;
+
+/**
+ * Trigger-policy constants used by the worklet. Exported so the worklet can
+ * import them without re-declaring magic numbers in two places.
+ *
+ * - HIGH: enter-the-band threshold for the composite score
+ * - LOW:  hold-the-band threshold (only drops below LOW reset the stable counter)
+ * - COOLDOWN_MS: post-capture, reject re-fires whose centroid is within
+ *   `0.4 × shortEdge` of the previous capture for this many milliseconds
+ */
+export const SCAN_HYSTERESIS = { HIGH: 0.78, LOW: 0.66 } as const;
+export const SCAN_COOLDOWN_MS = 1500;
+export const SCAN_COOLDOWN_CENTROID_FRACTION = 0.4;
 
 type ScanSettings = {
   autoCaptureEnabled: boolean;
@@ -43,9 +62,9 @@ type ScanSettings = {
   weightStability: number;
   weightSharpness: number;
   weightCoverage: number;
+  weightBrightness: number;
   showDebugOverlay: boolean;
   jpegQuality: number;
-  previewBeforeUpload: boolean;
   loaded: boolean;
 };
 
@@ -54,10 +73,14 @@ type Actions = {
   setAutoCaptureEnabled: (v: boolean) => Promise<void>;
   setCaptureThreshold: (v: number) => Promise<void>;
   setMinStableFrames: (v: number) => Promise<void>;
-  setWeights: (stability: number, sharpness: number, coverage: number) => Promise<void>;
+  setWeights: (
+    stability: number,
+    sharpness: number,
+    coverage: number,
+    brightness: number,
+  ) => Promise<void>;
   setShowDebugOverlay: (v: boolean) => Promise<void>;
   setJpegQuality: (v: number) => Promise<void>;
-  setPreviewBeforeUpload: (v: boolean) => Promise<void>;
   resetToDefaults: () => Promise<void>;
 };
 
@@ -84,22 +107,22 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
   weightStability: DEFAULT_W_STABILITY,
   weightSharpness: DEFAULT_W_SHARPNESS,
   weightCoverage: DEFAULT_W_COVERAGE,
+  weightBrightness: DEFAULT_W_BRIGHTNESS,
   showDebugOverlay: DEFAULT_DEBUG,
   jpegQuality: DEFAULT_QUALITY,
-  previewBeforeUpload: DEFAULT_PREVIEW_BEFORE_UPLOAD,
   loaded: false,
 
   load: async () => {
-    const [auto, thr, frames, ws, wsh, wc, dbg, q, preview] = await Promise.all([
+    const [auto, thr, frames, ws, wsh, wc, wb, dbg, q] = await Promise.all([
       SecureStore.getItemAsync(KEY_AUTO),
       SecureStore.getItemAsync(KEY_THRESHOLD),
       SecureStore.getItemAsync(KEY_MIN_FRAMES),
       SecureStore.getItemAsync(KEY_W_STABILITY),
       SecureStore.getItemAsync(KEY_W_SHARPNESS),
       SecureStore.getItemAsync(KEY_W_COVERAGE),
+      SecureStore.getItemAsync(KEY_W_BRIGHTNESS),
       SecureStore.getItemAsync(KEY_DEBUG),
       SecureStore.getItemAsync(KEY_QUALITY),
-      SecureStore.getItemAsync(KEY_PREVIEW_BEFORE_UPLOAD),
     ]);
     set({
       autoCaptureEnabled: parseBool(auto, DEFAULT_AUTO),
@@ -108,9 +131,9 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       weightStability: clamp(parseNum(ws, DEFAULT_W_STABILITY), 0, 1),
       weightSharpness: clamp(parseNum(wsh, DEFAULT_W_SHARPNESS), 0, 1),
       weightCoverage: clamp(parseNum(wc, DEFAULT_W_COVERAGE), 0, 1),
+      weightBrightness: clamp(parseNum(wb, DEFAULT_W_BRIGHTNESS), 0, 1),
       showDebugOverlay: parseBool(dbg, DEFAULT_DEBUG),
       jpegQuality: Math.round(clamp(parseNum(q, DEFAULT_QUALITY), SCAN_QUALITY_BOUNDS.min, SCAN_QUALITY_BOUNDS.max)),
-      previewBeforeUpload: parseBool(preview, DEFAULT_PREVIEW_BEFORE_UPLOAD),
       loaded: true,
     });
   },
@@ -132,16 +155,18 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
     set({ minStableFrames: clamped });
   },
 
-  setWeights: async (stability, sharpness, coverage) => {
+  setWeights: async (stability, sharpness, coverage, brightness) => {
     const s = clamp(stability, 0, 1);
     const sh = clamp(sharpness, 0, 1);
     const c = clamp(coverage, 0, 1);
+    const b = clamp(brightness, 0, 1);
     await Promise.all([
       SecureStore.setItemAsync(KEY_W_STABILITY, String(s)),
       SecureStore.setItemAsync(KEY_W_SHARPNESS, String(sh)),
       SecureStore.setItemAsync(KEY_W_COVERAGE, String(c)),
+      SecureStore.setItemAsync(KEY_W_BRIGHTNESS, String(b)),
     ]);
-    set({ weightStability: s, weightSharpness: sh, weightCoverage: c });
+    set({ weightStability: s, weightSharpness: sh, weightCoverage: c, weightBrightness: b });
   },
 
   setShowDebugOverlay: async (v) => {
@@ -155,11 +180,6 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
     set({ jpegQuality: clamped });
   },
 
-  setPreviewBeforeUpload: async (v) => {
-    await SecureStore.setItemAsync(KEY_PREVIEW_BEFORE_UPLOAD, v ? '1' : '0');
-    set({ previewBeforeUpload: v });
-  },
-
   resetToDefaults: async () => {
     await Promise.all([
       SecureStore.deleteItemAsync(KEY_AUTO),
@@ -168,9 +188,9 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       SecureStore.deleteItemAsync(KEY_W_STABILITY),
       SecureStore.deleteItemAsync(KEY_W_SHARPNESS),
       SecureStore.deleteItemAsync(KEY_W_COVERAGE),
+      SecureStore.deleteItemAsync(KEY_W_BRIGHTNESS),
       SecureStore.deleteItemAsync(KEY_DEBUG),
       SecureStore.deleteItemAsync(KEY_QUALITY),
-      SecureStore.deleteItemAsync(KEY_PREVIEW_BEFORE_UPLOAD),
     ]);
     set({
       autoCaptureEnabled: DEFAULT_AUTO,
@@ -179,9 +199,9 @@ export const useScanSettings = create<ScanSettings & Actions>((set) => ({
       weightStability: DEFAULT_W_STABILITY,
       weightSharpness: DEFAULT_W_SHARPNESS,
       weightCoverage: DEFAULT_W_COVERAGE,
+      weightBrightness: DEFAULT_W_BRIGHTNESS,
       showDebugOverlay: DEFAULT_DEBUG,
       jpegQuality: DEFAULT_QUALITY,
-      previewBeforeUpload: DEFAULT_PREVIEW_BEFORE_UPLOAD,
     });
   },
 }));

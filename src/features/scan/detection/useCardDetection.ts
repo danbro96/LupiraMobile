@@ -6,7 +6,7 @@ import {
 } from 'react-native-vision-camera';
 import { runOnJS, type Synchronizable } from 'react-native-worklets';
 import {
-  ColorConversionCodes,
+  BorderTypes,
   ContourApproximationModes,
   DataTypes,
   InterpolationFlags,
@@ -16,6 +16,11 @@ import {
   OpenCV,
   RetrievalModes,
 } from 'react-native-fast-opencv';
+import {
+  SCAN_COOLDOWN_CENTROID_FRACTION,
+  SCAN_COOLDOWN_MS,
+  SCAN_HYSTERESIS,
+} from '../../../store/scan-settings-store';
 import { useSyncedValue } from './useSyncedValue';
 
 export type Point = { x: number; y: number };
@@ -24,13 +29,30 @@ export type Quad = [Point, Point, Point, Point];
 export type FrameSize = { width: number; height: number };
 
 export type DetectionMetrics = {
+  /** Composite soft score in [0..1]. */
   score: number;
   stability: number;
   sharpness: number;
   coverage: number;
+  /** Soft brightness-fit score in [0..1] (penalty curve around [80, 200]). */
+  brightnessFit: number;
+  /** Raw mean luminance of the detection ROI in [0..255]. */
+  brightness: number;
   detectionFps: number;
   frameSize: FrameSize;
   hasQuad: boolean;
+  /** True if every per-signal hard floor is currently satisfied. */
+  hardFloorPass: boolean;
+  /** True if the composite score has entered the hysteresis band. */
+  inHysteresis: boolean;
+  /** True if a recent capture's content-cooldown is still suppressing fires. */
+  cooldownActive: boolean;
+  /**
+   * Milliseconds remaining on the content-cooldown window. 0 when no cooldown
+   * is in effect. Lets the status pill show e.g. "Cooldown 0.8 s" without the
+   * JS thread needing to track its own timer.
+   */
+  cooldownRemainingMs: number;
   pixelFormat: string;
   orientation: string;
   isMirrored: boolean;
@@ -58,6 +80,7 @@ export type CardDetectionParams = {
   weightStability: number;
   weightSharpness: number;
   weightCoverage: number;
+  weightBrightness: number;
   onAutoCapture: (quad: Quad, frameSize: FrameSize) => void;
 };
 
@@ -69,17 +92,14 @@ export type CardDetectionState = {
   /**
    * Re-enable detection after the worklet has self-disabled for an auto-capture
    * that subsequently failed (e.g. camera was mid-rebind after an AppState
-   * transition and `capturePhoto` threw "Not bound to a valid Camera"). Without
-   * this, detection stays off until the next params.enabled toggle.
+   * transition and `capturePhoto` threw "Not bound to a valid Camera").
    */
   resume: () => void;
   /**
    * Pause the worklet pipeline from JS. Required around `capturePhoto` +
    * `cropToQuad` because both the worklet and `cropToQuad` call
    * `OpenCV.clearBuffers()` on the same global object store; if the worklet
-   * keeps running it wipes objects mid-warp ("Object with id … not found in
-   * storage"). Auto-capture self-disables in the worklet, but manual capture
-   * doesn't, hence this explicit hook.
+   * keeps running it wipes objects mid-warp.
    */
   pause: () => void;
 };
@@ -89,9 +109,15 @@ const INITIAL_METRICS: DetectionMetrics = {
   stability: 0,
   sharpness: 0,
   coverage: 0,
+  brightnessFit: 0,
+  brightness: 0,
   detectionFps: 0,
   frameSize: { width: 0, height: 0 },
   hasQuad: false,
+  hardFloorPass: false,
+  inHysteresis: false,
+  cooldownActive: false,
+  cooldownRemainingMs: 0,
   pixelFormat: 'unknown',
   orientation: 'unknown',
   isMirrored: false,
@@ -117,93 +143,122 @@ const ASPECT_TOLERANCE = 0.3;
 const MIN_AREA_FRACTION = 0.05;
 const FILL_RATIO_MIN = 0.7;
 /**
- * Fraction of the buffer's *short* axis that the centered detection-ROI takes.
- * The companion display-side GuideFrame component uses the same fraction so the
- * on-screen guide rectangle aligns with where the worklet actually looks.
- *
- * Sized for a card held at the wide-angle lens's minimum focus distance
- * (~25 cm on a base S23) — at that range the card occupies roughly half the
- * viewport, so a guide much larger than that just trains users to hold the
- * card too close for AF to lock.
+ * Fraction of the buffer's *short* axis that the centred detection-ROI takes.
+ * The companion display-side GuideFrame uses the same value so the on-screen
+ * guide rectangle aligns with where the worklet actually looks.
  */
 export const GUIDE_SHORT_FRACTION = 0.55;
 const APPROX_EPSILON_FRACTIONS = [0.02, 0.03, 0.04, 0.05, 0.06] as const;
-// Width (long axis) of the downscaled buffer that actually runs through the
-// Canny + findContours pipeline. Lower is faster — work scales with pixel
-// count, so 360 is ~44% the cost of 480 with no measurable detection-quality
-// loss for a card filling most of the ROI. Detected coords are scaled back
-// up to buffer-space for the final projection, so this is invisible to the UI.
+// Width (long axis) of the downscaled buffer that runs through Canny +
+// findContours. Lower is faster — work scales with pixel count.
 const DETECT_WIDTH = 360;
-const STABILITY_CEILING = 24;
 const STABILITY_HISTORY = 8;
+
 /**
  * Per-frame blend factor for the displayed/auto-capture quad. Each frame the
  * smoothed corners are `prev * (1 - alpha) + current * alpha`, so the visible
- * polygon glides toward the latest detection instead of snapping to it. This
- * cuts the corner jitter that prevented `stabilityScore` from clearing the
- * auto-capture threshold.
+ * polygon glides toward the latest detection instead of snapping to it.
  */
 const QUAD_SMOOTH_ALPHA = 0.4;
-/**
- * Brief detection drops (1–2 frames) shouldn't reset the smoothed quad — that
- * just resets the auto-capture progress. We hold the last smoothed quad alive
- * for this many frames; only after a sustained miss do we clear it.
- */
+/** How many missed-detection frames the smoothed quad survives before clearing. */
 const QUAD_SMOOTH_GRACE_FRAMES = 2;
 
+// --- Decision-policy hard floors. Each signal must clear its floor every
+// frame; a single failure resets the stable counter regardless of composite.
+// Exported so the JS-thread debug log can derive *which* floor blocked
+// without duplicating the constants.
+export const HARD_FLOORS = {
+  coverage: 0.2,
+  stability: 0.55,
+  sharpness: 0.45,
+  /** Raw luminance band (0..255) the captured frame must sit inside. */
+  brightnessMin: 30,
+  brightnessMax: 235,
+} as const;
+
+const HARD_FLOOR_COVERAGE = HARD_FLOORS.coverage;
+const HARD_FLOOR_STABILITY = HARD_FLOORS.stability;
+const HARD_FLOOR_SHARPNESS = HARD_FLOORS.sharpness;
+const HARD_FLOOR_BRIGHTNESS_MIN = HARD_FLOORS.brightnessMin;
+const HARD_FLOOR_BRIGHTNESS_MAX = HARD_FLOORS.brightnessMax;
+
 /**
- * Per-frame card detection pipeline (vision-camera v5 / new arch):
- *   downscale -> grayscale -> blur -> Canny -> morphClose -> findContours
- *   -> filter by minAreaRect fill-ratio + aspect
- *   -> recover trapezoid corners via approxPolyDP with adaptive epsilon
- *   -> rank by area
+ * Sharpness normalisation divisor for the mean-absolute-Laplacian metric.
+ * 25 was picked empirically: at the YUV-Y small-Mat resolution and with a
+ * 3×3 Laplacian kernel, in-focus card scans cluster around ~30–60 mean abs
+ * Laplacian; out-of-focus / motion-blurred frames sit under ~10. Dividing by
+ * 25 maps "definitely in focus" to ≥ 1 (clamped).
+ */
+const SHARPNESS_NORM_DIVISOR = 25;
+/**
+ * Stability ceiling expressed as a fraction of the *quad's short edge*.
+ * 0.05 means we accept up to 5% of the card's short side worth of average
+ * corner displacement before stability drops to 0. Replacing the previous
+ * absolute 24-pixel ceiling makes hand-steadiness requirements scale with
+ * how big the card looks on screen.
+ */
+const STABILITY_CEILING_FRACTION = 0.05;
+/** Minimum effective ceiling in pixels — protects against tiny / degenerate quads. */
+const STABILITY_CEILING_MIN = 6;
+
+/**
+ * Per-frame card detection pipeline (vision-camera v5 / new arch).
  *
- * The Camera mounting this output MUST set `pixelFormat="rgb"` so frames arrive
- * as 4-channel RGBA, which `bufferToMat` then loads.
- *
- * Frame disposal is mandatory in v5; the `finally` block calls `frame.dispose()`
- * after `OpenCV.clearBuffers()` regardless of success/failure.
+ * Frame disposal is mandatory in v5; the outer `finally` always calls
+ * `frame.dispose()`. The OpenCV inner finally always calls `clearBuffers()`.
  */
 export function useCardDetection(params: CardDetectionParams): CardDetectionState {
   const quad = useSyncedValue<Quad | null>(null);
   const metrics = useSyncedValue<DetectionMetrics>(INITIAL_METRICS);
   const stableFrames = useSyncedValue<number>(0);
+  /** True once `score >= HIGH`; reset only when score drops below LOW. */
+  const inBand = useSyncedValue<boolean>(false);
   const history = useSyncedValue<Quad[]>([]);
   const lastFrameAt = useSyncedValue<number>(0);
   const ema = useSyncedValue<number>(0);
   const framesProcessedShared = useSyncedValue<number>(0);
-  // Smoothed quad in detection-space coords (pre-projection). Persists across
-  // brief detection drops so a 1-frame miss doesn't kill auto-capture progress.
   const smoothedDetQuad = useSyncedValue<Quad | null>(null);
   const smoothMissCount = useSyncedValue<number>(0);
+  // Content-cooldown record from the most recent successful auto-capture.
+  // Stored in detection-space coordinates (matches `activeQuad`).
+  const lastCapture = useSyncedValue<{
+    at: number;
+    centroidX: number;
+    centroidY: number;
+    shortEdge: number;
+  } | null>(null);
 
   const tunables = useSyncedValue<{
     enabled: boolean;
     autoCaptureEnabled: boolean;
-    threshold: number;
+    /** HIGH threshold of the hysteresis band. LOW is derived as HIGH - 0.12. */
+    thresholdHigh: number;
     minStableFrames: number;
     wStability: number;
     wSharpness: number;
     wCoverage: number;
+    wBrightness: number;
   }>({
     enabled: params.enabled,
     autoCaptureEnabled: params.autoCaptureEnabled,
-    threshold: params.threshold,
+    thresholdHigh: params.threshold,
     minStableFrames: params.minStableFrames,
     wStability: params.weightStability,
     wSharpness: params.weightSharpness,
     wCoverage: params.weightCoverage,
+    wBrightness: params.weightBrightness,
   });
 
   useEffect(() => {
     tunables.setBlocking({
       enabled: params.enabled,
       autoCaptureEnabled: params.autoCaptureEnabled,
-      threshold: params.threshold,
+      thresholdHigh: params.threshold,
       minStableFrames: params.minStableFrames,
       wStability: params.weightStability,
       wSharpness: params.weightSharpness,
       wCoverage: params.weightCoverage,
+      wBrightness: params.weightBrightness,
     });
   }, [
     tunables,
@@ -214,6 +269,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     params.weightStability,
     params.weightSharpness,
     params.weightCoverage,
+    params.weightBrightness,
   ]);
 
   const onAutoCaptureRef = useRef(params.onAutoCapture);
@@ -223,11 +279,14 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     onAutoCaptureRef.current(q, size);
   };
 
+  // Constants captured into the worklet closure. Top-level imports are
+  // inlined cleanly by react-native-worklets, but for clarity we pull the
+  // numbers we use into named locals here.
+  const BAND_LOW_OFFSET = SCAN_HYSTERESIS.HIGH - SCAN_HYSTERESIS.LOW; // 0.12
+  const COOLDOWN_MS = SCAN_COOLDOWN_MS;
+  const COOLDOWN_FRACTION = SCAN_COOLDOWN_CENTROID_FRACTION;
+
   const frameOutput = useFrameOutput({
-    // YUV is the camera's native format on Android, so this is zero-conversion
-    // and avoids the 'unknown' fallback we observed when requesting 'rgb' on
-    // Galaxy S23. We only need luminance for edge detection — the Y plane is
-    // already grayscale, so we can skip cvtColor entirely.
     pixelFormat: 'yuv',
     dropFramesWhileBusy: true,
     onFrame: (frame: Frame) => {
@@ -249,8 +308,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             lastStep: 'detection-disabled',
           });
           stableFrames.setBlocking(0);
-          // Clear smoothing state so a future re-enable starts fresh — otherwise
-          // stale corners from before disable bias the first re-acquired quad.
+          inBand.setBlocking(false);
           smoothedDetQuad.setBlocking(null);
           smoothMissCount.setBlocking(0);
           history.setBlocking([]);
@@ -273,17 +331,12 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         const frameIsMirrored = frame.isMirrored;
         const frameBytesPerRow = frame.bytesPerRow;
         const framePlanesCount = frame.isPlanar ? frame.getPlanes().length : 0;
-        // Y-plane derived dims; populated inside the try block once we have the
-        // actual buffer dimensions. Declared here so they're visible to the
-        // post-try success path that projects the detected quad back into
-        // frame-space coords.
+
         let yWidth = 0;
         let yHeight = 0;
         let detWPlane = 0;
         let detHPlane = 0;
         let scalePlane = 1;
-        // ROI offsets in buffer coords; needed to add back when projecting
-        // detection-space contour coords to buffer coords post-detection.
         let roiX = 0;
         let roiY = 0;
 
@@ -298,17 +351,17 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         let bestSeenArea = 0;
         let lastStep = 'enter';
         let lastBufferBytes = 0;
+        // Per-frame quality metrics computed during the OpenCV pass; defaulted
+        // to 0 / out-of-band so the no-detection path still emits sensible
+        // metric values for the JS-side debug overlay.
+        let sharpnessRaw = 0;
+        let brightnessRaw = 0;
         const framesProcessedNow = framesProcessedShared.getDirty() + 1;
         framesProcessedShared.setBlocking(framesProcessedNow);
 
         let pipelineError = '';
         try {
-          // Defensive sanity checks before touching OpenCV — feeding bufferToMat
-          // a buffer of the wrong size is what segfaulted on the Galaxy S23
-          // when pixelFormat fell through to 'unknown'.
           if (!frame.isPlanar) {
-            // We requested 'yuv' which should always be planar on Android. If
-            // the runtime delivers something else, skip rather than crash.
             lastStep = 'skip:not-planar';
             return;
           }
@@ -317,8 +370,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             lastStep = 'skip:no-planes';
             return;
           }
-          // Plane 0 is the Y (luminance) plane in YUV — already grayscale,
-          // exactly what edge detection needs. Skip RGBA→Gray conversion.
           const yPlane = planes[0];
           yWidth = yPlane.width;
           yHeight = yPlane.height;
@@ -328,8 +379,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           const buffer = yPlane.getPixelBuffer();
           lastBufferBytes = buffer.byteLength;
 
-          // Validate the buffer size matches what bufferToMat will read so we
-          // never walk past the end. Stride may be > yWidth due to alignment.
           const expectedPadded = yBytesPerRow * yHeight;
           if (buffer.byteLength < expectedPadded) {
             lastStep = `skip:short-buffer(got=${buffer.byteLength},need=${expectedPadded})`;
@@ -339,10 +388,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           lastStep = 'Uint8Array';
           const data = new Uint8Array(buffer);
 
-          // Build a tight (no-padding) grayscale Mat. When the plane stride
-          // matches its width, we wrap zero-copy. When there's row padding we
-          // copy each row's data columns into a fresh contiguous buffer —
-          // ~1MB at 1280x720, cheap.
           lastStep = 'bufferToMat';
           let gray;
           if (yBytesPerRow === yWidth) {
@@ -359,17 +404,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             gray = OpenCV.bufferToMat('uint8', yHeight, yWidth, 1, tight);
           }
 
-          // Crop the gray Mat to a centered MTG-aspect ROI so detection happens
-          // only inside the on-screen guide rectangle. This eliminates noisy
-          // edges from outside the card area (table, hand, shadows) and
-          // dramatically tightens the resulting bounding box. The display-side
-          // GuideFrame component renders the same proportions so the user
-          // visually lines up the card with where detection runs.
-          //
-          // Buffer is in landscape sensor orientation; the card is rotated 90°
-          // in the buffer (long axis along x). MTG portrait aspect is 0.714
-          // (W/H), so in buffer coords the *long* axis is horizontal: target
-          // ROI aspect = H_card/W_card = 1/0.714 = 1.4 (W_buffer/H_buffer).
+          // Centre-crop to the guide ROI. Buffer is sensor-landscape; portrait
+          // card → ROI long axis = buffer X. ROI aspect = MTG_LONG/MTG_SHORT.
           const guideShortFraction = GUIDE_SHORT_FRACTION;
           const guideLongAspect = MTG_LONG / MTG_SHORT; // 1.4
           let roiH = Math.round(yHeight * guideShortFraction);
@@ -386,9 +422,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           const roiRect = OpenCV.createObject(ObjectType.Rect, roiX, roiY, roiW, roiH);
           OpenCV.invoke('crop', gray, grayRoi, roiRect);
 
-          // Detection-space dims sized off the *ROI* now, not the full Y-plane.
-          // scalePlane maps detection-space → ROI coords; (roiX, roiY) maps
-          // ROI coords → buffer coords.
           detWPlane = Math.min(DETECT_WIDTH, roiW);
           detHPlane = Math.round((detWPlane * roiH) / roiW);
           scalePlane = roiW / detWPlane;
@@ -399,10 +432,31 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           lastStep = 'resize';
           OpenCV.invoke('resize', grayRoi, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
 
+          // --- Quality signals computed on the small Mat (cheap; ~1 ms total).
+          // Brightness: mean luminance of the ROI. Used both as a hard floor
+          // (the captured frame must be inside [30, 235]) and a soft penalty.
+          lastStep = 'mean.brightness';
+          const brightnessScalar = OpenCV.invoke('mean', small);
+          const brightnessJs = OpenCV.toJSValue(brightnessScalar);
+          brightnessRaw = brightnessJs.a;
+
+          // Sharpness: mean of |Laplacian| on the small Mat. Higher = sharper.
+          // Using mean(|L|) instead of var(L) avoids needing a separate
+          // squaring step; in-focus card scans cluster ~30-60, blur < 10.
+          lastStep = 'Laplacian';
+          const lapl = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_16SC1);
+          OpenCV.invoke('Laplacian', small, lapl, DataTypes.CV_16S, 3, 1, 0, BorderTypes.BORDER_DEFAULT);
+          lastStep = 'convertScaleAbs';
+          const laplAbs = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+          OpenCV.invoke('convertScaleAbs', lapl, laplAbs, 1);
+          lastStep = 'mean.sharpness';
+          const sharpnessScalar = OpenCV.invoke('mean', laplAbs);
+          const sharpnessJs = OpenCV.toJSValue(sharpnessScalar);
+          sharpnessRaw = sharpnessJs.a;
+
           lastStep = 'GaussianBlur';
           const blurred = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
           const blurKsize = OpenCV.createObject(ObjectType.Size, 5, 5);
-          // Blur the resized `small` (detection-space gray), not the full-size `gray`.
           OpenCV.invoke('GaussianBlur', small, blurred, blurKsize, 0);
 
           lastStep = 'Canny';
@@ -460,7 +514,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             if (fillRatio < FILL_RATIO_MIN) continue;
             if (Math.abs(aspect - MTG_ASPECT) > ASPECT_TOLERANCE) continue;
 
-            // Use minAreaRect's corners (a clean rotated rectangle).
             const angleRad = (rrectJs.angle * Math.PI) / 180;
             const cosA = Math.cos(angleRad);
             const sinA = Math.sin(angleRad);
@@ -508,15 +561,15 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             bestApproxAspect,
           });
           stableFrames.setBlocking(0);
+          inBand.setBlocking(false);
           return;
         } finally {
           OpenCV.clearBuffers();
         }
 
-        // Smooth the detection-space quad with a per-corner EMA so frame-to-frame
-        // jitter doesn't tank stability. On a missed frame, hold the previous
-        // smoothed quad alive for QUAD_SMOOTH_GRACE_FRAMES before clearing —
-        // that prevents 1-frame detection drops from resetting auto-capture.
+        // Smooth the detection-space quad with a per-corner EMA. On a missed
+        // detection, hold the previous smoothed quad alive briefly so 1–2
+        // frame jitter doesn't reset the stable-frame counter.
         let activeQuad: Quad | null = detectedQuad;
         if (detectedQuad) {
           const prevSmoothed = smoothedDetQuad.getDirty();
@@ -546,14 +599,28 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           quad.setBlocking(null);
           history.setBlocking([]);
           stableFrames.setBlocking(0);
+          inBand.setBlocking(false);
+          // Even with no quad, surface remaining cooldown so the JS pill can
+          // show "Cooldown 0.8 s" while the user is between cards.
+          const cdNoQuad = lastCapture.getDirty();
+          const cooldownRemainingMsNoQuad =
+            cdNoQuad && now - cdNoQuad.at < COOLDOWN_MS
+              ? COOLDOWN_MS - (now - cdNoQuad.at)
+              : 0;
           metrics.setBlocking({
             score: 0,
             stability: 0,
             sharpness: 0,
             coverage: 0,
+            brightnessFit: 0,
+            brightness: brightnessRaw,
             detectionFps: newEma,
             frameSize: { width: frameW, height: frameH },
             hasQuad: false,
+            hardFloorPass: false,
+            inHysteresis: false,
+            cooldownActive: false,
+            cooldownRemainingMs: cooldownRemainingMsNoQuad,
             pixelFormat: framePixelFormat,
             orientation: frameOrientation,
             isMirrored: frameIsMirrored,
@@ -574,23 +641,73 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           return;
         }
 
+        // Append to short history for stability scoring.
         const prevHist = history.getDirty().slice();
         prevHist.push(activeQuad);
         if (prevHist.length > STABILITY_HISTORY) prevHist.shift();
         history.setBlocking(prevHist);
 
-        const stability = stabilityScore(activeQuad, prevHist);
-        const sharpness = 0;
+        // ----- Decision-policy signals (all in [0..1] unless noted). -----
+        // Stability normalised to the quad's short edge: a big card needs the
+        // same *relative* steadiness as a small one.
+        const shortEdgeDet = quadShortEdge(activeQuad);
+        const stabilityCeiling = Math.max(STABILITY_CEILING_MIN, shortEdgeDet * STABILITY_CEILING_FRACTION);
+        const stability = stabilityScoreNormalised(activeQuad, prevHist, stabilityCeiling);
+
         const coverage = coverageScore(activeQuad, detWPlane, detHPlane);
 
-        const score =
+        // Sharpness: normalise mean-abs-Laplacian to 0..1.
+        const sharpness =
+          sharpnessRaw <= 0 ? 0 : Math.min(1, sharpnessRaw / SHARPNESS_NORM_DIVISOR);
+
+        // Brightness fit: 1.0 inside [80, 200], linear ramp to 0 toward the
+        // hard-floor edges. Also feeds the brightness hard floor below.
+        const brightnessFit = brightnessFitScore(brightnessRaw);
+
+        // Composite soft score, weights configurable.
+        const composite =
           tune.wStability * stability +
           tune.wSharpness * sharpness +
-          tune.wCoverage * coverage;
+          tune.wCoverage * coverage +
+          tune.wBrightness * brightnessFit;
+
+        // Hard-floor pass: every signal must clear its individual minimum.
+        const hardFloorPass =
+          coverage >= HARD_FLOOR_COVERAGE &&
+          stability >= HARD_FLOOR_STABILITY &&
+          sharpness >= HARD_FLOOR_SHARPNESS &&
+          brightnessRaw >= HARD_FLOOR_BRIGHTNESS_MIN &&
+          brightnessRaw <= HARD_FLOOR_BRIGHTNESS_MAX;
+
+        // Hysteresis band update.
+        const thresholdHigh = tune.thresholdHigh;
+        const thresholdLow = thresholdHigh - BAND_LOW_OFFSET;
+        const wasInBand = inBand.getDirty();
+        let nowInBand = wasInBand;
+        if (!wasInBand && composite >= thresholdHigh) {
+          nowInBand = true;
+        } else if (wasInBand && composite < thresholdLow) {
+          nowInBand = false;
+        }
+        inBand.setBlocking(nowInBand);
+
+        // Content-cooldown evaluation.
+        const cooldown = lastCapture.getDirty();
+        let cooldownActive = false;
+        let cooldownRemainingMs = 0;
+        if (cooldown && now - cooldown.at < COOLDOWN_MS) {
+          cooldownRemainingMs = COOLDOWN_MS - (now - cooldown.at);
+          const cx = (activeQuad[0].x + activeQuad[2].x) / 2;
+          const cy = (activeQuad[0].y + activeQuad[2].y) / 2;
+          const dx = cx - cooldown.centroidX;
+          const dy = cy - cooldown.centroidY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < cooldown.shortEdge * COOLDOWN_FRACTION) {
+            cooldownActive = true;
+          }
+        }
 
         // Project detection-space coords back into frame-space.
-        // Pipeline: detection-space → ROI coords (× scalePlane), then
-        // ROI → buffer coords (+ roiX, roiY), then buffer → frame (× sx, sy).
         const sx = frameW / yWidth;
         const sy = frameH / yHeight;
         const frameQuad: Quad = [
@@ -602,13 +719,19 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
         quad.setBlocking(frameQuad);
         metrics.setBlocking({
-          score,
+          score: composite,
           stability,
           sharpness,
           coverage,
+          brightnessFit,
+          brightness: brightnessRaw,
           detectionFps: newEma,
           frameSize: { width: frameW, height: frameH },
           hasQuad: true,
+          hardFloorPass,
+          inHysteresis: nowInBand,
+          cooldownActive,
+          cooldownRemainingMs,
           pixelFormat: framePixelFormat,
           orientation: frameOrientation,
           isMirrored: frameIsMirrored,
@@ -627,19 +750,34 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           bestApproxAspect,
         });
 
-        if (score >= tune.threshold) {
-          const nextStable = stableFrames.getDirty() + 1;
-          stableFrames.setBlocking(nextStable);
-          if (tune.autoCaptureEnabled && nextStable >= tune.minStableFrames) {
-            stableFrames.setBlocking(0);
-            tunables.setBlocking({ ...tune, enabled: false });
-            runOnJS(triggerAutoCapture)(frameQuad, { width: frameW, height: frameH });
-          }
-        } else {
+        // Trigger logic. All gates must pass to increment the stable counter:
+        // (1) hard floors, (2) inside the hysteresis band, (3) not in a
+        // content cooldown. Any single gate failure resets the counter.
+        if (!hardFloorPass || !nowInBand || cooldownActive) {
           stableFrames.setBlocking(0);
+          return;
+        }
+
+        const nextStable = stableFrames.getDirty() + 1;
+        stableFrames.setBlocking(nextStable);
+        if (tune.autoCaptureEnabled && nextStable >= tune.minStableFrames) {
+          // Record the cooldown anchor BEFORE handing off to JS, in
+          // detection-space coords (matches `activeQuad`).
+          const captureCx = (activeQuad[0].x + activeQuad[2].x) / 2;
+          const captureCy = (activeQuad[0].y + activeQuad[2].y) / 2;
+          lastCapture.setBlocking({
+            at: now,
+            centroidX: captureCx,
+            centroidY: captureCy,
+            shortEdge: shortEdgeDet,
+          });
+
+          stableFrames.setBlocking(0);
+          inBand.setBlocking(false);
+          tunables.setBlocking({ ...tune, enabled: false });
+          runOnJS(triggerAutoCapture)(frameQuad, { width: frameW, height: frameH });
         }
       } finally {
-        // v5 requires explicit Frame disposal; otherwise the camera pipeline stalls.
         frame.dispose();
       }
     },
@@ -650,6 +788,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     if (!cur.enabled) {
       tunables.setBlocking({ ...cur, enabled: true });
       stableFrames.setBlocking(0);
+      inBand.setBlocking(false);
       smoothedDetQuad.setBlocking(null);
       smoothMissCount.setBlocking(0);
       history.setBlocking([]);
@@ -672,109 +811,46 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
 function orderQuadCorners(q: Quad): Quad {
   'worklet';
-  // Find TL/TR/BR/BL by comparing sum (x+y) and diff (y-x) of each corner.
-  // These are *image-aligned* corners — i.e. sorted by their position in the
-  // image, NOT by which corner of the card they correspond to. For a portrait
-  // card photographed in a landscape sensor frame, the card's "top" is along
-  // one of the short image edges, so the image-aligned ordering would treat a
-  // *card-side* corner as TL. The perspective transform downstream would then
-  // rotate the warped output. We detect that case below by comparing the
-  // quad's width-vs-height in image space, and rotate the corner array so the
-  // card's own top edge ends up mapping to the output's top edge.
-  // Inline the index searches to avoid cross-function calls from within the
-  // worklet runtime — react-native-worklets does not always capture sibling
-  // helpers into the worklet closure, which produced the
-  //   "indexOfMin is not a function (it is undefined)"
-  // error in the camera thread.
-  const s0 = q[0].x + q[0].y;
-  const s1 = q[1].x + q[1].y;
-  const s2 = q[2].x + q[2].y;
-  const s3 = q[3].x + q[3].y;
-  const d0 = q[0].y - q[0].x;
-  const d1 = q[1].y - q[1].x;
-  const d2 = q[2].y - q[2].x;
-  const d3 = q[3].y - q[3].x;
+  // Find image-aligned TL/TR/BR/BL by sums and diffs of (x, y).
   let tlIdx = 0;
-  if (s1 < q[tlIdx].x + q[tlIdx].y) tlIdx = 1;
-  if (s2 < q[tlIdx].x + q[tlIdx].y) tlIdx = 2;
-  if (s3 < q[tlIdx].x + q[tlIdx].y) tlIdx = 3;
+  if (q[1].x + q[1].y < q[tlIdx].x + q[tlIdx].y) tlIdx = 1;
+  if (q[2].x + q[2].y < q[tlIdx].x + q[tlIdx].y) tlIdx = 2;
+  if (q[3].x + q[3].y < q[tlIdx].x + q[tlIdx].y) tlIdx = 3;
   let brIdx = 0;
-  if (s1 > q[brIdx].x + q[brIdx].y) brIdx = 1;
-  if (s2 > q[brIdx].x + q[brIdx].y) brIdx = 2;
-  if (s3 > q[brIdx].x + q[brIdx].y) brIdx = 3;
+  if (q[1].x + q[1].y > q[brIdx].x + q[brIdx].y) brIdx = 1;
+  if (q[2].x + q[2].y > q[brIdx].x + q[brIdx].y) brIdx = 2;
+  if (q[3].x + q[3].y > q[brIdx].x + q[brIdx].y) brIdx = 3;
   let trIdx = 0;
-  if (d1 < q[trIdx].y - q[trIdx].x) trIdx = 1;
-  if (d2 < q[trIdx].y - q[trIdx].x) trIdx = 2;
-  if (d3 < q[trIdx].y - q[trIdx].x) trIdx = 3;
+  if (q[1].y - q[1].x < q[trIdx].y - q[trIdx].x) trIdx = 1;
+  if (q[2].y - q[2].x < q[trIdx].y - q[trIdx].x) trIdx = 2;
+  if (q[3].y - q[3].x < q[trIdx].y - q[trIdx].x) trIdx = 3;
   let blIdx = 0;
-  if (d1 > q[blIdx].y - q[blIdx].x) blIdx = 1;
-  if (d2 > q[blIdx].y - q[blIdx].x) blIdx = 2;
-  if (d3 > q[blIdx].y - q[blIdx].x) blIdx = 3;
-  // Reference s0/d0 to keep them live in case the optimizer is aggressive.
-  void s0;
-  void d0;
+  if (q[1].y - q[1].x > q[blIdx].y - q[blIdx].x) blIdx = 1;
+  if (q[2].y - q[2].x > q[blIdx].y - q[blIdx].x) blIdx = 2;
+  if (q[3].y - q[3].x > q[blIdx].y - q[blIdx].x) blIdx = 3;
   const tl = q[tlIdx];
   const tr = q[trIdx];
   const br = q[brIdx];
   const bl = q[blIdx];
 
-  // Detect "card rotated in image" case: image-aligned width > height means
-  // the card's long axis is along the image x-axis, i.e. its actual top edge
-  // is one of the image's *side* edges. Rotate the corner array so the
-  // perspective transform maps the card's true top edge to the output top.
+  // Portrait card in landscape sensor frame: image-aligned width > height
+  // means the card's long axis lies along the image x-axis. Rotate the
+  // corner array 90° CCW so the perspective transform downstream maps the
+  // card's true top edge to the output's top edge.
   let dx = tl.x - tr.x; let dy = tl.y - tr.y;
   const widthA = Math.sqrt(dx * dx + dy * dy);
   dx = tl.x - bl.x; dy = tl.y - bl.y;
   const heightA = Math.sqrt(dx * dx + dy * dy);
   if (widthA > heightA) {
-    // Card's long axis lies along the image's x-axis — i.e. portrait card in
-    // a landscape sensor frame. Rotate the corner array 90° CCW so the card's
-    // own top edge maps to the perspective-transform's destination top edge.
-    // (90° CW first attempt produced upside-down output on Galaxy S23 — the
-    // sensor mount direction means the card's actual top is on the LEFT side
-    // of the buffer, which is image-BL/TL in our axis-aligned ordering.)
     return [bl, tl, tr, br];
   }
   return [tl, tr, br, bl];
 }
 
-function rotatedRectCorners(
-  cx: number,
-  cy: number,
-  width: number,
-  height: number,
-  angleDeg: number,
-): Quad {
+/** Average of the four side lengths' shorter pair (≈ short edge of the quad). */
+function quadShortEdge(q: Quad): number {
   'worklet';
-  const rad = (angleDeg * Math.PI) / 180;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  const hw = width / 2;
-  const hh = height / 2;
-  const offsets: Point[] = [
-    { x: -hw, y: -hh },
-    { x: hw, y: -hh },
-    { x: hw, y: hh },
-    { x: -hw, y: hh },
-  ];
-  return [
-    { x: cx + offsets[0].x * cos - offsets[0].y * sin, y: cy + offsets[0].x * sin + offsets[0].y * cos },
-    { x: cx + offsets[1].x * cos - offsets[1].y * sin, y: cy + offsets[1].x * sin + offsets[1].y * cos },
-    { x: cx + offsets[2].x * cos - offsets[2].y * sin, y: cy + offsets[2].x * sin + offsets[2].y * cos },
-    { x: cx + offsets[3].x * cos - offsets[3].y * sin, y: cy + offsets[3].x * sin + offsets[3].y * cos },
-  ];
-}
-
-// All helpers below are 'worklet'-tagged AND avoid calling each other —
-// react-native-worklets sometimes fails to capture sibling helpers into the
-// worklet runtime closure (we hit "polygonArea is not a function" and
-// "indexOfMin is not a function" before). Each function is now self-contained.
-
-function quadAspect(q: Quad): number {
-  'worklet';
-  // Inline dist for top/bottom/left/right edges.
-  let dx: number; let dy: number;
-  dx = q[0].x - q[1].x; dy = q[0].y - q[1].y;
+  let dx = q[0].x - q[1].x, dy = q[0].y - q[1].y;
   const top = Math.sqrt(dx * dx + dy * dy);
   dx = q[3].x - q[2].x; dy = q[3].y - q[2].y;
   const bottom = Math.sqrt(dx * dx + dy * dy);
@@ -784,13 +860,14 @@ function quadAspect(q: Quad): number {
   const right = Math.sqrt(dx * dx + dy * dy);
   const w = (top + bottom) / 2;
   const h = (left + right) / 2;
-  if (w <= 0 || h <= 0) return 0;
-  const longer = w > h ? w : h;
-  const shorter = w > h ? h : w;
-  return shorter / longer;
+  return Math.min(w, h);
 }
 
-function stabilityScore(current: Quad, history: Quad[]): number {
+/**
+ * Stability score in [0..1] using a *relative* ceiling.
+ * `ceiling` is the average corner displacement at which stability hits 0.
+ */
+function stabilityScoreNormalised(current: Quad, history: Quad[], ceiling: number): number {
   'worklet';
   if (history.length < 2) return 0;
   let total = 0;
@@ -798,16 +875,14 @@ function stabilityScore(current: Quad, history: Quad[]): number {
   for (let i = 0; i < history.length - 1; i += 1) {
     const prev = history[i];
     for (let c = 0; c < 4; c += 1) {
-      // Inline dist.
       const dx = prev[c].x - current[c].x;
       const dy = prev[c].y - current[c].y;
       total += Math.sqrt(dx * dx + dy * dy);
       samples += 1;
     }
   }
-  const avg = samples > 0 ? total / samples : STABILITY_CEILING;
-  // Inline clamp01.
-  const ratio = 1 - avg / STABILITY_CEILING;
+  const avg = samples > 0 ? total / samples : ceiling;
+  const ratio = 1 - avg / ceiling;
   if (!Number.isFinite(ratio)) return 0;
   if (ratio < 0) return 0;
   if (ratio > 1) return 1;
@@ -816,7 +891,7 @@ function stabilityScore(current: Quad, history: Quad[]): number {
 
 function coverageScore(quad: Quad, w: number, h: number): number {
   'worklet';
-  // Inline polygonArea (shoelace formula on the 4 corners).
+  // Inline shoelace formula on the 4 corners.
   const a = quad[0]; const b = quad[1]; const c = quad[2]; const d = quad[3];
   const area = Math.abs(
     a.x * b.y - b.x * a.y + (b.x * c.y - c.x * b.y) + (c.x * d.y - d.x * c.y) + (d.x * a.y - a.x * d.y),
@@ -828,3 +903,29 @@ function coverageScore(quad: Quad, w: number, h: number): number {
   if (fraction > 0.65) return 1 - (fraction - 0.65) / 0.25;
   return 1;
 }
+
+/**
+ * Brightness fit in [0..1]. Peaks at 1.0 inside [80, 200] and ramps linearly
+ * to 0 at the hard-floor edges (30 / 235). Outside the hard-floor band the
+ * value is 0 — the brightness hard-floor gate also rejects the frame.
+ */
+function brightnessFitScore(meanLum: number): number {
+  'worklet';
+  const HARD_MIN = 30;
+  const HARD_MAX = 235;
+  const SOFT_MIN = 80;
+  const SOFT_MAX = 200;
+  if (meanLum <= HARD_MIN || meanLum >= HARD_MAX) return 0;
+  if (meanLum >= SOFT_MIN && meanLum <= SOFT_MAX) return 1;
+  if (meanLum < SOFT_MIN) {
+    return (meanLum - HARD_MIN) / (SOFT_MIN - HARD_MIN);
+  }
+  // meanLum > SOFT_MAX
+  return 1 - (meanLum - SOFT_MAX) / (HARD_MAX - SOFT_MAX);
+}
+
+// `APPROX_EPSILON_FRACTIONS` is currently unused by the simplified detector
+// (we picked minAreaRect corners instead of approxPolyDP). Kept exported via
+// closure so code-search still finds the constant if we re-introduce that
+// path later. Unused-references suppressed by the void below.
+void APPROX_EPSILON_FRACTIONS;

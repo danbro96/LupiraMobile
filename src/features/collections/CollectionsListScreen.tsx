@@ -13,8 +13,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { mtgApi } from '../../api/mtg-client';
-import { CollectionResponse } from '../../api/mtg-types';
+import {
+  getCollections,
+  postCollections,
+} from '../../api/generated/collections/collections';
+import type {
+  CollectionListResponse,
+  CollectionResponse,
+} from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
 
 type Nav = NativeStackNavigationProp<CollectionsStackParamList, 'Collections'>;
@@ -26,11 +32,17 @@ export function CollectionsListScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: () => mtgApi.collections.list(),
+    queryFn: async () => {
+      const envelope = await getCollections();
+      return envelope.data as CollectionListResponse;
+    },
   });
 
-  const create = useMutation({
-    mutationFn: (name: string) => mtgApi.collections.create({ name }),
+  const create = useMutation<CollectionResponse, Error, string>({
+    mutationFn: async (name: string) => {
+      const envelope = await postCollections({ name });
+      return envelope.data as CollectionResponse;
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');

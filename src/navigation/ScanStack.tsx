@@ -2,10 +2,11 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ScanScreen } from '../features/scan/ScanScreen';
 import { ScanSettingsScreen } from '../features/scan/ScanSettingsScreen';
-import { ScanPreviewScreen } from '../features/scan/ScanPreviewScreen';
+import { ScanDebugLogScreen } from '../features/scan/ScanDebugLogScreen';
 import { SelectionScreen } from '../features/scan/SelectionScreen';
 import { PickCollectionScreen } from '../features/scan/PickCollectionScreen';
 import { CardDetailScreen } from '../features/search/CardDetailScreen';
+import { PrintingDetailScreen } from '../features/search/PrintingDetailScreen';
 import { ScanStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<ScanStackParamList>();
@@ -27,9 +28,9 @@ export function ScanStack() {
         options={{ title: 'Scan settings' }}
       />
       <Stack.Screen
-        name="ScanPreview"
-        component={ScanPreviewScreen}
-        options={{ title: 'Preview' }}
+        name="ScanDebugLog"
+        component={ScanDebugLogScreen}
+        options={{ title: 'Decision log' }}
       />
       <Stack.Screen name="Selection" component={SelectionScreen} options={{ title: 'Selection' }} />
       <Stack.Screen
@@ -38,6 +39,11 @@ export function ScanStack() {
         options={{ title: 'Commit to…', presentation: 'modal' }}
       />
       <Stack.Screen name="CardDetail" component={CardDetailScreen} options={{ title: 'Card' }} />
+      <Stack.Screen
+        name="PrintingDetail"
+        component={PrintingDetailScreen}
+        options={{ title: 'Printing' }}
+      />
     </Stack.Navigator>
   );
 }

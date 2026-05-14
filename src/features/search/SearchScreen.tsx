@@ -10,26 +10,34 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { mtgApi } from '../../api/mtg-client';
-import { CardPrintingResponse } from '../../api/mtg-types';
+import { keepPreviousData } from '@tanstack/react-query';
+import { useGetCards } from '../../api/generated/cards/cards';
+import type { CardResponse } from '../../api/generated/models';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { MtgStackParamList } from '../../navigation/types';
+import { ColorPips } from './ColorPips';
 
 type Nav = NativeStackNavigationProp<MtgStackParamList, 'Search'>;
 
+/**
+ * Catalogue search keyed on functionally distinct cards (oracle level), not
+ * printings. Lightning Bolt now appears once with a `printingCount` badge
+ * instead of 50+ times. Drill into a row → CardDetailScreen for the abstract
+ * card, then optionally pick a specific printing.
+ */
 export function SearchScreen() {
   const navigation = useNavigation<Nav>();
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query, 300);
 
-  const { data, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['cards', 'search', debounced],
-    queryFn: ({ signal }) => mtgApi.searchCards({ q: debounced || undefined, limit: 50 }, signal),
-    placeholderData: keepPreviousData,
-    enabled: true,
-  });
+  const { data: envelope, isFetching, isError, error, refetch } = useGetCards(
+    { q: debounced || undefined, limit: 50 },
+    { query: { placeholderData: keepPreviousData } },
+  );
+  // Orval's `client: 'react-query'` mode wraps responses in `{ data, status,
+  // headers }` — the inner `.data` is the actual `CardListResponse`.
+  const data = envelope?.data;
 
   const totalText = useMemo(() => {
     if (isFetching) return 'Searching…';
@@ -64,9 +72,12 @@ export function SearchScreen() {
 
       <FlatList
         data={data?.results ?? []}
-        keyExtractor={c => c.id}
+        keyExtractor={(c) => c.oracleId}
         renderItem={({ item }) => (
-          <CardRow card={item} onPress={() => navigation.navigate('CardDetail', { printingId: item.id })} />
+          <CardRow
+            card={item}
+            onPress={() => navigation.navigate('CardDetail', { oracleId: item.oracleId })}
+          />
         )}
         ListEmptyComponent={
           isFetching ? null : (
@@ -87,8 +98,8 @@ export function SearchScreen() {
   );
 }
 
-function CardRow({ card, onPress }: { card: CardPrintingResponse; onPress: () => void }) {
-  const thumb = card.images?.artCrop ?? card.images?.normal ?? null;
+function CardRow({ card, onPress }: { card: CardResponse; onPress: () => void }) {
+  const thumb = card.thumbnail?.artCrop ?? card.thumbnail?.normal ?? null;
   return (
     <Pressable onPress={onPress} style={styles.row}>
       {thumb ? (
@@ -99,9 +110,17 @@ function CardRow({ card, onPress }: { card: CardPrintingResponse; onPress: () =>
         </View>
       )}
       <View style={styles.rowText}>
-        <Text style={styles.cardName}>{card.name}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {card.name}
+          </Text>
+          <ColorPips colors={card.colorIdentity} />
+        </View>
+        <Text style={styles.typeLine} numberOfLines={1}>
+          {card.typeLine}
+        </Text>
         <Text style={styles.cardMeta}>
-          {card.setCode.toUpperCase()} · #{card.collectorNumber} · {card.rarity}
+          {card.printingCount} printing{card.printingCount === 1 ? '' : 's'}
         </Text>
       </View>
     </Pressable>
@@ -146,8 +165,10 @@ const styles = StyleSheet.create({
   thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   thumbPlaceholderText: { color: '#9aa3b2', fontSize: 18, fontWeight: '700' },
   rowText: { flex: 1, gap: 2 },
-  cardName: { color: '#f5f5f5', fontSize: 16, fontWeight: '600' },
-  cardMeta: { color: '#9aa3b2', fontSize: 12 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardName: { color: '#f5f5f5', fontSize: 16, fontWeight: '600', flexShrink: 1 },
+  typeLine: { color: '#cbd1da', fontSize: 12 },
+  cardMeta: { color: '#6e7686', fontSize: 12 },
   empty: { padding: 24, alignItems: 'center' },
   emptyText: { color: '#6e7686', fontSize: 14, textAlign: 'center' },
   errorBox: { padding: 16, gap: 8, backgroundColor: '#2a1414', margin: 16, borderRadius: 8 },
