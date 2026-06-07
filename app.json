@@ -55,8 +55,8 @@
       [
         "@sentry/react-native/expo",
         {
-          "url": "https://sentry.io/",
-          "project": "react-native",
+          "url": "https://de.sentry.io/",
+          "project": "lupira-mtg",
           "organization": "brostrom"
         }
       ]
