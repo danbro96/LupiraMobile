@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   type CameraFrameOutput,
   type Frame,
@@ -9,6 +10,7 @@ import {
   BorderTypes,
   ContourApproximationModes,
   DataTypes,
+  DecompTypes,
   InterpolationFlags,
   MorphShapes,
   MorphTypes,
@@ -22,6 +24,26 @@ import {
   SCAN_HYSTERESIS,
 } from '../../../store/scan-settings-store';
 import { useSyncedValue } from './useSyncedValue';
+
+/**
+ * Output dimensions for the worklet-emitted card crop. Matches what
+ * cropToQuad used to produce so the backend's downstream pipeline (pHash +
+ * OCR + canonicalisation to ~750 px) sees the same shape it always has.
+ *
+ * The source is the worklet's Y-plane (1280×720 typical), so 1200×1680 is
+ * mild upsampling — adequate for OCR/pHash since the backend re-canonicalises
+ * anyway.
+ */
+const MTG_OUTPUT_WIDTH = 1200;
+const MTG_OUTPUT_HEIGHT = 1680;
+/** JPEG quality used by `saveMatToFile` inside the worklet (0..1 → 0..100). */
+const MTG_OUTPUT_JPEG_QUALITY = 0.92;
+/**
+ * Cache directory captured at module load. expo-file-system exposes
+ * `cacheDirectory` as a static string, so it's safe to inline into the
+ * worklet's closure — no JS-thread bridge needed at capture time.
+ */
+const CACHE_DIR_PREFIX = (FileSystem.cacheDirectory ?? '').replace(/\/$/, '');
 
 export type Point = { x: number; y: number };
 export type Quad = [Point, Point, Point, Point];
@@ -81,7 +103,18 @@ export type CardDetectionParams = {
   weightSharpness: number;
   weightCoverage: number;
   weightBrightness: number;
-  onAutoCapture: (quad: Quad, frameSize: FrameSize) => void;
+  /**
+   * Invoked on the JS thread when the worklet has approved a frame AND
+   * already JPEG-encoded the perspective-corrected card crop. `captureUri`
+   * is a `file://` URI pointing at the cropped JPEG in cache — consumers
+   * can upload it directly without touching `photoOutput.capturePhoto` or
+   * a separate JS-side cropToQuad.
+   *
+   * `captureUri` may be empty string if the worklet's warp/encode step
+   * failed (rare); consumers should treat that as a silent miss and let
+   * the next stable-frame run try again.
+   */
+  onAutoCapture: (captureUri: string, quad: Quad, frameSize: FrameSize) => void;
 };
 
 export type CardDetectionState = {
@@ -275,8 +308,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   const onAutoCaptureRef = useRef(params.onAutoCapture);
   onAutoCaptureRef.current = params.onAutoCapture;
 
-  const triggerAutoCapture = (q: Quad, size: FrameSize) => {
-    onAutoCaptureRef.current(q, size);
+  const triggerAutoCapture = (captureUri: string, q: Quad, size: FrameSize) => {
+    onAutoCaptureRef.current(captureUri, q, size);
   };
 
   // Constants captured into the worklet closure. Top-level imports are
@@ -291,6 +324,12 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     dropFramesWhileBusy: true,
     onFrame: (frame: Frame) => {
       'worklet';
+      // Hoisted out of the try block so the outer finally can read them
+      // even after early returns. `gray` is the Y-plane Mat the trigger
+      // branch warps for capture; `opencvDirty` guards `clearBuffers()` so
+      // we don't no-op-call it when bufferToMat never ran.
+      let gray: any = null;
+      let opencvDirty = false;
 
       try {
         const tune = tunables.getDirty();
@@ -389,7 +428,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           const data = new Uint8Array(buffer);
 
           lastStep = 'bufferToMat';
-          let gray;
+          opencvDirty = true;
           if (yBytesPerRow === yWidth) {
             gray = OpenCV.bufferToMat('uint8', yHeight, yWidth, 1, data);
           } else {
@@ -563,8 +602,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
           return;
-        } finally {
-          OpenCV.clearBuffers();
         }
 
         // Smooth the detection-space quad with a per-corner EMA. On a missed
@@ -772,12 +809,79 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             shortEdge: shortEdgeDet,
           });
 
+          // ===== Worklet-frame capture =====
+          // The Y-plane gray Mat is still alive (clearBuffers runs in the
+          // outer finally below). Warp the detected quad straight to the
+          // canonical MTG_OUTPUT rect and JPEG-encode it to a cache file.
+          // The URI is what goes to JS — no second photoOutput round-trip,
+          // no temporal gap, what the worklet approved IS what gets uploaded.
+          let captureUri = '';
+          try {
+            // Map activeQuad (detection-space) → buffer-space (gray Mat coords).
+            const bp0x = activeQuad[0].x * scalePlane + roiX;
+            const bp0y = activeQuad[0].y * scalePlane + roiY;
+            const bp1x = activeQuad[1].x * scalePlane + roiX;
+            const bp1y = activeQuad[1].y * scalePlane + roiY;
+            const bp2x = activeQuad[2].x * scalePlane + roiX;
+            const bp2y = activeQuad[2].y * scalePlane + roiY;
+            const bp3x = activeQuad[3].x * scalePlane + roiX;
+            const bp3y = activeQuad[3].y * scalePlane + roiY;
+
+            const srcPt0 = OpenCV.createObject(ObjectType.Point2f, bp0x, bp0y);
+            const srcPt1 = OpenCV.createObject(ObjectType.Point2f, bp1x, bp1y);
+            const srcPt2 = OpenCV.createObject(ObjectType.Point2f, bp2x, bp2y);
+            const srcPt3 = OpenCV.createObject(ObjectType.Point2f, bp3x, bp3y);
+            const srcPts = OpenCV.createObject(ObjectType.Point2fVector, [srcPt0, srcPt1, srcPt2, srcPt3]);
+
+            const W = MTG_OUTPUT_WIDTH;
+            const H = MTG_OUTPUT_HEIGHT;
+            const dstPt0 = OpenCV.createObject(ObjectType.Point2f, 0, 0);
+            const dstPt1 = OpenCV.createObject(ObjectType.Point2f, W - 1, 0);
+            const dstPt2 = OpenCV.createObject(ObjectType.Point2f, W - 1, H - 1);
+            const dstPt3 = OpenCV.createObject(ObjectType.Point2f, 0, H - 1);
+            const dstPts = OpenCV.createObject(ObjectType.Point2fVector, [dstPt0, dstPt1, dstPt2, dstPt3]);
+
+            const transform = OpenCV.invoke('getPerspectiveTransform', srcPts, dstPts, DecompTypes.DECOMP_LU);
+            const warped = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
+            const outSize = OpenCV.createObject(ObjectType.Size, W, H);
+            const borderValue = OpenCV.createObject(ObjectType.Scalar, 0, 0, 0);
+            OpenCV.invoke(
+              'warpPerspective',
+              gray,
+              warped,
+              transform,
+              outSize,
+              InterpolationFlags.INTER_CUBIC,
+              BorderTypes.BORDER_CONSTANT,
+              borderValue,
+            );
+
+            const fileName = `lupira-scan-${now}.jpg`;
+            const cacheUri = `${CACHE_DIR_PREFIX}/${fileName}`;
+            const diskPath = cacheUri.replace(/^file:\/\//, '');
+            OpenCV.saveMatToFile(warped, diskPath, 'jpeg', MTG_OUTPUT_JPEG_QUALITY);
+            captureUri = cacheUri;
+          } catch (e: unknown) {
+            // Warp/save failed — fall through with empty URI. JS treats
+            // empty URI as a silent miss and the worklet keeps running on
+            // the next stable-frame attempt.
+            const raw = e instanceof Error ? e.message : String(e);
+            pipelineError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+            lastStep = 'warpAndSave:failed';
+          }
+
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
           tunables.setBlocking({ ...tune, enabled: false });
-          runOnJS(triggerAutoCapture)(frameQuad, { width: frameW, height: frameH });
+          runOnJS(triggerAutoCapture)(captureUri, frameQuad, { width: frameW, height: frameH });
         }
       } finally {
+        // Single cleanup site. `clearBuffers` now runs *after* the trigger
+        // branch's warp-and-save so `gray` is alive when the warp needs it,
+        // and *before* the frame is disposed so we never leak OpenCV objects.
+        if (opencvDirty) {
+          OpenCV.clearBuffers();
+        }
         frame.dispose();
       }
     },

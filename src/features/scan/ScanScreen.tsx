@@ -37,7 +37,6 @@ import {
   type Quad,
   useCardDetection,
 } from './detection/useCardDetection';
-import { cropToQuad } from './detection/cropToQuad';
 import { DetectionOverlay } from './components/DetectionOverlay';
 import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -184,32 +183,26 @@ export function ScanScreen() {
   const capturingRef = useRef(false);
 
   const captureAndScan = useCallback(
-    async (quad: Quad, frameSize: FrameSize) => {
-      if (capturingRef.current) {
-        // Worklet fired again before we finished the prior crop. Drop it —
-        // the worklet's content cooldown will keep ignoring this card for a
-        // moment longer.
-        breadcrumb('capture', 'capture_dropped_busy');
+    async (captureUri: string, quad: Quad, frameSize: FrameSize) => {
+      // Empty URI = worklet's warp/save step failed silently. Don't surface
+      // a tile, just let the next stable-frame run try again.
+      if (!captureUri) {
+        breadcrumb('capture', 'capture_no_uri', {}, 'warning');
+        resumeDetectionRef.current?.();
         return;
       }
-      // Camera2's ImageCapture detaches across AppState/focus transitions.
-      if (!isFocusedRef.current || appStateRef.current !== 'active') {
-        breadcrumb('capture', 'capture_skipped_inactive', {
-          isFocused: isFocusedRef.current,
-          appState: appStateRef.current,
-        });
-        resumeDetectionRef.current?.();
+      if (capturingRef.current) {
+        // Two triggers fired before the previous upload kicked off — drop.
+        // The worklet's content cooldown will keep ignoring this card for a
+        // moment longer.
+        breadcrumb('capture', 'capture_dropped_busy');
         return;
       }
 
       capturingRef.current = true;
       const id: CaptureId = newCaptureId();
-      dispatch({ type: 'capture/start', id, createdAt: Date.now() });
-      // Append a 'fired' record to the decision log at the exact moment the
-      // worklet's auto-capture handed off to JS. The polling effect runs at
-      // 500 ms cadence, so without this we'd often miss the fire altogether
-      // (between two ticks) — and the most useful entry in any debug
-      // session is the one where the trigger actually pulled.
+      // Append a 'fired' decision log entry at the exact moment the
+      // worklet's auto-capture handed off to JS.
       const m = detectionMetricsRefForLog.current?.getDirty();
       const cx = (quad[0].x + quad[2].x) / 2;
       const cy = (quad[0].y + quad[2].y) / 2;
@@ -220,136 +213,82 @@ export function ScanScreen() {
       if (m) {
         appendDecisionLog(buildLogEntry(m, firedReason));
       }
-      // Worklet must be silent during the whole OpenCV stretch.
-      pauseDetectionRef.current?.();
 
-      breadcrumb('capture', 'capture_start', {
+      breadcrumb('capture', 'capture_start_worklet_frame', {
         id,
+        captureUri,
         frameW: frameSize.width,
         frameH: frameSize.height,
       });
 
-      let photo: Awaited<ReturnType<typeof photoOutput.capturePhoto>> | null = null;
+      // The worklet has already produced the canonical card-crop JPEG and
+      // handed us the URI. No photoOutput round-trip, no JS-side cropToQuad
+      // — what the worklet approved IS what's about to be uploaded. Zero
+      // temporal gap between detection and "shutter."
+      dispatch({ type: 'capture/start', id, createdAt: Date.now() });
+      dispatch({
+        type: 'capture/uploading',
+        id,
+        uri: captureUri,
+        // Source dims of the *capture* are the worklet's frame dims (not the
+        // canonical output dims) — that's what the gallery tile's "src" chip
+        // tries to convey.
+        sourceWidth: frameSize.width,
+        sourceHeight: frameSize.height,
+      });
+
+      // Reopen the worklet immediately so the user can sweep to the next
+      // card while this upload is in flight.
+      capturingRef.current = false;
+      resumeDetectionRef.current?.();
+
+      // Fire-and-forget the upload.
       try {
-        // Force AF + AE to settle before snapping.
-        const cw = containerSize.width;
-        const ch = containerSize.height;
-        if (cameraRef.current && cw > 0 && ch > 0) {
-          try {
-            await cameraRef.current.focusTo({ x: cw / 2, y: ch / 2 }, { modes: ['AF', 'AE'] });
-            await new Promise((r) => setTimeout(r, 80));
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : String(e);
-            breadcrumb('capture', 'focus_lock_skip', { error: msg }, 'warning');
-          }
-        }
-
-        try {
-          photo = await photoOutput.capturePhoto(
-            { flashMode: 'off', enableShutterSound: false, enableDistortionCorrection: true },
-            {},
-          );
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.includes('Not bound to a valid Camera') || msg.includes('not bound')) {
-            // Transient: drop the record and resume detection. The worklet
-            // will fire again on the next stable frame.
-            breadcrumb('capture', 'capture_camera_unbound', { id, error: msg }, 'warning');
-            dispatch({ type: 'capture/dismiss', id });
-            return;
-          }
-          throw err;
-        }
-
-        const tempPath = await photo.saveToTemporaryFileAsync();
-        const photoUri = tempPath.startsWith('file://') ? tempPath : `file://${tempPath}`;
-        const photoWidth = photo.width;
-        const photoHeight = photo.height;
-
-        breadcrumb('crop', 'crop_start', { id, photoW: photoWidth, photoH: photoHeight });
-        let uploadUri: string;
-        try {
-          const result = await cropToQuad({
-            photoUri,
-            photoWidth,
-            photoHeight,
-            quad,
-            frameSize,
-            jpegQuality: settings.jpegQuality,
-          });
-          uploadUri = result.uri.startsWith('file://') ? result.uri : `file://${result.uri}`;
-        } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : String(e);
-          breadcrumb('crop', 'crop_failed_aborting', { id, error: msg }, 'error');
-          dispatch({ type: 'capture/error', id, message: 'Crop failed' });
-          return;
-        }
-
-        dispatch({
-          type: 'capture/uploading',
-          id,
-          uri: uploadUri,
-          sourceWidth: photoWidth,
-          sourceHeight: photoHeight,
+        const response = await scanCard({
+          uri: captureUri,
+          mimeType: 'image/jpeg',
+          fileName: 'scan.jpg',
         });
+        dispatch({ type: 'capture/recognised', id, response });
 
-        // Fire-and-forget the upload so the next capture can start
-        // immediately. The reducer keys the response back by `id`.
-        void (async () => {
-          try {
-            const response = await scanCard({
-              uri: uploadUri,
-              mimeType: 'image/jpeg',
-              fileName: 'scan.jpg',
-            });
-            dispatch({ type: 'capture/recognised', id, response });
-
-            // Hybrid auto-add: only when the backend reports high confidence.
-            // Lower-confidence captures stay staged for tap-to-confirm review.
-            // Enum is PascalCase per the OpenAPI spec
-            // (`new JsonStringEnumConverter()` keeps C# enum names verbatim).
-            if (response.confidence === 'High' && response.candidates.length > 0) {
-              const top = response.candidates[0];
-              dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
-              addToSelection.mutate(
-                { candidate: top, allowDuplicate: false },
-                {
-                  onError: (err) => {
-                    if (err instanceof ApiError && err.status === 409) {
-                      // Already in the selection — fine, leave the green
-                      // check on the tile so the user knows it was matched.
-                      return;
-                    }
-                    breadcrumb(
-                      'upload',
-                      'auto_add_failed',
-                      { id, error: err instanceof Error ? err.message : String(err) },
-                      'warning',
-                    );
-                  },
-                },
-              );
-            }
-          } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            breadcrumb('upload', 'scan_failed', { id, error: msg }, 'error');
-            dispatch({ type: 'capture/error', id, message: msg });
-          }
-        })();
-      } finally {
-        photo?.dispose();
-        capturingRef.current = false;
-        // Reopen the worklet ASAP so the user can sweep onto the next card
-        // while the previous upload is still in flight.
-        resumeDetectionRef.current?.();
+        // Hybrid auto-add: only when the backend reports high confidence.
+        // Lower-confidence captures stay staged for tap-to-confirm review.
+        // Enum is PascalCase per the OpenAPI spec
+        // (`new JsonStringEnumConverter()` keeps C# enum names verbatim).
+        if (response.confidence === 'High' && response.candidates.length > 0) {
+          const top = response.candidates[0];
+          dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
+          addToSelection.mutate(
+            { candidate: top, allowDuplicate: false },
+            {
+              onError: (err) => {
+                if (err instanceof ApiError && err.status === 409) {
+                  // Already in the selection — fine, leave the green check
+                  // on the tile so the user knows it was matched.
+                  return;
+                }
+                breadcrumb(
+                  'upload',
+                  'auto_add_failed',
+                  { id, error: err instanceof Error ? err.message : String(err) },
+                  'warning',
+                );
+              },
+            },
+          );
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        breadcrumb('upload', 'scan_failed', { id, error: msg }, 'error');
+        dispatch({ type: 'capture/error', id, message: msg });
       }
     },
-    [photoOutput, settings.jpegQuality, addToSelection, containerSize.width, containerSize.height],
+    [addToSelection],
   );
 
   const onAutoCapture = useCallback(
-    (quad: Quad, frameSize: FrameSize) => {
-      void captureAndScan(quad, frameSize);
+    (captureUri: string, quad: Quad, frameSize: FrameSize) => {
+      void captureAndScan(captureUri, quad, frameSize);
     },
     [captureAndScan],
   );
@@ -538,7 +477,7 @@ export function ScanScreen() {
         <Text style={styles.lensBadgeText}>
           picked: {device?.id ?? 'none'} ({device?.type ?? '—'}{device?.isVirtualDevice ? ',virtual' : ''})
           {'\n'}
-          AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · build-tag: decision-log-21
+          AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · build-tag: worklet-frame-23
         </Text>
       </View>
 
@@ -619,7 +558,7 @@ function FrameTheCardHint({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  cameraOverlay: { ...StyleSheet.absoluteFillObject },
+  cameraOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   lensBadge: {
     position: 'absolute',
     top: 100,
