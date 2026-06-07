@@ -41,3 +41,8 @@ yarn-error.*
 /android
 
 .env.local
+
+# Sentry — never commit the CLI auth token
+**/sentry.properties
+sentry.properties
+.sentryclirc

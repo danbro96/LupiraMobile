@@ -89,7 +89,12 @@ export class PlaybackQueue {
       if (this.queue.length > 0) this.tryStartNext();
       else this.emitDrained();
     };
-    const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+    // `as any`: expo-audio's AudioPlayer extends SharedObject, whose `addListener`
+    // is declared on a global ambient `expo.*` type that TS doesn't resolve through
+    // the package's exported class (SDK 56 typing quirk). The method exists at runtime
+    // — it's the documented expo-audio event API. Matches the `(player as any).remove`
+    // cast above.
+    const sub = (player as any).addListener('playbackStatusUpdate', (status: any) => {
       if (status?.didJustFinish) finish();
     });
     this.currentPlayer = player;

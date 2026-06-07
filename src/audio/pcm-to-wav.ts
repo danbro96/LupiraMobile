@@ -36,7 +36,11 @@ export function arrayBufferToBase64(buf: ArrayBuffer): string {
     binary += String.fromCharCode.apply(null, Array.from(chunk));
   }
   if (typeof globalThis.btoa === 'function') return globalThis.btoa(binary);
-  return Buffer.from(binary, 'binary').toString('base64');
+  // `as any`: Node's Buffer is the fallback path only reached if the runtime lacks
+  // `btoa` (Hermes provides it, so this is effectively dead code on-device). Buffer
+  // isn't part of React Native's typed globals and we don't pull in @types/node
+  // (it would leak Node globals into RN type-checking), so we reach it via globalThis.
+  return (globalThis as any).Buffer.from(binary, 'binary').toString('base64');
 }
 
 function writeAscii(view: DataView, offset: number, ascii: string): void {
