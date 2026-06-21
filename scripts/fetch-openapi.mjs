@@ -16,7 +16,7 @@
  *  2. **A running server URL** (`npm run fetch:openapi -- http://localhost:5188/openapi/v1.json`).
  *     Falls back to plain HTTP fetch.
  *
- *  3. **Production** (`npm run fetch:openapi -- https://mtg.lupira.com/openapi/v1.json`).
+ *  3. **Production** (`npm run fetch:openapi -- https://mtg-api.lupira.com/openapi/v1.json`).
  *     Same code path as #2.
  */
 import fs from 'node:fs/promises';
@@ -51,7 +51,7 @@ if (arg) {
     console.error(
       `No sibling spec at ${sibling}. Either:\n` +
       `  • Run \`dotnet build\` in ../LupiraMtgApi to emit it, or\n` +
-      `  • Pass a URL: \`npm run fetch:openapi -- https://mtg.lupira.com/openapi/v1.json\``,
+      `  • Pass a URL: \`npm run fetch:openapi -- https://mtg-api.lupira.com/openapi/v1.json\``,
     );
     console.error(`(${e instanceof Error ? e.message : String(e)})`);
     process.exit(1);

@@ -6,7 +6,7 @@ const KEY_API_KEY = 'lupira.apiKey';
 const KEY_VOICE = 'lupira.voice';
 const KEY_SPEED = 'lupira.speed';
 
-const DEFAULT_API_URL = 'wss://tts.lupira.com/tts/stream';
+const DEFAULT_API_URL = 'wss://tts-api.lupira.com/tts/stream';
 const DEFAULT_VOICE = 'af_heart';
 const DEFAULT_SPEED = 1.0;
 

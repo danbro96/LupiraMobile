@@ -82,7 +82,7 @@ export function LoginScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            placeholder="https://mtg.lupira.com"
+            placeholder="https://mtg-api.lupira.com"
             placeholderTextColor="#6e7686"
             style={styles.input}
           />

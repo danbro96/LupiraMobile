@@ -2,7 +2,7 @@
 
 React Native (Expo + TypeScript) client for the [KokoroApi](https://github.com/danbro96/KokoroApi) WebSocket TTS service.
 
-The first feature is a **live narrator while you write**: type into the editor and each completed sentence is spoken back as soon as `.`, `!`, or `?` is typed, exercising the streaming endpoint at `wss://tts.lupira.com/tts/stream`.
+The first feature is a **live narrator while you write**: type into the editor and each completed sentence is spoken back as soon as `.`, `!`, or `?` is typed, exercising the streaming endpoint at `wss://tts-api.lupira.com/tts/stream`.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ npx expo start
 ```
 
 Scan the QR code from Expo Go on a phone on the same LAN. On first launch, paste:
-- **WebSocket URL**: `wss://tts.lupira.com/tts/stream`
+- **WebSocket URL**: `wss://tts-api.lupira.com/tts/stream`
 - **API key**: the 64-hex-char key for your KokoroApi instance
 
 Both are stored in iOS Keychain / Android Keystore, never in plain AsyncStorage.
