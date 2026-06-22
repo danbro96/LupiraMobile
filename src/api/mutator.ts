@@ -64,7 +64,21 @@ export async function apiFetch<T>(
   }
 
   const fullUrl = mtgApiUrl.replace(/\/$/, '') + url;
-  const res = await fetch(fullUrl, { ...init, headers });
+  let res = await fetch(fullUrl, { ...init, headers });
+
+  // Reactive re-auth: a 401 means the token was rejected (expired early / clock skew so the
+  // proactive refresh never fired) and the request was NOT executed — safe to refresh once and
+  // retry for any method. refreshIfNeeded owns the clear/keep decision: a definitive failure
+  // clears the session (→ login) and returns null; a transient one keeps it and returns the same
+  // token, so the 401 just surfaces and recovers on the next request. We pass the token actually
+  // sent so a concurrent refresh isn't mistaken for a fresh one.
+  if (res.status === 401 && token) {
+    const fresh = await useAuth.getState().refreshIfNeeded({ force: true, sentToken: token });
+    if (fresh && fresh !== token) {
+      headers.set('Authorization', `Bearer ${fresh}`);
+      res = await fetch(fullUrl, { ...init, headers });
+    }
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);

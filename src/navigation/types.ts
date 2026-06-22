@@ -30,10 +30,5 @@ export type MtgTabParamList = {
   ProfileTab: undefined;
 };
 
-export type RootTabParamList = {
-  MTG: undefined;
-  Narrator: undefined;
-};
-
 // Backwards-compat alias used by the existing SearchScreen / CardDetailScreen imports.
 export type MtgStackParamList = SearchStackParamList;

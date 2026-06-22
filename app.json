@@ -26,8 +26,6 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.CAMERA"
       ],
       "package": "com.danbro96.LupiraMobile"
@@ -36,8 +34,8 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-audio",
       "expo-secure-store",
+      "expo-web-browser",
       [
         "expo-camera",
         {

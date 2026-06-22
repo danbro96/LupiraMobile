@@ -1,11 +1,12 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { useAuthSession } from '../auth/AuthProvider';
+import { useAuth } from '../store/auth-store';
 import { LoginScreen } from '../features/me/LoginScreen';
 import { MtgTabs } from './MtgTabs';
 
 export function AuthGate() {
-  const { loaded, isAuthenticated } = useAuthSession();
+  const loaded = useAuth(s => s.loaded);
+  const authed = useAuth(s => !!s.token && !!s.user);
 
   if (!loaded) {
     return (
@@ -15,7 +16,7 @@ export function AuthGate() {
     );
   }
 
-  return isAuthenticated ? <MtgTabs /> : <LoginScreen />;
+  return authed ? <MtgTabs /> : <LoginScreen />;
 }
 
 const styles = StyleSheet.create({

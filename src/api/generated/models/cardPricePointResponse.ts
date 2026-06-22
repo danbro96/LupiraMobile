@@ -6,8 +6,16 @@
  * OpenAPI spec version: v1
  */
 
-export interface CommitSelectionRequest {
-  collectionId: string;
-  /** @nullable */
-  instanceIds?: string[] | null;
+export interface CardPricePointResponse {
+  observedOn: string;
+  /**
+     * @nullable
+     * @pattern ^-?(?:0|[1-9]\d*)(?:\.\d+)?$
+     */
+  eur?: number | string | null;
+  /**
+     * @nullable
+     * @pattern ^-?(?:0|[1-9]\d*)(?:\.\d+)?$
+     */
+  eurFoil?: number | string | null;
 }

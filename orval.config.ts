@@ -32,8 +32,6 @@ export default defineConfig({
       override: {
         mutator: { path: './src/api/mutator.ts', name: 'apiFetch' },
         query: {
-          useQuery: true,
-          useMutation: true,
           signal: true,
         },
       },

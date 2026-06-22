@@ -1,10 +1,11 @@
+import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './src/auth/AuthProvider';
 import { queryClient } from './src/query/queryClient';
-import { RootTabs } from './src/navigation/RootTabs';
+import { AuthGate } from './src/navigation/AuthGate';
+import { useAuth } from './src/store/auth-store';
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
@@ -27,14 +28,26 @@ Sentry.init({
 });
 
 export default Sentry.wrap(function App() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      await useAuth.getState().load();
+      // Renew a still-valid-but-near-expiry token before the first request; a transient failure
+      // keeps the session (the mutator's 401 path is the reactive safety net).
+      await useAuth.getState().refreshIfNeeded();
+      setReady(true);
+    })();
+  }, []);
+
+  if (!ready) return null;
+
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <NavigationContainer>
-            <RootTabs />
-          </NavigationContainer>
-        </AuthProvider>
+        <NavigationContainer>
+          <AuthGate />
+        </NavigationContainer>
       </QueryClientProvider>
       <StatusBar style="light" />
     </SafeAreaProvider>

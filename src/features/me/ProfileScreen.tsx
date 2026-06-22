@@ -1,11 +1,11 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthSession } from '../../auth/AuthProvider';
 import { useAuth } from '../../store/auth-store';
 
 export function ProfileScreen() {
-  const { user, signOut } = useAuthSession();
+  const user = useAuth(s => s.user);
+  const clearSession = useAuth(s => s.clearSession);
   const mtgApiUrl = useAuth(s => s.mtgApiUrl);
 
   return (
@@ -15,7 +15,8 @@ export function ProfileScreen() {
         {user ? (
           <View style={styles.card}>
             {user.displayName ? <Row label="Name" value={user.displayName} /> : null}
-            <Row label="Subject" value={user.sub} mono />
+            <Row label="Email" value={user.sub} mono />
+            {user.isAdmin ? <Row label="Role" value="Admin" /> : null}
           </View>
         ) : null}
 
@@ -24,15 +25,7 @@ export function ProfileScreen() {
           <Row label="API" value={mtgApiUrl} mono />
         </View>
 
-        <View style={styles.warningBox}>
-          <Text style={styles.warningTitle}>Heads up</Text>
-          <Text style={styles.warningText}>
-            This is a PoC using device-only identity. There is no account recovery — if you sign out
-            or reinstall, your collections stay on the server but you cannot reach them anymore.
-          </Text>
-        </View>
-
-        <Pressable onPress={signOut} style={styles.signOutButton}>
+        <Pressable onPress={() => void clearSession()} style={styles.signOutButton}>
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </View>
@@ -59,16 +52,6 @@ const styles = StyleSheet.create({
   rowLabel: { color: '#6e7686', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1 },
   rowValue: { color: '#f5f5f5', fontSize: 14 },
   mono: { fontFamily: 'monospace', fontSize: 12 },
-  warningBox: {
-    backgroundColor: '#1a1f29',
-    borderRadius: 8,
-    padding: 16,
-    gap: 6,
-    borderLeftWidth: 4,
-    borderLeftColor: '#f59e0b',
-  },
-  warningTitle: { color: '#f59e0b', fontSize: 13, fontWeight: '700', textTransform: 'uppercase' },
-  warningText: { color: '#cbd1da', fontSize: 13, lineHeight: 18 },
   signOutButton: {
     marginTop: 24,
     alignSelf: 'flex-start',

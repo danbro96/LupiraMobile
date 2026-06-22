@@ -32,7 +32,7 @@ export function SearchScreen() {
   const debounced = useDebounced(query, 300);
 
   const { data: envelope, isFetching, isError, error, refetch } = useGetCards(
-    { q: debounced || undefined, limit: 50 },
+    { q: debounced || undefined, take: 50 },
     { query: { placeholderData: keepPreviousData } },
   );
   // Orval's `client: 'react-query'` mode wraps responses in `{ data, status,
