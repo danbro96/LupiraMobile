@@ -17,16 +17,12 @@ import {
 } from './decisionLogStore';
 
 /**
- * Decision-log viewer. Renders the in-memory ring buffer from
- * `useDecisionLog` newest-first, with one row per state transition. Tap a
- * row to expand the full signal dump for that moment. Top bar exposes Clear
- * and Share — the latter pipes the entries through React Native's built-in
- * Share so you can paste the JSON into Slack / a debugging conversation
- * without retyping anything.
+ * Decision-log viewer over the in-memory ring buffer from `useDecisionLog`: newest first, one row per state
+ * transition, tap to expand the full signal dump. Share pipes the entries through React Native's Share so the
+ * JSON can be pasted straight into a debugging conversation.
  *
- * Memory only — entries are lost on app restart. That's intentional: the
- * log is for diagnosing *the current session's* misbehaviour. Sentry
- * breadcrumbs cover cross-session forensics for `fired` and `worklet_error`.
+ * Memory only, lost on restart — intentional: this is for diagnosing *the current session*. Sentry breadcrumbs
+ * cover cross-session forensics for `fired` and `worklet_error`.
  */
 export function ScanDebugLogScreen() {
   const entries = useDecisionLog((s) => s.entries);

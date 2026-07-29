@@ -1,23 +1,8 @@
 #!/usr/bin/env node
 /**
- * Refreshes `backend-openapi.json` at the repo root. This is what Orval reads
- * — re-running this script + `npm run generate:api` is the standard loop for
- * picking up backend contract changes.
- *
- * Three sources, tried in order:
- *
- *  1. **Sibling LupiraMtgApi build output** (default, no args).
- *     If `../LupiraMtgApi/openapi/LupiraMtgApi.json` exists, we copy it. The
- *     backend project is wired with `Microsoft.Extensions.ApiDescription.Server`
- *     so a `dotnet build` of LupiraMtgApi emits this file. No DB / running
- *     server required — the build-time emitter loads the assembly and walks
- *     the document provider in-process.
- *
- *  2. **A running server URL** (`npm run fetch:openapi -- http://localhost:5188/openapi/v1.json`).
- *     Falls back to plain HTTP fetch.
- *
- *  3. **Production** (`npm run fetch:openapi -- https://mtg-api.lupira.com/openapi/v1.json`).
- *     Same code path as #2.
+ * Refreshes `backend-openapi.json` (what Orval reads) from a URL argument, or by default by copying the
+ * sibling `../LupiraMtgApi/openapi/LupiraMtgApi.json` that a `dotnet build` of LupiraMtgApi emits via
+ * `Microsoft.Extensions.ApiDescription.Server` — no database or running server needed.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';

@@ -13,12 +13,10 @@ type Props = {
 };
 
 /**
- * Always-visible portrait MTG-card guide rectangle drawn on top of the camera
- * preview. The worklet's detection ROI mirrors these proportions, so when the
- * user lines up the card with this guide on screen, edge detection runs only
- * inside that region — no noise from desk/hand/shadows outside the card.
- *
- * Companion to the `GUIDE_SHORT_FRACTION` constant in useCardDetection.ts.
+ * Always-visible portrait MTG-card guide rectangle over the camera preview. The worklet's detection ROI
+ * mirrors these proportions, so lining the card up with the guide confines edge detection to that region —
+ * no noise from desk, hand or shadows outside the card. Companion to `GUIDE_SHORT_FRACTION` in
+ * useCardDetection.ts.
  */
 export function GuideFrame({ containerWidth, containerHeight }: Props) {
   if (containerWidth === 0 || containerHeight === 0) return null;

@@ -1,23 +1,12 @@
 import { defineConfig } from 'orval';
 
 /**
- * Orval config for the LupiraMtgApi backend.
+ * Orval config for the LupiraMtgApi backend; `backend-openapi.json` is refreshed by `npm run fetch:openapi`.
  *
- * Source spec: `./backend-openapi.json` — refreshed by `npm run fetch:openapi`,
- * which copies from `../LupiraMtgApi/openapi/LupiraMtgApi.json` (emitted at
- * `dotnet build` time via `Microsoft.Extensions.ApiDescription.Server`).
- *
- * Output mode: `tags-split` — one file per OpenAPI tag (Cards, Collections,
- * Selections, Scans, Me, Sets, Admin, Meta). Mobile already buckets features
- * by tag, so split files give cleaner imports and tighter PR diffs.
- *
- * Client: `react-query` — generates `useListCards()` / `useScanCard()` hooks
- * that wrap react-query directly. Replaces both the hand-typed `mtgApi` client
- * and the per-screen `useQuery({ queryFn: () => ... })` boilerplate.
- *
- * Mutator: `./src/api/mutator.ts#apiFetch` — owns base URL, auth token, and
- * error normalisation. Reads `useAuth.getState()` at call time so the API URL
- * override (settings screen) is always picked up live.
+ * `tags-split` because mobile already buckets features by OpenAPI tag, so per-tag files give cleaner imports and
+ * tighter diffs. `client: 'react-query'` generates the hooks that replaced both the hand-typed `mtgApi` client
+ * and the per-screen `useQuery({ queryFn: ... })` boilerplate. The mutator reads `useAuth.getState()` at call
+ * time, so the settings-screen API URL override applies live.
  */
 export default defineConfig({
   lupiraMtg: {

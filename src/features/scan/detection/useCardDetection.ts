@@ -26,13 +26,10 @@ import {
 import { useSyncedValue } from './useSyncedValue';
 
 /**
- * Output dimensions for the worklet-emitted card crop. Matches what
- * cropToQuad used to produce so the backend's downstream pipeline (pHash +
- * OCR + canonicalisation to ~750 px) sees the same shape it always has.
- *
- * The source is the worklet's Y-plane (1280×720 typical), so 1200×1680 is
- * mild upsampling — adequate for OCR/pHash since the backend re-canonicalises
- * anyway.
+ * Output dimensions for the worklet-emitted card crop, matching what cropToQuad produced so the backend
+ * pipeline (pHash + OCR + canonicalisation to ~750 px) sees the shape it always has. The source is the
+ * worklet's Y-plane (1280×720 typical), so 1200×1680 is mild upsampling — fine, since the backend
+ * re-canonicalises anyway.
  */
 const MTG_OUTPUT_WIDTH = 1200;
 const MTG_OUTPUT_HEIGHT = 1680;
@@ -104,15 +101,10 @@ export type CardDetectionParams = {
   weightCoverage: number;
   weightBrightness: number;
   /**
-   * Invoked on the JS thread when the worklet has approved a frame AND
-   * already JPEG-encoded the perspective-corrected card crop. `captureUri`
-   * is a `file://` URI pointing at the cropped JPEG in cache — consumers
-   * can upload it directly without touching `photoOutput.capturePhoto` or
-   * a separate JS-side cropToQuad.
-   *
-   * `captureUri` may be empty string if the worklet's warp/encode step
-   * failed (rare); consumers should treat that as a silent miss and let
-   * the next stable-frame run try again.
+   * Invoked on the JS thread once the worklet has approved a frame AND JPEG-encoded the perspective-corrected
+   * crop. `captureUri` is a `file://` URI for that JPEG in cache, uploadable directly — no
+   * `photoOutput.capturePhoto`, no JS-side cropToQuad. It may be the empty string if the worklet's warp/encode
+   * failed (rare); treat that as a silent miss and let the next stable frame try again.
    */
   onAutoCapture: (captureUri: string, quad: Quad, frameSize: FrameSize) => void;
 };
@@ -216,19 +208,15 @@ const HARD_FLOOR_BRIGHTNESS_MIN = HARD_FLOORS.brightnessMin;
 const HARD_FLOOR_BRIGHTNESS_MAX = HARD_FLOORS.brightnessMax;
 
 /**
- * Sharpness normalisation divisor for the mean-absolute-Laplacian metric.
- * 25 was picked empirically: at the YUV-Y small-Mat resolution and with a
- * 3×3 Laplacian kernel, in-focus card scans cluster around ~30–60 mean abs
- * Laplacian; out-of-focus / motion-blurred frames sit under ~10. Dividing by
- * 25 maps "definitely in focus" to ≥ 1 (clamped).
+ * Sharpness normalisation divisor for the mean-absolute-Laplacian metric. 25 was picked empirically: at the
+ * YUV-Y small-Mat resolution with a 3×3 Laplacian kernel, in-focus card scans cluster around ~30–60 and
+ * blurred frames sit under ~10, so dividing by 25 maps "definitely in focus" to ≥ 1 (clamped).
  */
 const SHARPNESS_NORM_DIVISOR = 25;
 /**
- * Stability ceiling expressed as a fraction of the *quad's short edge*.
- * 0.05 means we accept up to 5% of the card's short side worth of average
- * corner displacement before stability drops to 0. Replacing the previous
- * absolute 24-pixel ceiling makes hand-steadiness requirements scale with
- * how big the card looks on screen.
+ * Stability ceiling as a fraction of the *quad's short edge*: 0.05 accepts up to 5% of the card's short side
+ * worth of average corner displacement before stability drops to 0. Relative rather than an absolute pixel
+ * ceiling, so hand-steadiness requirements scale with how big the card looks on screen.
  */
 const STABILITY_CEILING_FRACTION = 0.05;
 /** Minimum effective ceiling in pixels — protects against tiny / degenerate quads. */
@@ -809,7 +797,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             shortEdge: shortEdgeDet,
           });
 
-          // ===== Worklet-frame capture =====
           // The Y-plane gray Mat is still alive (clearBuffers runs in the
           // outer finally below). Warp the detected quad straight to the
           // canonical MTG_OUTPUT rect and JPEG-encode it to a cache file.

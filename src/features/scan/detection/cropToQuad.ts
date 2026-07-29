@@ -25,14 +25,10 @@ export type CropResult = {
 };
 
 /**
- * Perspective-correct a captured still to the detected card quad.
- *
- * `quad` is in frame-processor coordinates; `frameSize` is the size of the
- * camera frame the quad was detected on. The still at `photoUri` may be a
- * different resolution — we scale the quad uniformly to map it onto the still.
- *
- * Output is a JPEG of `MTG_OUTPUT_WIDTH x MTG_OUTPUT_HEIGHT` written to the
- * cache directory and returned as a `file://` URI ready for multipart upload.
+ * Perspective-correct a captured still to the detected card quad. `quad` is in frame-processor coordinates
+ * and `frameSize` is the camera frame it was detected on; the still at `photoUri` may be a different
+ * resolution, so the quad is scaled uniformly onto it. Output is a `MTG_OUTPUT_WIDTH x MTG_OUTPUT_HEIGHT`
+ * JPEG in the cache directory, returned as a `file://` URI ready for multipart upload.
  */
 export async function cropToQuad(args: {
   photoUri: string;

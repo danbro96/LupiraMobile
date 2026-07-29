@@ -3,16 +3,13 @@ import type { ScanResponse } from '../../api/generated/models';
 export type CaptureId = string;
 
 /**
- * State machine for one capture record. Records flow:
+ * State machine for one capture record:
  *
  *   capturing → uploading → recognised
  *                        ↘ error
  *
- * `recognised` may carry an `addedPrintingId` if the auto-add policy fired
- * (high-confidence match) — used by the gallery tile to render a green check
- * vs an amber "needs review" prompt.
- *
- * `dismiss` removes a record from the queue (UX: swipe-away on the tile).
+ * `recognised` may carry an `addedPrintingId` if the auto-add policy fired (high-confidence match) — the gallery
+ * tile renders a green check vs an amber "needs review" prompt off that. `dismiss` removes a record (swipe-away).
  */
 export type CaptureState =
   | { kind: 'capturing' }
@@ -59,11 +56,10 @@ export type CaptureAction =
   | { type: 'capture/clear-all' };
 
 /**
- * Pure reducer for the scan capture queue. Each action mutates a single
- * record (looked up by id) — keeping the reducer pure means the screen never
- * has to coordinate stale-closure updates between rapid auto-captures and
- * upload-completion callbacks. Concurrency safety lives entirely in this
- * reducer; the orchestration code in `ScanScreen` is fire-and-forget.
+ * Pure reducer for the scan capture queue; each action mutates a single record, looked up by id. Purity is
+ * what keeps the screen from having to coordinate stale-closure updates between rapid auto-captures and
+ * upload-completion callbacks: concurrency safety lives entirely here, and `ScanScreen`'s orchestration is
+ * fire-and-forget.
  */
 export function captureQueueReducer(
   state: CaptureRecord[],

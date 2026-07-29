@@ -7,13 +7,10 @@ import {
 } from '../decisionLogStore';
 
 /**
- * Always-on, single-line "why is auto-capture blocked / what is it doing"
- * status. Pinned just above the capture gallery — visible without opening
- * the debug HUD, replaces the user's previous "screenshot the HUD to debug"
- * loop.
- *
- * Reads from `useDecisionLog`'s `latest` selector, which only updates when a
- * new transition is appended (de-duplicated upstream). Cheap re-render rate.
+ * Always-on single-line "why is auto-capture blocked / what is it doing" status, pinned just above the
+ * capture gallery so it is visible without opening the debug HUD. Reads `useDecisionLog`'s `latest`
+ * selector, which only updates when a new transition is appended (de-duplicated upstream), so the
+ * re-render rate is cheap.
  */
 export function DecisionStatusPill() {
   const latest = useDecisionLog(selectLatestDecision);

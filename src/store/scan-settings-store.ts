@@ -29,12 +29,9 @@ const DEFAULT_W_COVERAGE = 0.25;
 const DEFAULT_W_BRIGHTNESS = 0.1;
 const DEFAULT_DEBUG = false;
 /**
- * 92 is the practical sweet-spot for re-encoded JPEG: visually
- * indistinguishable from quality 100 but ~30% smaller. Below ~88 the chroma
- * subsampling artefacts on card art and set symbols become visible.
- *
- * The source photo is already JPEG-compressed by the camera HAL, so cropToQuad
- * is the *second* JPEG round — under-compressing here compounds the artefacts.
+ * 92 is the sweet-spot for re-encoded JPEG: visually indistinguishable from 100 but ~30% smaller, while
+ * below ~88 the chroma-subsampling artefacts on card art and set symbols become visible. The camera HAL
+ * already JPEG-compressed the source, so cropToQuad is the *second* round — under-compressing compounds.
  */
 const DEFAULT_QUALITY = 92;
 
@@ -43,13 +40,12 @@ export const SCAN_MIN_FRAMES_BOUNDS = { min: 2, max: 16 } as const;
 export const SCAN_QUALITY_BOUNDS = { min: 75, max: 100 } as const;
 
 /**
- * Trigger-policy constants used by the worklet. Exported so the worklet can
- * import them without re-declaring magic numbers in two places.
+ * Trigger-policy constants used by the worklet. Exported so it imports them rather than re-declaring the
+ * magic numbers.
  *
  * - HIGH: enter-the-band threshold for the composite score
- * - LOW:  hold-the-band threshold (only drops below LOW reset the stable counter)
- * - COOLDOWN_MS: post-capture, reject re-fires whose centroid is within
- *   `0.4 × shortEdge` of the previous capture for this many milliseconds
+ * - LOW:  hold-the-band threshold (only a drop below LOW resets the stable counter)
+ * - COOLDOWN_MS: after a capture, reject re-fires whose centroid is within `0.4 × shortEdge` for this long
  */
 export const SCAN_HYSTERESIS = { HIGH: 0.78, LOW: 0.66 } as const;
 export const SCAN_COOLDOWN_MS = 1500;

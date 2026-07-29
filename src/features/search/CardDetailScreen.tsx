@@ -23,11 +23,9 @@ type Route = RouteProp<MtgStackParamList, 'CardDetail'>;
 type Nav = NativeStackNavigationProp<MtgStackParamList, 'CardDetail'>;
 
 /**
- * Oracle-level (functionally distinct) card detail. Header shows the card's
- * abstract data (name, type line, oracle text, colour identity, P/T) plus
- * the representative thumbnail. Below, a horizontally-scrolling printings
- * picker lets the user drill into a specific printing — that's where the
- * set-specific image, prices and collector number live.
+ * Oracle-level (functionally distinct) card detail: the abstract data (name, type line, oracle text, colour
+ * identity, P/T) plus the representative thumbnail, over a horizontally-scrolling printings picker — the
+ * set-specific image, prices and collector number live on the printing, not the oracle.
  */
 export function CardDetailScreen() {
   const { params } = useRoute<Route>();

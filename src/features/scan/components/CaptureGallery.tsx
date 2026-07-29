@@ -27,21 +27,12 @@ type Props = {
 };
 
 /**
- * Bottom-edge horizontal gallery of capture tiles. Pinned over the live
- * camera with `pointerEvents="box-none"` on its outer container so the rest
- * of the camera surface stays interactive (tap-to-focus, etc.).
+ * Bottom-edge horizontal gallery of capture tiles, pinned over the live camera with
+ * `pointerEvents="box-none"` on the outer container so the rest of the camera surface stays interactive
+ * (tap-to-focus, etc.). Each tile's look is derived from its record's `state.kind`.
  *
- * Tile state is derived from each record's `state.kind`:
- *  - capturing → spinner-only square
- *  - uploading → cropped thumb + spinner overlay
- *  - recognised + auto-added (high confidence) → thumb + green check + name
- *  - recognised + staged (medium/low) → thumb + amber `?` + name; tap to review
- *  - error → red exclamation + tap to dismiss
- *
- * Tapping a "staged" tile opens an inline modal with the full candidate list
- * (reuses the existing CandidateRow component) so the user can pick the
- * correct match without leaving the camera. Dismissing the modal leaves the
- * tile in place — they can come back to it.
+ * Tapping a "staged" (medium/low confidence) tile opens an inline modal with the full candidate list so the user
+ * can pick the correct match without leaving the camera. Dismissing leaves the tile in place to come back to.
  */
 export function CaptureGallery({ records, onAdd, onDismiss }: Props) {
   const [reviewing, setReviewing] = useState<CaptureId | null>(null);
@@ -208,8 +199,6 @@ function ReviewModalBody({
     </View>
   );
 }
-
-// --- helpers --------------------------------------------------------------
 
 function thumbnailUriFor(state: CaptureState): string | null {
   switch (state.kind) {

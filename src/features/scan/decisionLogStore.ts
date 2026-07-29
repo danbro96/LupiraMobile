@@ -4,11 +4,9 @@ import { HARD_FLOORS } from './detection/useCardDetection';
 import { SCAN_HYSTERESIS } from '../../store/scan-settings-store';
 
 /**
- * Categorised reason for the *current* decision-policy state. The pill renders
- * one line per kind; the log screen renders the same kind + structured fields.
- *
- * Kept structured (vs a free-form string) so consumers can colour-code, sort,
- * or filter without re-parsing.
+ * Categorised reason for the *current* decision-policy state. The pill renders one line per kind; the log
+ * screen renders the same kind plus structured fields. Structured rather than a free-form string so
+ * consumers can colour-code, sort or filter without re-parsing.
  */
 export type DecisionReason =
   | { kind: 'no-quad' }
@@ -74,13 +72,10 @@ export const useDecisionLog = create<LogState>((set) => ({
 export const selectLatestDecision = (s: LogState) => s.latest;
 
 /**
- * Derive the structured `DecisionReason` from a metrics snapshot. JS-side
- * mirror of the worklet's gate logic — uses the exact same `HARD_FLOORS`
- * constants and hysteresis offsets, so the reason text always matches the
- * actual gate behaviour.
- *
- * `thresholdHigh` is `settings.captureThreshold`; `thresholdLow` is derived
- * the same way the worklet does it.
+ * Derive the structured `DecisionReason` from a metrics snapshot — the JS-side mirror of the worklet's gate
+ * logic, using the same `HARD_FLOORS` constants and hysteresis offsets so the reason text always matches
+ * actual gate behaviour. `thresholdHigh` is `settings.captureThreshold`; `thresholdLow` is derived the way
+ * the worklet derives it.
  */
 export function deriveDecisionReason(
   m: DetectionMetrics,

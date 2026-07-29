@@ -17,22 +17,13 @@ export class ApiError extends Error {
 }
 
 /**
- * Custom fetch invoked by every Orval-generated request.
+ * Custom fetch invoked by every Orval-generated request. Returns the envelope `{ status, data, headers }` that
+ * Orval's `client: 'react-query'` mode expects from a mutator; since the generator widens hook types as
+ * `{ data: T; status: 200 } & { headers: Headers }`, consumers end up at `result.data?.data` — one `.data` from
+ * react-query, one from this envelope. Same pattern LupiraWeb runs.
  *
- * Returns the **envelope shape** Orval's `client: 'react-query'` mode expects
- * from its mutator: `{ status, data, headers }`. The generator widens its
- * generated hook types as `getXxxResponse = { data: T; status: 200 } & {
- * headers: Headers }`, so consumers access `result.data?.data` (one `.data`
- * from react-query, one from this envelope). Same pattern LupiraWeb runs.
- *
- * Owns:
- *  - base URL prefix (read live from `useAuth.getState().mtgApiUrl` so the
- *    settings-screen override is always honoured)
- *  - bearer token injection
- *  - JSON content-type handling (with a FormData escape hatch so the worklet's
- *    multipart `POST /scans` goes out with the right boundary)
- *  - 204 No Content → `{ data: undefined, status, headers }`
- *  - non-2xx → throw `ApiError`
+ * Owns the base URL (read live from `useAuth.getState().mtgApiUrl`, so the settings-screen override is always
+ * honoured), bearer injection, content-type handling, 204 → undefined data, and non-2xx → `ApiError`.
  */
 type ApiEnvelope<T> = {
   status: number;

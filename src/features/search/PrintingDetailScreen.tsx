@@ -8,14 +8,10 @@ import { MtgStackParamList } from '../../navigation/types';
 type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
 
 /**
- * Detail of one *specific* printing (set + collector number combination).
- * Reached from CardDetailScreen's printings picker, or directly from the
- * scan/selection/collection flows where printing identity is what was
- * captured.
- *
- * Hits `GET /cards/{oracleId}/printings/{printingId}` — the server cross-
- * checks that the printing actually belongs to the oracle (returns 404 on
- * mismatch) so we don't have to.
+ * Detail of one *specific* printing (set + collector number). Reached from CardDetailScreen's printings
+ * picker, or straight from the scan/selection/collection flows where printing identity is what was captured.
+ * Hits `GET /cards/{oracleId}/printings/{printingId}`, which cross-checks that the printing belongs to the
+ * oracle (404 on mismatch) so this screen doesn't have to.
  */
 export function PrintingDetailScreen() {
   const { params } = useRoute<Route>();
