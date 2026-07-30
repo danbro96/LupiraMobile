@@ -18,7 +18,6 @@ import {
   getSelectionsSelectionId,
 } from '../../api/generated/selections/selections';
 import type { SelectionEntryResponse, SelectionResponse } from '../../api/generated/models';
-import { asNumber } from '../../api/mutator';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -137,7 +136,7 @@ function EntryRow({ entry, onRemove }: { entry: SelectionEntryResponse; onRemove
         <Text style={styles.rowMeta}>
           {entry.printing.setCode.toUpperCase()} · #{entry.printing.collectorNumber} · {entry.printing.rarity}
         </Text>
-        <Text style={styles.rowConfidence}>confidence {asNumber(entry.confidence).toFixed(2)}</Text>
+        <Text style={styles.rowConfidence}>confidence {entry.confidence.toFixed(2)}</Text>
       </View>
       <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={6}>
         <Icon name="close-circle" size={22} color="destructive" />

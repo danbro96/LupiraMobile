@@ -1,13 +1,9 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { CardCandidateResponse } from '../../../api/generated/models';
-import { asNumber } from '../../../api/mutator';
 import { Icon } from '../../../components/Icon';
 
-const fmt = (v: string | number | null | undefined) => {
-  const n = asNumber(v);
-  return Number.isFinite(n) ? n.toFixed(2) : '—';
-};
+const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '—');
 
 type Props = {
   candidate: CardCandidateResponse;

@@ -50,10 +50,9 @@ export function PrintingDetailScreen() {
               <View style={styles.pricesBox}>
                 <Text style={styles.pricesTitle}>Prices</Text>
                 {Object.entries(data.prices).map(([key, value]) => {
-                  // .NET decimal serialises as either string or number
-                  // depending on the Json options; coerce to a number for
-                  // display either way.
-                  const n = typeof value === 'number' ? value : Number(value);
+                  // `prices` mixes numeric fields with a string `updatedAt`; non-numeric
+                  // entries fall through to their raw string below.
+                  const n = typeof value === 'number' ? value : Number.NaN;
                   return (
                     <Text key={key} style={styles.priceLine}>
                       {key}: {Number.isFinite(n) ? n.toFixed(2) : String(value)}
