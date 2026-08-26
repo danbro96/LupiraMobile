@@ -15,7 +15,10 @@ export interface ScanDetailResponse {
   id: string;
   scannedAt: string;
   confidence: RecognitionConfidence;
-  /** @nullable */
+  /**
+     * Presigned URL for the originally captured image (15-min TTL). Null if the image was not retained.
+     * @nullable
+     */
   imageUrl: string | null;
   /** @nullable */
   imageMediaType: string | null;

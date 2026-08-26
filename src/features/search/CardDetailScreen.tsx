@@ -12,8 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  useGetCardsOracleId,
-  useGetCardsOracleIdPrintings,
+  useGetCard,
+  useListPrintings,
 } from '../../api/generated/cards/cards';
 import type { CardPrintingResponse } from '../../api/generated/models';
 import { MtgStackParamList } from '../../navigation/types';
@@ -31,8 +31,8 @@ export function CardDetailScreen() {
   const { params } = useRoute<Route>();
   const navigation = useNavigation<Nav>();
 
-  const cardQuery = useGetCardsOracleId(params.oracleId);
-  const printingsQuery = useGetCardsOracleIdPrintings(params.oracleId);
+  const cardQuery = useGetCard(params.oracleId);
+  const printingsQuery = useListPrintings(params.oracleId);
 
   const card = cardQuery.data;
   const printings = printingsQuery.data?.results ?? [];

@@ -16,7 +16,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  PostScansBody,
+  CreateScanBody,
   ProblemDetails,
   ScanFeedbackRequest,
   ScanFeedbackResponse,
@@ -30,7 +30,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
 
-export const getPostScansUrl = () => {
+export const getCreateScanUrl = () => {
 
 
 
@@ -49,11 +49,11 @@ export const getPostScansUrl = () => {
  * falls back to manual lookup.
  * @summary Recognize a Magic card from a photo.
  */
-export const postScans = async (postScansBody: PostScansBody, options?: Parameters<typeof apiFetch>[1]): Promise<ScanResponse> => {
+export const createScan = async (createScanBody: CreateScanBody, options?: Parameters<typeof apiFetch>[1]): Promise<ScanResponse> => {
     const formData = new FormData();
-formData.append(`image`, postScansBody.image);
+formData.append(`image`, createScanBody.image);
 
-  return apiFetch<ScanResponse>(getPostScansUrl(),
+  return apiFetch<ScanResponse>(getCreateScanUrl(),
   {
     ...options,
     method: 'POST'
@@ -66,11 +66,11 @@ formData.append(`image`, postScansBody.image);
 
 
 
-export const getPostScansMutationOptions = <TError = ProblemDetails,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postScans>>, TError,{data: PostScansBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postScans>>, TError,{data: PostScansBody}, TContext> => {
+export const getCreateScanMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createScan>>, TError,{data: CreateScanBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createScan>>, TError,{data: CreateScanBody}, TContext> => {
 
-const mutationKey = ['postScans'];
+const mutationKey = ['createScan'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -80,10 +80,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postScans>>, {data: PostScansBody}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createScan>>, {data: CreateScanBody}> = (props) => {
           const {data} = props ?? {};
 
-          return  postScans(data,requestOptions)
+          return  createScan(data,requestOptions)
         }
 
 
@@ -93,24 +93,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostScansMutationResult = NonNullable<Awaited<ReturnType<typeof postScans>>>
-    export type PostScansMutationBody = PostScansBody
-    export type PostScansMutationError = ProblemDetails
+    export type CreateScanMutationResult = NonNullable<Awaited<ReturnType<typeof createScan>>>
+    export type CreateScanMutationBody = CreateScanBody
+    export type CreateScanMutationError = ProblemDetails
 
     /**
  * @summary Recognize a Magic card from a photo.
  */
-export const usePostScans = <TError = ProblemDetails,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postScans>>, TError,{data: PostScansBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCreateScan = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createScan>>, TError,{data: CreateScanBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postScans>>,
+        Awaited<ReturnType<typeof createScan>>,
         TError,
-        {data: PostScansBody},
+        {data: CreateScanBody},
         TContext
       > => {
-      return useMutation(getPostScansMutationOptions(options), queryClient);
+      return useMutation(getCreateScanMutationOptions(options), queryClient);
     }
-    export const getPostScansScanIdFeedbackUrl = (scanId: string,) => {
+    export const getSubmitScanFeedbackUrl = (scanId: string,) => {
 
 
 
@@ -129,10 +129,10 @@ export const usePostScans = <TError = ProblemDetails,
  * feedback — assume the latest is the user's most considered answer.
  * @summary Report the actual correct printing for a previous scan.
  */
-export const postScansScanIdFeedback = async (scanId: string,
+export const submitScanFeedback = async (scanId: string,
     scanFeedbackRequest: ScanFeedbackRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ScanFeedbackResponse> => {
 
-  return apiFetch<ScanFeedbackResponse>(getPostScansScanIdFeedbackUrl(scanId),
+  return apiFetch<ScanFeedbackResponse>(getSubmitScanFeedbackUrl(scanId),
   {
     ...options,
     method: 'POST',
@@ -145,11 +145,11 @@ export const postScansScanIdFeedback = async (scanId: string,
 
 
 
-export const getPostScansScanIdFeedbackMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postScansScanIdFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postScansScanIdFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext> => {
+export const getSubmitScanFeedbackMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitScanFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitScanFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext> => {
 
-const mutationKey = ['postScansScanIdFeedback'];
+const mutationKey = ['submitScanFeedback'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -159,10 +159,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postScansScanIdFeedback>>, {scanId: string;data: ScanFeedbackRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitScanFeedback>>, {scanId: string;data: ScanFeedbackRequest}> = (props) => {
           const {scanId,data} = props ?? {};
 
-          return  postScansScanIdFeedback(scanId,data,requestOptions)
+          return  submitScanFeedback(scanId,data,requestOptions)
         }
 
 
@@ -172,20 +172,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostScansScanIdFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof postScansScanIdFeedback>>>
-    export type PostScansScanIdFeedbackMutationBody = ScanFeedbackRequest
-    export type PostScansScanIdFeedbackMutationError = ProblemDetails | void
+    export type SubmitScanFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof submitScanFeedback>>>
+    export type SubmitScanFeedbackMutationBody = ScanFeedbackRequest
+    export type SubmitScanFeedbackMutationError = ProblemDetails
 
     /**
  * @summary Report the actual correct printing for a previous scan.
  */
-export const usePostScansScanIdFeedback = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postScansScanIdFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useSubmitScanFeedback = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitScanFeedback>>, TError,{scanId: string;data: ScanFeedbackRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postScansScanIdFeedback>>,
+        Awaited<ReturnType<typeof submitScanFeedback>>,
         TError,
         {scanId: string;data: ScanFeedbackRequest},
         TContext
       > => {
-      return useMutation(getPostScansScanIdFeedbackMutationOptions(options), queryClient);
+      return useMutation(getSubmitScanFeedbackMutationOptions(options), queryClient);
     }

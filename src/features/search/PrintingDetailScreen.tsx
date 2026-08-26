@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
-import { useGetCardsOracleIdPrintingsPrintingId } from '../../api/generated/cards/cards';
+import { useGetPrinting } from '../../api/generated/cards/cards';
 import { MtgStackParamList } from '../../navigation/types';
 
 type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
@@ -16,7 +16,7 @@ type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
 export function PrintingDetailScreen() {
   const { params } = useRoute<Route>();
   const { data, isLoading, isError, error } =
-    useGetCardsOracleIdPrintingsPrintingId(params.oracleId, params.printingId);
+    useGetPrinting(params.oracleId, params.printingId);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

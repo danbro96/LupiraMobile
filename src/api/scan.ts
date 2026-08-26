@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { Sentry } from '../observability/breadcrumb';
-import { postScans as rawPostScans } from './generated/scans/scans';
+import { createScan as rawPostScans } from './generated/scans/scans';
 import type { ScanResponse } from './generated/models';
 
 /**
@@ -29,7 +29,7 @@ function buildScanFormData(input: ScanInput): FormData {
 
 /**
  * `POST /scans` instrumented with a Sentry span — preserves the only network
- * span we had on the hand-typed client. Wraps the generated `postScans`
+ * span we had on the hand-typed client. Wraps the generated `createScan`
  * imperative function in a fresh `useMutation` so the variables type is
  * `ScanInput` (not the generated `PostScansBody = { image: Blob }`),
  * matching the existing `ScanScreen` call sites byte-for-byte.

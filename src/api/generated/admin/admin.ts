@@ -54,7 +54,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getPostAdminSyncRunUrl = () => {
+export const getRunSyncUrl = () => {
 
 
 
@@ -71,9 +71,9 @@ export const getPostAdminSyncRunUrl = () => {
  * once roles are introduced.
  * @summary Trigger a Scryfall sync run synchronously.
  */
-export const postAdminSyncRun = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SyncRunResponse> => {
+export const runSync = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SyncRunResponse> => {
 
-  return apiFetch<SyncRunResponse>(getPostAdminSyncRunUrl(),
+  return apiFetch<SyncRunResponse>(getRunSyncUrl(),
   {
     ...options,
     method: 'POST'
@@ -86,11 +86,11 @@ export const postAdminSyncRun = async ( options?: Parameters<typeof apiFetch>[1]
 
 
 
-export const getPostAdminSyncRunMutationOptions = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAdminSyncRun>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postAdminSyncRun>>, TError,void, TContext> => {
+export const getRunSyncMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runSync>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runSync>>, TError,void, TContext> => {
 
-const mutationKey = ['postAdminSyncRun'];
+const mutationKey = ['runSync'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -100,10 +100,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAdminSyncRun>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runSync>>, void> = () => {
 
 
-          return  postAdminSyncRun(requestOptions)
+          return  runSync(requestOptions)
         }
 
 
@@ -113,24 +113,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostAdminSyncRunMutationResult = NonNullable<Awaited<ReturnType<typeof postAdminSyncRun>>>
+    export type RunSyncMutationResult = NonNullable<Awaited<ReturnType<typeof runSync>>>
 
-    export type PostAdminSyncRunMutationError = unknown
+    export type RunSyncMutationError = ProblemDetails
 
     /**
  * @summary Trigger a Scryfall sync run synchronously.
  */
-export const usePostAdminSyncRun = <TError = unknown,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAdminSyncRun>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useRunSync = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runSync>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postAdminSyncRun>>,
+        Awaited<ReturnType<typeof runSync>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getPostAdminSyncRunMutationOptions(options), queryClient);
+      return useMutation(getRunSyncMutationOptions(options), queryClient);
     }
-    export const getGetAdminSetTypeWeightsUrl = () => {
+    export const getListSetTypeWeightsUrl = () => {
 
 
 
@@ -144,9 +144,9 @@ export const usePostAdminSyncRun = <TError = unknown,
  * printing over a Funko Pop one. This endpoint exposes the live values.
  * @summary List set-type weights used by the scan-confidence ranker.
  */
-export const getAdminSetTypeWeights = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightListResponse> => {
+export const listSetTypeWeights = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightListResponse> => {
 
-  return apiFetch<SetTypeWeightListResponse>(getGetAdminSetTypeWeightsUrl(),
+  return apiFetch<SetTypeWeightListResponse>(getListSetTypeWeightsUrl(),
   {
     ...options,
     method: 'GET'
@@ -159,69 +159,69 @@ export const getAdminSetTypeWeights = async ( options?: Parameters<typeof apiFet
 
 
 
-export const getGetAdminSetTypeWeightsQueryKey = () => {
+export const getListSetTypeWeightsQueryKey = () => {
     return [
     `/admin/set-type-weights`
     ] as const;
     }
 
 
-export const getGetAdminSetTypeWeightsQueryOptions = <TData = Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListSetTypeWeightsQueryOptions = <TData = Awaited<ReturnType<typeof listSetTypeWeights>>, TError = ProblemDetails>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetAdminSetTypeWeightsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListSetTypeWeightsQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminSetTypeWeights>>> = ({ signal }) => getAdminSetTypeWeights({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSetTypeWeights>>> = ({ signal }) => listSetTypeWeights({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetAdminSetTypeWeightsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminSetTypeWeights>>>
-export type GetAdminSetTypeWeightsQueryError = void
+export type ListSetTypeWeightsQueryResult = NonNullable<Awaited<ReturnType<typeof listSetTypeWeights>>>
+export type ListSetTypeWeightsQueryError = ProblemDetails
 
 
-export function useGetAdminSetTypeWeights<TData = Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData>> & Pick<
+export function useListSetTypeWeights<TData = Awaited<ReturnType<typeof listSetTypeWeights>>, TError = ProblemDetails>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAdminSetTypeWeights>>,
+          Awaited<ReturnType<typeof listSetTypeWeights>>,
           TError,
-          Awaited<ReturnType<typeof getAdminSetTypeWeights>>
+          Awaited<ReturnType<typeof listSetTypeWeights>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAdminSetTypeWeights<TData = Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData>> & Pick<
+export function useListSetTypeWeights<TData = Awaited<ReturnType<typeof listSetTypeWeights>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getAdminSetTypeWeights>>,
+          Awaited<ReturnType<typeof listSetTypeWeights>>,
           TError,
-          Awaited<ReturnType<typeof getAdminSetTypeWeights>>
+          Awaited<ReturnType<typeof listSetTypeWeights>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAdminSetTypeWeights<TData = Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListSetTypeWeights<TData = Awaited<ReturnType<typeof listSetTypeWeights>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List set-type weights used by the scan-confidence ranker.
  */
 
-export function useGetAdminSetTypeWeights<TData = Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListSetTypeWeights<TData = Awaited<ReturnType<typeof listSetTypeWeights>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSetTypeWeights>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetAdminSetTypeWeightsQueryOptions(options)
+  const queryOptions = getListSetTypeWeightsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -233,7 +233,7 @@ export function useGetAdminSetTypeWeights<TData = Awaited<ReturnType<typeof getA
 
 
 
-export const getPutAdminSetTypeWeightsSetTypeUrl = (setType: string,) => {
+export const getUpdateSetTypeWeightUrl = (setType: string,) => {
 
 
 
@@ -249,10 +249,10 @@ export const getPutAdminSetTypeWeightsSetTypeUrl = (setType: string,) => {
  * The change takes effect on the *next* scan; the ranker reads weights per request.
  * @summary Upsert the weight for one set type.
  */
-export const putAdminSetTypeWeightsSetType = async (setType: string,
+export const updateSetTypeWeight = async (setType: string,
     updateSetTypeWeightRequest: UpdateSetTypeWeightRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightResponse> => {
 
-  return apiFetch<SetTypeWeightResponse>(getPutAdminSetTypeWeightsSetTypeUrl(setType),
+  return apiFetch<SetTypeWeightResponse>(getUpdateSetTypeWeightUrl(setType),
   {
     ...options,
     method: 'PUT',
@@ -265,11 +265,11 @@ export const putAdminSetTypeWeightsSetType = async (setType: string,
 
 
 
-export const getPutAdminSetTypeWeightsSetTypeMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext> => {
+export const getUpdateSetTypeWeightMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSetTypeWeight>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSetTypeWeight>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext> => {
 
-const mutationKey = ['putAdminSetTypeWeightsSetType'];
+const mutationKey = ['updateSetTypeWeight'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -279,10 +279,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>, {setType: string;data: UpdateSetTypeWeightRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSetTypeWeight>>, {setType: string;data: UpdateSetTypeWeightRequest}> = (props) => {
           const {setType,data} = props ?? {};
 
-          return  putAdminSetTypeWeightsSetType(setType,data,requestOptions)
+          return  updateSetTypeWeight(setType,data,requestOptions)
         }
 
 
@@ -292,20 +292,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PutAdminSetTypeWeightsSetTypeMutationResult = NonNullable<Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>>
-    export type PutAdminSetTypeWeightsSetTypeMutationBody = UpdateSetTypeWeightRequest
-    export type PutAdminSetTypeWeightsSetTypeMutationError = ProblemDetails | void
+    export type UpdateSetTypeWeightMutationResult = NonNullable<Awaited<ReturnType<typeof updateSetTypeWeight>>>
+    export type UpdateSetTypeWeightMutationBody = UpdateSetTypeWeightRequest
+    export type UpdateSetTypeWeightMutationError = ProblemDetails
 
     /**
  * @summary Upsert the weight for one set type.
  */
-export const usePutAdminSetTypeWeightsSetType = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useUpdateSetTypeWeight = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSetTypeWeight>>, TError,{setType: string;data: UpdateSetTypeWeightRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof putAdminSetTypeWeightsSetType>>,
+        Awaited<ReturnType<typeof updateSetTypeWeight>>,
         TError,
         {setType: string;data: UpdateSetTypeWeightRequest},
         TContext
       > => {
-      return useMutation(getPutAdminSetTypeWeightsSetTypeMutationOptions(options), queryClient);
+      return useMutation(getUpdateSetTypeWeightMutationOptions(options), queryClient);
     }

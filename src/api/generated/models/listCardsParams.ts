@@ -6,8 +6,18 @@
  * OpenAPI spec version: v1
  */
 
-export type GetSetsParams = {
-setType?: string;
+export type ListCardsParams = {
+q?: string;
+set?: string;
+color?: string;
+colors?: string;
+rarity?: string;
+type?: string;
+cmc?: number;
+cmcMin?: number;
+cmcMax?: number;
+power?: string;
+toughness?: string;
 sort?: string;
 order?: string;
 take?: number;

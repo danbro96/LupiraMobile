@@ -13,6 +13,8 @@ export interface ScanSummaryResponse {
   scannedAt: string;
   confidence: RecognitionConfidence;
   topMatch: null | CardPrintingResponse;
+  /** True iff the user has submitted feedback for this scan via `POST /scans/{id}/feedback`. */
   hasFeedback: boolean;
+  /** True when feedback exists AND the user said the top match was wrong. */
   feedbackChangedTop: boolean;
 }

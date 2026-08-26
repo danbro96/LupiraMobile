@@ -22,8 +22,9 @@ import type {
 
 import type {
   CardInstanceListResponse,
-  GetMeCardsParams,
-  GetMeScansParams,
+  ListMeCardsParams,
+  ListScansParams,
+  ProblemDetails,
   ScanDetailResponse,
   ScanListResponse,
   WhoAmIResponse
@@ -51,7 +52,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getGetMeUrl = () => {
+export const getWhoAmIUrl = () => {
 
 
 
@@ -66,9 +67,9 @@ export const getGetMeUrl = () => {
  * sanity-check from the mobile client on cold start.
  * @summary Return the caller's identity.
  */
-export const getMe = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WhoAmIResponse> => {
+export const whoAmI = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WhoAmIResponse> => {
 
-  return apiFetch<WhoAmIResponse>(getGetMeUrl(),
+  return apiFetch<WhoAmIResponse>(getWhoAmIUrl(),
   {
     ...options,
     method: 'GET'
@@ -81,69 +82,69 @@ export const getMe = async ( options?: Parameters<typeof apiFetch>[1]): Promise<
 
 
 
-export const getGetMeQueryKey = () => {
+export const getWhoAmIQueryKey = () => {
     return [
     `/me`
     ] as const;
     }
 
 
-export const getGetMeQueryOptions = <TData = Awaited<ReturnType<typeof getMe>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getWhoAmIQueryOptions = <TData = Awaited<ReturnType<typeof whoAmI>>, TError = ProblemDetails>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMeQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getWhoAmIQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMe>>> = ({ signal }) => getMe({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof whoAmI>>> = ({ signal }) => whoAmI({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetMeQueryResult = NonNullable<Awaited<ReturnType<typeof getMe>>>
-export type GetMeQueryError = void
+export type WhoAmIQueryResult = NonNullable<Awaited<ReturnType<typeof whoAmI>>>
+export type WhoAmIQueryError = ProblemDetails
 
 
-export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>> & Pick<
+export function useWhoAmI<TData = Awaited<ReturnType<typeof whoAmI>>, TError = ProblemDetails>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMe>>,
+          Awaited<ReturnType<typeof whoAmI>>,
           TError,
-          Awaited<ReturnType<typeof getMe>>
+          Awaited<ReturnType<typeof whoAmI>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>> & Pick<
+export function useWhoAmI<TData = Awaited<ReturnType<typeof whoAmI>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMe>>,
+          Awaited<ReturnType<typeof whoAmI>>,
           TError,
-          Awaited<ReturnType<typeof getMe>>
+          Awaited<ReturnType<typeof whoAmI>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useWhoAmI<TData = Awaited<ReturnType<typeof whoAmI>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Return the caller's identity.
  */
 
-export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMe>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useWhoAmI<TData = Awaited<ReturnType<typeof whoAmI>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof whoAmI>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMeQueryOptions(options)
+  const queryOptions = getWhoAmIQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -155,7 +156,7 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = voi
 
 
 
-export const getGetMeCardsUrl = (params?: GetMeCardsParams,) => {
+export const getListMeCardsUrl = (params?: ListMeCardsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -175,9 +176,9 @@ export const getGetMeCardsUrl = (params?: GetMeCardsParams,) => {
  * Response includes `total` so the client can render "X of Y" headers.
  * @summary List every card the caller owns across all collections.
  */
-export const getMeCards = async (params?: GetMeCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceListResponse> => {
+export const listMeCards = async (params?: ListMeCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceListResponse> => {
 
-  return apiFetch<CardInstanceListResponse>(getGetMeCardsUrl(params),
+  return apiFetch<CardInstanceListResponse>(getListMeCardsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -190,69 +191,69 @@ export const getMeCards = async (params?: GetMeCardsParams, options?: Parameters
 
 
 
-export const getGetMeCardsQueryKey = (params?: GetMeCardsParams,) => {
+export const getListMeCardsQueryKey = (params?: ListMeCardsParams,) => {
     return [
     `/me/cards`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetMeCardsQueryOptions = <TData = Awaited<ReturnType<typeof getMeCards>>, TError = void>(params?: GetMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListMeCardsQueryOptions = <TData = Awaited<ReturnType<typeof listMeCards>>, TError = ProblemDetails>(params?: ListMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMeCardsQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getListMeCardsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMeCards>>> = ({ signal }) => getMeCards(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMeCards>>> = ({ signal }) => listMeCards(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetMeCardsQueryResult = NonNullable<Awaited<ReturnType<typeof getMeCards>>>
-export type GetMeCardsQueryError = void
+export type ListMeCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listMeCards>>>
+export type ListMeCardsQueryError = ProblemDetails
 
 
-export function useGetMeCards<TData = Awaited<ReturnType<typeof getMeCards>>, TError = void>(
- params: undefined |  GetMeCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData>> & Pick<
+export function useListMeCards<TData = Awaited<ReturnType<typeof listMeCards>>, TError = ProblemDetails>(
+ params: undefined |  ListMeCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeCards>>,
+          Awaited<ReturnType<typeof listMeCards>>,
           TError,
-          Awaited<ReturnType<typeof getMeCards>>
+          Awaited<ReturnType<typeof listMeCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeCards<TData = Awaited<ReturnType<typeof getMeCards>>, TError = void>(
- params?: GetMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData>> & Pick<
+export function useListMeCards<TData = Awaited<ReturnType<typeof listMeCards>>, TError = ProblemDetails>(
+ params?: ListMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeCards>>,
+          Awaited<ReturnType<typeof listMeCards>>,
           TError,
-          Awaited<ReturnType<typeof getMeCards>>
+          Awaited<ReturnType<typeof listMeCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeCards<TData = Awaited<ReturnType<typeof getMeCards>>, TError = void>(
- params?: GetMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListMeCards<TData = Awaited<ReturnType<typeof listMeCards>>, TError = ProblemDetails>(
+ params?: ListMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List every card the caller owns across all collections.
  */
 
-export function useGetMeCards<TData = Awaited<ReturnType<typeof getMeCards>>, TError = void>(
- params?: GetMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListMeCards<TData = Awaited<ReturnType<typeof listMeCards>>, TError = ProblemDetails>(
+ params?: ListMeCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMeCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMeCardsQueryOptions(params,options)
+  const queryOptions = getListMeCardsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -264,7 +265,7 @@ export function useGetMeCards<TData = Awaited<ReturnType<typeof getMeCards>>, TE
 
 
 
-export const getGetMeScansUrl = (params?: GetMeScansParams,) => {
+export const getListScansUrl = (params?: ListScansParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -285,9 +286,9 @@ export const getGetMeScansUrl = (params?: GetMeScansParams,) => {
  * ScanLog projection (every candidate, OCR zones, set-symbol detection, feedback).
  * @summary Paginated scan history (newest first).
  */
-export const getMeScans = async (params?: GetMeScansParams, options?: Parameters<typeof apiFetch>[1]): Promise<ScanListResponse> => {
+export const listScans = async (params?: ListScansParams, options?: Parameters<typeof apiFetch>[1]): Promise<ScanListResponse> => {
 
-  return apiFetch<ScanListResponse>(getGetMeScansUrl(params),
+  return apiFetch<ScanListResponse>(getListScansUrl(params),
   {
     ...options,
     method: 'GET'
@@ -300,69 +301,69 @@ export const getMeScans = async (params?: GetMeScansParams, options?: Parameters
 
 
 
-export const getGetMeScansQueryKey = (params?: GetMeScansParams,) => {
+export const getListScansQueryKey = (params?: ListScansParams,) => {
     return [
     `/me/scans`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetMeScansQueryOptions = <TData = Awaited<ReturnType<typeof getMeScans>>, TError = void>(params?: GetMeScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListScansQueryOptions = <TData = Awaited<ReturnType<typeof listScans>>, TError = ProblemDetails>(params?: ListScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMeScansQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getListScansQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMeScans>>> = ({ signal }) => getMeScans(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listScans>>> = ({ signal }) => listScans(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetMeScansQueryResult = NonNullable<Awaited<ReturnType<typeof getMeScans>>>
-export type GetMeScansQueryError = void
+export type ListScansQueryResult = NonNullable<Awaited<ReturnType<typeof listScans>>>
+export type ListScansQueryError = ProblemDetails
 
 
-export function useGetMeScans<TData = Awaited<ReturnType<typeof getMeScans>>, TError = void>(
- params: undefined |  GetMeScansParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData>> & Pick<
+export function useListScans<TData = Awaited<ReturnType<typeof listScans>>, TError = ProblemDetails>(
+ params: undefined |  ListScansParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeScans>>,
+          Awaited<ReturnType<typeof listScans>>,
           TError,
-          Awaited<ReturnType<typeof getMeScans>>
+          Awaited<ReturnType<typeof listScans>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeScans<TData = Awaited<ReturnType<typeof getMeScans>>, TError = void>(
- params?: GetMeScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData>> & Pick<
+export function useListScans<TData = Awaited<ReturnType<typeof listScans>>, TError = ProblemDetails>(
+ params?: ListScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeScans>>,
+          Awaited<ReturnType<typeof listScans>>,
           TError,
-          Awaited<ReturnType<typeof getMeScans>>
+          Awaited<ReturnType<typeof listScans>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeScans<TData = Awaited<ReturnType<typeof getMeScans>>, TError = void>(
- params?: GetMeScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListScans<TData = Awaited<ReturnType<typeof listScans>>, TError = ProblemDetails>(
+ params?: ListScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Paginated scan history (newest first).
  */
 
-export function useGetMeScans<TData = Awaited<ReturnType<typeof getMeScans>>, TError = void>(
- params?: GetMeScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListScans<TData = Awaited<ReturnType<typeof listScans>>, TError = ProblemDetails>(
+ params?: ListScansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listScans>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMeScansQueryOptions(params,options)
+  const queryOptions = getListScansQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -374,7 +375,7 @@ export function useGetMeScans<TData = Awaited<ReturnType<typeof getMeScans>>, TE
 
 
 
-export const getGetMeScansScanIdUrl = (scanId: string,) => {
+export const getGetScanUrl = (scanId: string,) => {
 
 
 
@@ -389,9 +390,9 @@ export const getGetMeScansScanIdUrl = (scanId: string,) => {
  * a "why did the scan match this card?" diagnostic UI without needing OpenObserve.
  * @summary Full detail of one scan.
  */
-export const getMeScansScanId = async (scanId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ScanDetailResponse> => {
+export const getScan = async (scanId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ScanDetailResponse> => {
 
-  return apiFetch<ScanDetailResponse>(getGetMeScansScanIdUrl(scanId),
+  return apiFetch<ScanDetailResponse>(getGetScanUrl(scanId),
   {
     ...options,
     method: 'GET'
@@ -404,69 +405,69 @@ export const getMeScansScanId = async (scanId: string, options?: Parameters<type
 
 
 
-export const getGetMeScansScanIdQueryKey = (scanId: string,) => {
+export const getGetScanQueryKey = (scanId: string,) => {
     return [
     `/me/scans/${scanId}`
     ] as const;
     }
 
 
-export const getGetMeScansScanIdQueryOptions = <TData = Awaited<ReturnType<typeof getMeScansScanId>>, TError = void>(scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetScanQueryOptions = <TData = Awaited<ReturnType<typeof getScan>>, TError = ProblemDetails>(scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMeScansScanIdQueryKey(scanId);
+  const queryKey =  queryOptions?.queryKey ?? getGetScanQueryKey(scanId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMeScansScanId>>> = ({ signal }) => getMeScansScanId(scanId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getScan>>> = ({ signal }) => getScan(scanId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: scanId !== null && scanId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: scanId !== null && scanId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetMeScansScanIdQueryResult = NonNullable<Awaited<ReturnType<typeof getMeScansScanId>>>
-export type GetMeScansScanIdQueryError = void
+export type GetScanQueryResult = NonNullable<Awaited<ReturnType<typeof getScan>>>
+export type GetScanQueryError = ProblemDetails
 
 
-export function useGetMeScansScanId<TData = Awaited<ReturnType<typeof getMeScansScanId>>, TError = void>(
- scanId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData>> & Pick<
+export function useGetScan<TData = Awaited<ReturnType<typeof getScan>>, TError = ProblemDetails>(
+ scanId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeScansScanId>>,
+          Awaited<ReturnType<typeof getScan>>,
           TError,
-          Awaited<ReturnType<typeof getMeScansScanId>>
+          Awaited<ReturnType<typeof getScan>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeScansScanId<TData = Awaited<ReturnType<typeof getMeScansScanId>>, TError = void>(
- scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData>> & Pick<
+export function useGetScan<TData = Awaited<ReturnType<typeof getScan>>, TError = ProblemDetails>(
+ scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getMeScansScanId>>,
+          Awaited<ReturnType<typeof getScan>>,
           TError,
-          Awaited<ReturnType<typeof getMeScansScanId>>
+          Awaited<ReturnType<typeof getScan>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetMeScansScanId<TData = Awaited<ReturnType<typeof getMeScansScanId>>, TError = void>(
- scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetScan<TData = Awaited<ReturnType<typeof getScan>>, TError = ProblemDetails>(
+ scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Full detail of one scan.
  */
 
-export function useGetMeScansScanId<TData = Awaited<ReturnType<typeof getMeScansScanId>>, TError = void>(
- scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMeScansScanId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetScan<TData = Awaited<ReturnType<typeof getScan>>, TError = ProblemDetails>(
+ scanId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getScan>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetMeScansScanIdQueryOptions(scanId,options)
+  const queryOptions = getGetScanQueryOptions(scanId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

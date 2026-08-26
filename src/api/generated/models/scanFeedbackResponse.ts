@@ -9,7 +9,11 @@
 export interface ScanFeedbackResponse {
   scanId: string;
   correctPrintingId: string;
-  /** @nullable */
+  /**
+     * 1-based rank of the correct printing in the original candidate list. Null when the printing wasn't in the candidate pool.
+     * @nullable
+     */
   rank: number | null;
+  /** Size of the original candidate pool that was searched. */
   candidateCount: number;
 }

@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetMeScansParams = {
-take?: number;
-skip?: number;
+export type ListPricesParams = {
+from?: string;
+to?: string;
 };

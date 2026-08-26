@@ -6,7 +6,7 @@
  * OpenAPI spec version: v1
  */
 
-export type GetMeCardsParams = {
+export type ListMeCardsParams = {
 take?: number;
 skip?: number;
 };

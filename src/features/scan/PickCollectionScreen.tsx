@@ -14,10 +14,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  getCollections,
-  postCollections,
+  listCollections,
+  createCollection,
 } from '../../api/generated/collections/collections';
-import { postSelectionsSelectionIdCommit } from '../../api/generated/selections/selections';
+import { commitSelection } from '../../api/generated/selections/selections';
 import type {
   CollectionResponse,
   CommitSelectionResponse,
@@ -43,11 +43,11 @@ export function PickCollectionScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: () => getCollections(),
+    queryFn: () => listCollections(),
   });
 
-  const createCollection = useMutation({
-    mutationFn: (name: string) => postCollections({ name }),
+  const createMutation = useMutation({
+    mutationFn: (name: string) => createCollection({ name }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');
@@ -56,7 +56,7 @@ export function PickCollectionScreen() {
 
   const commit = useMutation<CommitSelectionResponse, Error, string>({
     mutationFn: (collectionId: string) =>
-      postSelectionsSelectionIdCommit(params.selectionId, { collectionId }),
+      commitSelection(params.selectionId, { collectionId }),
     onSuccess: async result => {
       if (result.remainingCount === 0) {
         await setCurrent(null);
@@ -84,7 +84,7 @@ export function PickCollectionScreen() {
     const name = newName.trim();
     if (!name) return;
     try {
-      const created = await createCollection.mutateAsync(name);
+      const created = await createMutation.mutateAsync(name);
       commit.mutate(created.id);
     } catch (e: unknown) {
       Alert.alert('Create failed', (e as Error).message);
@@ -123,13 +123,13 @@ export function PickCollectionScreen() {
           </View>
           <Pressable
             onPress={onCreate}
-            disabled={!newName.trim() || createCollection.isPending || commit.isPending}
+            disabled={!newName.trim() || createMutation.isPending || commit.isPending}
             style={[
               styles.createButton,
-              (!newName.trim() || createCollection.isPending || commit.isPending) && styles.disabled,
+              (!newName.trim() || createMutation.isPending || commit.isPending) && styles.disabled,
             ]}
           >
-            {createCollection.isPending || commit.isPending ? (
+            {createMutation.isPending || commit.isPending ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.createButtonText}>Create</Text>

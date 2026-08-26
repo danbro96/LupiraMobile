@@ -16,10 +16,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  deleteCollectionsCollectionId,
-  deleteCollectionsCollectionIdCardsInstanceId,
-  getCollectionsCollectionId,
-  patchCollectionsCollectionId,
+  deleteCollection,
+  deleteCollectionCard,
+  getCollection,
+  updateCollection,
 } from '../../api/generated/collections/collections';
 import type {
   CardInstanceResponse,
@@ -38,12 +38,12 @@ export function CollectionDetailScreen() {
 
   const detail = useQuery({
     queryKey: ['collection', params.collectionId],
-    queryFn: () => getCollectionsCollectionId(params.collectionId),
+    queryFn: () => getCollection(params.collectionId),
   });
 
   const removeCard = useMutation({
     mutationFn: (instanceId: string) =>
-      deleteCollectionsCollectionIdCardsInstanceId(params.collectionId, instanceId),
+      deleteCollectionCard(params.collectionId, instanceId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['collection', params.collectionId] });
       await queryClient.invalidateQueries({ queryKey: ['collections'] });
@@ -52,7 +52,7 @@ export function CollectionDetailScreen() {
   });
 
   const remove = useMutation({
-    mutationFn: () => deleteCollectionsCollectionId(params.collectionId),
+    mutationFn: () => deleteCollection(params.collectionId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['collections'] });
       await queryClient.invalidateQueries({ queryKey: ['my-cards'] });
@@ -112,7 +112,7 @@ export function CollectionDetailScreen() {
         currentName={detail.data?.name ?? ''}
         onClose={() => setRenameOpen(false)}
         onSubmit={async name => {
-          await patchCollectionsCollectionId(params.collectionId, { name });
+          await updateCollection(params.collectionId, { name });
           await queryClient.invalidateQueries({ queryKey: ['collection', params.collectionId] });
           await queryClient.invalidateQueries({ queryKey: ['collections'] });
           setRenameOpen(false);

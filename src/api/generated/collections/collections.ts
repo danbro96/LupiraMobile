@@ -38,7 +38,7 @@ import type {
   CollectionListResponse,
   CollectionResponse,
   CreateCollectionRequest,
-  GetCollectionsCollectionIdCardsParams,
+  ListCollectionCardsParams,
   MoveCardRequest,
   ProblemDetails,
   RenameCollectionRequest
@@ -66,7 +66,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getGetCollectionsUrl = () => {
+export const getListCollectionsUrl = () => {
 
 
 
@@ -77,9 +77,9 @@ export const getGetCollectionsUrl = () => {
 /**
  * @summary List the caller's collections.
  */
-export const getCollections = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CollectionListResponse> => {
+export const listCollections = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CollectionListResponse> => {
 
-  return apiFetch<CollectionListResponse>(getGetCollectionsUrl(),
+  return apiFetch<CollectionListResponse>(getListCollectionsUrl(),
   {
     ...options,
     method: 'GET'
@@ -92,69 +92,69 @@ export const getCollections = async ( options?: Parameters<typeof apiFetch>[1]):
 
 
 
-export const getGetCollectionsQueryKey = () => {
+export const getListCollectionsQueryKey = () => {
     return [
     `/collections`
     ] as const;
     }
 
 
-export const getGetCollectionsQueryOptions = <TData = Awaited<ReturnType<typeof getCollections>>, TError = void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListCollectionsQueryOptions = <TData = Awaited<ReturnType<typeof listCollections>>, TError = ProblemDetails>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCollectionsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListCollectionsQueryKey();
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCollections>>> = ({ signal }) => getCollections({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCollections>>> = ({ signal }) => listCollections({ signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCollectionsQueryResult = NonNullable<Awaited<ReturnType<typeof getCollections>>>
-export type GetCollectionsQueryError = void
+export type ListCollectionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCollections>>>
+export type ListCollectionsQueryError = ProblemDetails
 
 
-export function useGetCollections<TData = Awaited<ReturnType<typeof getCollections>>, TError = void>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData>> & Pick<
+export function useListCollections<TData = Awaited<ReturnType<typeof listCollections>>, TError = ProblemDetails>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollections>>,
+          Awaited<ReturnType<typeof listCollections>>,
           TError,
-          Awaited<ReturnType<typeof getCollections>>
+          Awaited<ReturnType<typeof listCollections>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollections<TData = Awaited<ReturnType<typeof getCollections>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData>> & Pick<
+export function useListCollections<TData = Awaited<ReturnType<typeof listCollections>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollections>>,
+          Awaited<ReturnType<typeof listCollections>>,
           TError,
-          Awaited<ReturnType<typeof getCollections>>
+          Awaited<ReturnType<typeof listCollections>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollections<TData = Awaited<ReturnType<typeof getCollections>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListCollections<TData = Awaited<ReturnType<typeof listCollections>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List the caller's collections.
  */
 
-export function useGetCollections<TData = Awaited<ReturnType<typeof getCollections>>, TError = void>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListCollections<TData = Awaited<ReturnType<typeof listCollections>>, TError = ProblemDetails>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollections>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCollectionsQueryOptions(options)
+  const queryOptions = getListCollectionsQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -166,7 +166,7 @@ export function useGetCollections<TData = Awaited<ReturnType<typeof getCollectio
 
 
 
-export const getPostCollectionsUrl = () => {
+export const getCreateCollectionUrl = () => {
 
 
 
@@ -177,9 +177,9 @@ export const getPostCollectionsUrl = () => {
 /**
  * @summary Create a new collection.
  */
-export const postCollections = async (createCollectionRequest: CreateCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionResponse> => {
+export const createCollection = async (createCollectionRequest: CreateCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionResponse> => {
 
-  return apiFetch<CollectionResponse>(getPostCollectionsUrl(),
+  return apiFetch<CollectionResponse>(getCreateCollectionUrl(),
   {
     ...options,
     method: 'POST',
@@ -192,11 +192,11 @@ export const postCollections = async (createCollectionRequest: CreateCollectionR
 
 
 
-export const getPostCollectionsMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollections>>, TError,{data: CreateCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollections>>, TError,{data: CreateCollectionRequest}, TContext> => {
+export const getCreateCollectionMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollection>>, TError,{data: CreateCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCollection>>, TError,{data: CreateCollectionRequest}, TContext> => {
 
-const mutationKey = ['postCollections'];
+const mutationKey = ['createCollection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -206,10 +206,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollections>>, {data: CreateCollectionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCollection>>, {data: CreateCollectionRequest}> = (props) => {
           const {data} = props ?? {};
 
-          return  postCollections(data,requestOptions)
+          return  createCollection(data,requestOptions)
         }
 
 
@@ -219,24 +219,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsMutationResult = NonNullable<Awaited<ReturnType<typeof postCollections>>>
-    export type PostCollectionsMutationBody = CreateCollectionRequest
-    export type PostCollectionsMutationError = ProblemDetails | void
+    export type CreateCollectionMutationResult = NonNullable<Awaited<ReturnType<typeof createCollection>>>
+    export type CreateCollectionMutationBody = CreateCollectionRequest
+    export type CreateCollectionMutationError = ProblemDetails
 
     /**
  * @summary Create a new collection.
  */
-export const usePostCollections = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollections>>, TError,{data: CreateCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCreateCollection = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollection>>, TError,{data: CreateCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollections>>,
+        Awaited<ReturnType<typeof createCollection>>,
         TError,
         {data: CreateCollectionRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsMutationOptions(options), queryClient);
+      return useMutation(getCreateCollectionMutationOptions(options), queryClient);
     }
-    export const getGetCollectionsCollectionIdUrl = (collectionId: string,) => {
+    export const getGetCollectionUrl = (collectionId: string,) => {
 
 
 
@@ -247,9 +247,9 @@ export const usePostCollections = <TError = ProblemDetails | void,
 /**
  * @summary Get a collection with its cards.
  */
-export const getCollectionsCollectionId = async (collectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionDetailResponse> => {
+export const getCollection = async (collectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionDetailResponse> => {
 
-  return apiFetch<CollectionDetailResponse>(getGetCollectionsCollectionIdUrl(collectionId),
+  return apiFetch<CollectionDetailResponse>(getGetCollectionUrl(collectionId),
   {
     ...options,
     method: 'GET'
@@ -262,69 +262,69 @@ export const getCollectionsCollectionId = async (collectionId: string, options?:
 
 
 
-export const getGetCollectionsCollectionIdQueryKey = (collectionId: string,) => {
+export const getGetCollectionQueryKey = (collectionId: string,) => {
     return [
     `/collections/${collectionId}`
     ] as const;
     }
 
 
-export const getGetCollectionsCollectionIdQueryOptions = <TData = Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError = void>(collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetCollectionQueryOptions = <TData = Awaited<ReturnType<typeof getCollection>>, TError = ProblemDetails>(collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCollectionsCollectionIdQueryKey(collectionId);
+  const queryKey =  queryOptions?.queryKey ?? getGetCollectionQueryKey(collectionId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCollectionsCollectionId>>> = ({ signal }) => getCollectionsCollectionId(collectionId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCollection>>> = ({ signal }) => getCollection(collectionId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: collectionId !== null && collectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: collectionId !== null && collectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCollectionsCollectionIdQueryResult = NonNullable<Awaited<ReturnType<typeof getCollectionsCollectionId>>>
-export type GetCollectionsCollectionIdQueryError = void
+export type GetCollectionQueryResult = NonNullable<Awaited<ReturnType<typeof getCollection>>>
+export type GetCollectionQueryError = ProblemDetails
 
 
-export function useGetCollectionsCollectionId<TData = Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError = void>(
- collectionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData>> & Pick<
+export function useGetCollection<TData = Awaited<ReturnType<typeof getCollection>>, TError = ProblemDetails>(
+ collectionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollectionsCollectionId>>,
+          Awaited<ReturnType<typeof getCollection>>,
           TError,
-          Awaited<ReturnType<typeof getCollectionsCollectionId>>
+          Awaited<ReturnType<typeof getCollection>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollectionsCollectionId<TData = Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError = void>(
- collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData>> & Pick<
+export function useGetCollection<TData = Awaited<ReturnType<typeof getCollection>>, TError = ProblemDetails>(
+ collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollectionsCollectionId>>,
+          Awaited<ReturnType<typeof getCollection>>,
           TError,
-          Awaited<ReturnType<typeof getCollectionsCollectionId>>
+          Awaited<ReturnType<typeof getCollection>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollectionsCollectionId<TData = Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError = void>(
- collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetCollection<TData = Awaited<ReturnType<typeof getCollection>>, TError = ProblemDetails>(
+ collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get a collection with its cards.
  */
 
-export function useGetCollectionsCollectionId<TData = Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError = void>(
- collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetCollection<TData = Awaited<ReturnType<typeof getCollection>>, TError = ProblemDetails>(
+ collectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCollectionsCollectionIdQueryOptions(collectionId,options)
+  const queryOptions = getGetCollectionQueryOptions(collectionId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -336,7 +336,7 @@ export function useGetCollectionsCollectionId<TData = Awaited<ReturnType<typeof 
 
 
 
-export const getPatchCollectionsCollectionIdUrl = (collectionId: string,) => {
+export const getUpdateCollectionUrl = (collectionId: string,) => {
 
 
 
@@ -347,10 +347,10 @@ export const getPatchCollectionsCollectionIdUrl = (collectionId: string,) => {
 /**
  * @summary Rename a collection.
  */
-export const patchCollectionsCollectionId = async (collectionId: string,
+export const updateCollection = async (collectionId: string,
     renameCollectionRequest: RenameCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionResponse> => {
 
-  return apiFetch<CollectionResponse>(getPatchCollectionsCollectionIdUrl(collectionId),
+  return apiFetch<CollectionResponse>(getUpdateCollectionUrl(collectionId),
   {
     ...options,
     method: 'PATCH',
@@ -363,11 +363,11 @@ export const patchCollectionsCollectionId = async (collectionId: string,
 
 
 
-export const getPatchCollectionsCollectionIdMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchCollectionsCollectionId>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof patchCollectionsCollectionId>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext> => {
+export const getUpdateCollectionMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCollection>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCollection>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext> => {
 
-const mutationKey = ['patchCollectionsCollectionId'];
+const mutationKey = ['updateCollection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -377,10 +377,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchCollectionsCollectionId>>, {collectionId: string;data: RenameCollectionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCollection>>, {collectionId: string;data: RenameCollectionRequest}> = (props) => {
           const {collectionId,data} = props ?? {};
 
-          return  patchCollectionsCollectionId(collectionId,data,requestOptions)
+          return  updateCollection(collectionId,data,requestOptions)
         }
 
 
@@ -390,24 +390,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PatchCollectionsCollectionIdMutationResult = NonNullable<Awaited<ReturnType<typeof patchCollectionsCollectionId>>>
-    export type PatchCollectionsCollectionIdMutationBody = RenameCollectionRequest
-    export type PatchCollectionsCollectionIdMutationError = ProblemDetails | void
+    export type UpdateCollectionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCollection>>>
+    export type UpdateCollectionMutationBody = RenameCollectionRequest
+    export type UpdateCollectionMutationError = ProblemDetails
 
     /**
  * @summary Rename a collection.
  */
-export const usePatchCollectionsCollectionId = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchCollectionsCollectionId>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useUpdateCollection = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCollection>>, TError,{collectionId: string;data: RenameCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof patchCollectionsCollectionId>>,
+        Awaited<ReturnType<typeof updateCollection>>,
         TError,
         {collectionId: string;data: RenameCollectionRequest},
         TContext
       > => {
-      return useMutation(getPatchCollectionsCollectionIdMutationOptions(options), queryClient);
+      return useMutation(getUpdateCollectionMutationOptions(options), queryClient);
     }
-    export const getDeleteCollectionsCollectionIdUrl = (collectionId: string,) => {
+    export const getDeleteCollectionUrl = (collectionId: string,) => {
 
 
 
@@ -418,9 +418,9 @@ export const usePatchCollectionsCollectionId = <TError = ProblemDetails | void,
 /**
  * @summary Soft-delete a collection.
  */
-export const deleteCollectionsCollectionId = async (collectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const deleteCollection = async (collectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-  return apiFetch<void>(getDeleteCollectionsCollectionIdUrl(collectionId),
+  return apiFetch<void>(getDeleteCollectionUrl(collectionId),
   {
     ...options,
     method: 'DELETE'
@@ -433,11 +433,11 @@ export const deleteCollectionsCollectionId = async (collectionId: string, option
 
 
 
-export const getDeleteCollectionsCollectionIdMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionId>>, TError,{collectionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionId>>, TError,{collectionId: string}, TContext> => {
+export const getDeleteCollectionMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollection>>, TError,{collectionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCollection>>, TError,{collectionId: string}, TContext> => {
 
-const mutationKey = ['deleteCollectionsCollectionId'];
+const mutationKey = ['deleteCollection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -447,10 +447,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCollectionsCollectionId>>, {collectionId: string}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCollection>>, {collectionId: string}> = (props) => {
           const {collectionId} = props ?? {};
 
-          return  deleteCollectionsCollectionId(collectionId,requestOptions)
+          return  deleteCollection(collectionId,requestOptions)
         }
 
 
@@ -460,25 +460,25 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteCollectionsCollectionIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCollectionsCollectionId>>>
+    export type DeleteCollectionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCollection>>>
 
-    export type DeleteCollectionsCollectionIdMutationError = void
+    export type DeleteCollectionMutationError = ProblemDetails
 
     /**
  * @summary Soft-delete a collection.
  */
-export const useDeleteCollectionsCollectionId = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionId>>, TError,{collectionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useDeleteCollection = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollection>>, TError,{collectionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteCollectionsCollectionId>>,
+        Awaited<ReturnType<typeof deleteCollection>>,
         TError,
         {collectionId: string},
         TContext
       > => {
-      return useMutation(getDeleteCollectionsCollectionIdMutationOptions(options), queryClient);
+      return useMutation(getDeleteCollectionMutationOptions(options), queryClient);
     }
-    export const getGetCollectionsCollectionIdCardsUrl = (collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams,) => {
+    export const getListCollectionCardsUrl = (collectionId: string,
+    params?: ListCollectionCardsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -498,10 +498,10 @@ export const useDeleteCollectionsCollectionId = <TError = void,
  * Response includes `total`.
  * @summary List the cards in a collection.
  */
-export const getCollectionsCollectionIdCards = async (collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceListResponse> => {
+export const listCollectionCards = async (collectionId: string,
+    params?: ListCollectionCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceListResponse> => {
 
-  return apiFetch<CardInstanceListResponse>(getGetCollectionsCollectionIdCardsUrl(collectionId,params),
+  return apiFetch<CardInstanceListResponse>(getListCollectionCardsUrl(collectionId,params),
   {
     ...options,
     method: 'GET'
@@ -514,75 +514,75 @@ export const getCollectionsCollectionIdCards = async (collectionId: string,
 
 
 
-export const getGetCollectionsCollectionIdCardsQueryKey = (collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams,) => {
+export const getListCollectionCardsQueryKey = (collectionId: string,
+    params?: ListCollectionCardsParams,) => {
     return [
     `/collections/${collectionId}/cards`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetCollectionsCollectionIdCardsQueryOptions = <TData = Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError = void>(collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListCollectionCardsQueryOptions = <TData = Awaited<ReturnType<typeof listCollectionCards>>, TError = ProblemDetails>(collectionId: string,
+    params?: ListCollectionCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCollectionsCollectionIdCardsQueryKey(collectionId,params);
+  const queryKey =  queryOptions?.queryKey ?? getListCollectionCardsQueryKey(collectionId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>> = ({ signal }) => getCollectionsCollectionIdCards(collectionId,params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCollectionCards>>> = ({ signal }) => listCollectionCards(collectionId,params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: collectionId !== null && collectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: collectionId !== null && collectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCollectionsCollectionIdCardsQueryResult = NonNullable<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>>
-export type GetCollectionsCollectionIdCardsQueryError = void
+export type ListCollectionCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listCollectionCards>>>
+export type ListCollectionCardsQueryError = ProblemDetails
 
 
-export function useGetCollectionsCollectionIdCards<TData = Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError = void>(
+export function useListCollectionCards<TData = Awaited<ReturnType<typeof listCollectionCards>>, TError = ProblemDetails>(
  collectionId: string,
-    params: undefined |  GetCollectionsCollectionIdCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData>> & Pick<
+    params: undefined |  ListCollectionCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>,
+          Awaited<ReturnType<typeof listCollectionCards>>,
           TError,
-          Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>
+          Awaited<ReturnType<typeof listCollectionCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollectionsCollectionIdCards<TData = Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError = void>(
+export function useListCollectionCards<TData = Awaited<ReturnType<typeof listCollectionCards>>, TError = ProblemDetails>(
  collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData>> & Pick<
+    params?: ListCollectionCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>,
+          Awaited<ReturnType<typeof listCollectionCards>>,
           TError,
-          Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>
+          Awaited<ReturnType<typeof listCollectionCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCollectionsCollectionIdCards<TData = Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError = void>(
+export function useListCollectionCards<TData = Awaited<ReturnType<typeof listCollectionCards>>, TError = ProblemDetails>(
  collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListCollectionCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List the cards in a collection.
  */
 
-export function useGetCollectionsCollectionIdCards<TData = Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError = void>(
+export function useListCollectionCards<TData = Awaited<ReturnType<typeof listCollectionCards>>, TError = ProblemDetails>(
  collectionId: string,
-    params?: GetCollectionsCollectionIdCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCollectionsCollectionIdCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListCollectionCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCollectionCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCollectionsCollectionIdCardsQueryOptions(collectionId,params,options)
+  const queryOptions = getListCollectionCardsQueryOptions(collectionId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -594,7 +594,7 @@ export function useGetCollectionsCollectionIdCards<TData = Awaited<ReturnType<ty
 
 
 
-export const getPostCollectionsCollectionIdCardsUrl = (collectionId: string,) => {
+export const getCreateCollectionCardUrl = (collectionId: string,) => {
 
 
 
@@ -605,10 +605,10 @@ export const getPostCollectionsCollectionIdCardsUrl = (collectionId: string,) =>
 /**
  * @summary Add a card to a collection (manual, no scan).
  */
-export const postCollectionsCollectionIdCards = async (collectionId: string,
+export const createCollectionCard = async (collectionId: string,
     addCardToCollectionRequest: AddCardToCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceResponse> => {
 
-  return apiFetch<CardInstanceResponse>(getPostCollectionsCollectionIdCardsUrl(collectionId),
+  return apiFetch<CardInstanceResponse>(getCreateCollectionCardUrl(collectionId),
   {
     ...options,
     method: 'POST',
@@ -621,11 +621,11 @@ export const postCollectionsCollectionIdCards = async (collectionId: string,
 
 
 
-export const getPostCollectionsCollectionIdCardsMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext> => {
+export const getCreateCollectionCardMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollectionCard>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCollectionCard>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext> => {
 
-const mutationKey = ['postCollectionsCollectionIdCards'];
+const mutationKey = ['createCollectionCard'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -635,10 +635,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>, {collectionId: string;data: AddCardToCollectionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCollectionCard>>, {collectionId: string;data: AddCardToCollectionRequest}> = (props) => {
           const {collectionId,data} = props ?? {};
 
-          return  postCollectionsCollectionIdCards(collectionId,data,requestOptions)
+          return  createCollectionCard(collectionId,data,requestOptions)
         }
 
 
@@ -648,24 +648,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsCollectionIdCardsMutationResult = NonNullable<Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>>
-    export type PostCollectionsCollectionIdCardsMutationBody = AddCardToCollectionRequest
-    export type PostCollectionsCollectionIdCardsMutationError = ProblemDetails | void
+    export type CreateCollectionCardMutationResult = NonNullable<Awaited<ReturnType<typeof createCollectionCard>>>
+    export type CreateCollectionCardMutationBody = AddCardToCollectionRequest
+    export type CreateCollectionCardMutationError = ProblemDetails
 
     /**
  * @summary Add a card to a collection (manual, no scan).
  */
-export const usePostCollectionsCollectionIdCards = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCreateCollectionCard = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCollectionCard>>, TError,{collectionId: string;data: AddCardToCollectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollectionsCollectionIdCards>>,
+        Awaited<ReturnType<typeof createCollectionCard>>,
         TError,
         {collectionId: string;data: AddCardToCollectionRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsCollectionIdCardsMutationOptions(options), queryClient);
+      return useMutation(getCreateCollectionCardMutationOptions(options), queryClient);
     }
-    export const getDeleteCollectionsCollectionIdCardsInstanceIdUrl = (collectionId: string,
+    export const getDeleteCollectionCardUrl = (collectionId: string,
     instanceId: string,) => {
 
 
@@ -677,10 +677,10 @@ export const usePostCollectionsCollectionIdCards = <TError = ProblemDetails | vo
 /**
  * @summary Remove a card from a collection.
  */
-export const deleteCollectionsCollectionIdCardsInstanceId = async (collectionId: string,
+export const deleteCollectionCard = async (collectionId: string,
     instanceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-  return apiFetch<void>(getDeleteCollectionsCollectionIdCardsInstanceIdUrl(collectionId,instanceId),
+  return apiFetch<void>(getDeleteCollectionCardUrl(collectionId,instanceId),
   {
     ...options,
     method: 'DELETE'
@@ -693,11 +693,11 @@ export const deleteCollectionsCollectionIdCardsInstanceId = async (collectionId:
 
 
 
-export const getDeleteCollectionsCollectionIdCardsInstanceIdMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>, TError,{collectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>, TError,{collectionId: string;instanceId: string}, TContext> => {
+export const getDeleteCollectionCardMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionCard>>, TError,{collectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionCard>>, TError,{collectionId: string;instanceId: string}, TContext> => {
 
-const mutationKey = ['deleteCollectionsCollectionIdCardsInstanceId'];
+const mutationKey = ['deleteCollectionCard'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -707,10 +707,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>, {collectionId: string;instanceId: string}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCollectionCard>>, {collectionId: string;instanceId: string}> = (props) => {
           const {collectionId,instanceId} = props ?? {};
 
-          return  deleteCollectionsCollectionIdCardsInstanceId(collectionId,instanceId,requestOptions)
+          return  deleteCollectionCard(collectionId,instanceId,requestOptions)
         }
 
 
@@ -720,24 +720,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteCollectionsCollectionIdCardsInstanceIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>>
+    export type DeleteCollectionCardMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCollectionCard>>>
 
-    export type DeleteCollectionsCollectionIdCardsInstanceIdMutationError = void
+    export type DeleteCollectionCardMutationError = ProblemDetails
 
     /**
  * @summary Remove a card from a collection.
  */
-export const useDeleteCollectionsCollectionIdCardsInstanceId = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>, TError,{collectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useDeleteCollectionCard = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCollectionCard>>, TError,{collectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteCollectionsCollectionIdCardsInstanceId>>,
+        Awaited<ReturnType<typeof deleteCollectionCard>>,
         TError,
         {collectionId: string;instanceId: string},
         TContext
       > => {
-      return useMutation(getDeleteCollectionsCollectionIdCardsInstanceIdMutationOptions(options), queryClient);
+      return useMutation(getDeleteCollectionCardMutationOptions(options), queryClient);
     }
-    export const getPostCollectionsCollectionIdCardsInstanceIdMoveUrl = (collectionId: string,
+    export const getMoveCardUrl = (collectionId: string,
     instanceId: string,) => {
 
 
@@ -749,11 +749,11 @@ export const useDeleteCollectionsCollectionIdCardsInstanceId = <TError = void,
 /**
  * @summary Move a card to another collection.
  */
-export const postCollectionsCollectionIdCardsInstanceIdMove = async (collectionId: string,
+export const moveCard = async (collectionId: string,
     instanceId: string,
     moveCardRequest: MoveCardRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceResponse> => {
 
-  return apiFetch<CardInstanceResponse>(getPostCollectionsCollectionIdCardsInstanceIdMoveUrl(collectionId,instanceId),
+  return apiFetch<CardInstanceResponse>(getMoveCardUrl(collectionId,instanceId),
   {
     ...options,
     method: 'POST',
@@ -766,11 +766,11 @@ export const postCollectionsCollectionIdCardsInstanceIdMove = async (collectionI
 
 
 
-export const getPostCollectionsCollectionIdCardsInstanceIdMoveMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext> => {
+export const getMoveCardMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveCard>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moveCard>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext> => {
 
-const mutationKey = ['postCollectionsCollectionIdCardsInstanceIdMove'];
+const mutationKey = ['moveCard'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -780,10 +780,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>, {collectionId: string;instanceId: string;data: MoveCardRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moveCard>>, {collectionId: string;instanceId: string;data: MoveCardRequest}> = (props) => {
           const {collectionId,instanceId,data} = props ?? {};
 
-          return  postCollectionsCollectionIdCardsInstanceIdMove(collectionId,instanceId,data,requestOptions)
+          return  moveCard(collectionId,instanceId,data,requestOptions)
         }
 
 
@@ -793,24 +793,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsCollectionIdCardsInstanceIdMoveMutationResult = NonNullable<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>>
-    export type PostCollectionsCollectionIdCardsInstanceIdMoveMutationBody = MoveCardRequest
-    export type PostCollectionsCollectionIdCardsInstanceIdMoveMutationError = ProblemDetails | void
+    export type MoveCardMutationResult = NonNullable<Awaited<ReturnType<typeof moveCard>>>
+    export type MoveCardMutationBody = MoveCardRequest
+    export type MoveCardMutationError = ProblemDetails
 
     /**
  * @summary Move a card to another collection.
  */
-export const usePostCollectionsCollectionIdCardsInstanceIdMove = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useMoveCard = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveCard>>, TError,{collectionId: string;instanceId: string;data: MoveCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollectionsCollectionIdCardsInstanceIdMove>>,
+        Awaited<ReturnType<typeof moveCard>>,
         TError,
         {collectionId: string;instanceId: string;data: MoveCardRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsCollectionIdCardsInstanceIdMoveMutationOptions(options), queryClient);
+      return useMutation(getMoveCardMutationOptions(options), queryClient);
     }
-    export const getPostCollectionsCollectionIdCardsBulkUrl = (collectionId: string,) => {
+    export const getBulkAddCardsUrl = (collectionId: string,) => {
 
 
 
@@ -826,10 +826,10 @@ export const usePostCollectionsCollectionIdCardsInstanceIdMove = <TError = Probl
  * whole call is rejected with `400`, no partial writes.
  * @summary Add many cards to a collection in one call.
  */
-export const postCollectionsCollectionIdCardsBulk = async (collectionId: string,
+export const bulkAddCards = async (collectionId: string,
     bulkAddCardsRequest: BulkAddCardsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<BulkAddCardsResponse> => {
 
-  return apiFetch<BulkAddCardsResponse>(getPostCollectionsCollectionIdCardsBulkUrl(collectionId),
+  return apiFetch<BulkAddCardsResponse>(getBulkAddCardsUrl(collectionId),
   {
     ...options,
     method: 'POST',
@@ -842,11 +842,11 @@ export const postCollectionsCollectionIdCardsBulk = async (collectionId: string,
 
 
 
-export const getPostCollectionsCollectionIdCardsBulkMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext> => {
+export const getBulkAddCardsMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkAddCards>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkAddCards>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext> => {
 
-const mutationKey = ['postCollectionsCollectionIdCardsBulk'];
+const mutationKey = ['bulkAddCards'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -856,10 +856,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>, {collectionId: string;data: BulkAddCardsRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkAddCards>>, {collectionId: string;data: BulkAddCardsRequest}> = (props) => {
           const {collectionId,data} = props ?? {};
 
-          return  postCollectionsCollectionIdCardsBulk(collectionId,data,requestOptions)
+          return  bulkAddCards(collectionId,data,requestOptions)
         }
 
 
@@ -869,24 +869,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsCollectionIdCardsBulkMutationResult = NonNullable<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>>
-    export type PostCollectionsCollectionIdCardsBulkMutationBody = BulkAddCardsRequest
-    export type PostCollectionsCollectionIdCardsBulkMutationError = ProblemDetails | void
+    export type BulkAddCardsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkAddCards>>>
+    export type BulkAddCardsMutationBody = BulkAddCardsRequest
+    export type BulkAddCardsMutationError = ProblemDetails
 
     /**
  * @summary Add many cards to a collection in one call.
  */
-export const usePostCollectionsCollectionIdCardsBulk = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useBulkAddCards = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkAddCards>>, TError,{collectionId: string;data: BulkAddCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulk>>,
+        Awaited<ReturnType<typeof bulkAddCards>>,
         TError,
         {collectionId: string;data: BulkAddCardsRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsCollectionIdCardsBulkMutationOptions(options), queryClient);
+      return useMutation(getBulkAddCardsMutationOptions(options), queryClient);
     }
-    export const getPostCollectionsCollectionIdCardsBulkDeleteUrl = (collectionId: string,) => {
+    export const getBulkRemoveCardsUrl = (collectionId: string,) => {
 
 
 
@@ -899,10 +899,10 @@ export const usePostCollectionsCollectionIdCardsBulk = <TError = ProblemDetails 
  * `{ removedCount, missingCount }` so the client can tell the user what landed.
  * @summary Remove many cards from a collection in one call.
  */
-export const postCollectionsCollectionIdCardsBulkDelete = async (collectionId: string,
+export const bulkRemoveCards = async (collectionId: string,
     bulkRemoveCardsRequest: BulkRemoveCardsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<BulkRemoveCardsResponse> => {
 
-  return apiFetch<BulkRemoveCardsResponse>(getPostCollectionsCollectionIdCardsBulkDeleteUrl(collectionId),
+  return apiFetch<BulkRemoveCardsResponse>(getBulkRemoveCardsUrl(collectionId),
   {
     ...options,
     method: 'POST',
@@ -915,11 +915,11 @@ export const postCollectionsCollectionIdCardsBulkDelete = async (collectionId: s
 
 
 
-export const getPostCollectionsCollectionIdCardsBulkDeleteMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext> => {
+export const getBulkRemoveCardsMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkRemoveCards>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkRemoveCards>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext> => {
 
-const mutationKey = ['postCollectionsCollectionIdCardsBulkDelete'];
+const mutationKey = ['bulkRemoveCards'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -929,10 +929,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>, {collectionId: string;data: BulkRemoveCardsRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkRemoveCards>>, {collectionId: string;data: BulkRemoveCardsRequest}> = (props) => {
           const {collectionId,data} = props ?? {};
 
-          return  postCollectionsCollectionIdCardsBulkDelete(collectionId,data,requestOptions)
+          return  bulkRemoveCards(collectionId,data,requestOptions)
         }
 
 
@@ -942,24 +942,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsCollectionIdCardsBulkDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>>
-    export type PostCollectionsCollectionIdCardsBulkDeleteMutationBody = BulkRemoveCardsRequest
-    export type PostCollectionsCollectionIdCardsBulkDeleteMutationError = ProblemDetails | void
+    export type BulkRemoveCardsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkRemoveCards>>>
+    export type BulkRemoveCardsMutationBody = BulkRemoveCardsRequest
+    export type BulkRemoveCardsMutationError = ProblemDetails
 
     /**
  * @summary Remove many cards from a collection in one call.
  */
-export const usePostCollectionsCollectionIdCardsBulkDelete = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useBulkRemoveCards = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkRemoveCards>>, TError,{collectionId: string;data: BulkRemoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkDelete>>,
+        Awaited<ReturnType<typeof bulkRemoveCards>>,
         TError,
         {collectionId: string;data: BulkRemoveCardsRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsCollectionIdCardsBulkDeleteMutationOptions(options), queryClient);
+      return useMutation(getBulkRemoveCardsMutationOptions(options), queryClient);
     }
-    export const getPostCollectionsCollectionIdCardsBulkMoveUrl = (collectionId: string,) => {
+    export const getBulkMoveCardsUrl = (collectionId: string,) => {
 
 
 
@@ -973,10 +973,10 @@ export const usePostCollectionsCollectionIdCardsBulkDelete = <TError = ProblemDe
  * the destination collection set) plus a count of ids that weren't in the source.
  * @summary Move many cards to another collection in one call.
  */
-export const postCollectionsCollectionIdCardsBulkMove = async (collectionId: string,
+export const bulkMoveCards = async (collectionId: string,
     bulkMoveCardsRequest: BulkMoveCardsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<BulkMoveCardsResponse> => {
 
-  return apiFetch<BulkMoveCardsResponse>(getPostCollectionsCollectionIdCardsBulkMoveUrl(collectionId),
+  return apiFetch<BulkMoveCardsResponse>(getBulkMoveCardsUrl(collectionId),
   {
     ...options,
     method: 'POST',
@@ -989,11 +989,11 @@ export const postCollectionsCollectionIdCardsBulkMove = async (collectionId: str
 
 
 
-export const getPostCollectionsCollectionIdCardsBulkMoveMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext> => {
+export const getBulkMoveCardsMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkMoveCards>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkMoveCards>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext> => {
 
-const mutationKey = ['postCollectionsCollectionIdCardsBulkMove'];
+const mutationKey = ['bulkMoveCards'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1003,10 +1003,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>, {collectionId: string;data: BulkMoveCardsRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkMoveCards>>, {collectionId: string;data: BulkMoveCardsRequest}> = (props) => {
           const {collectionId,data} = props ?? {};
 
-          return  postCollectionsCollectionIdCardsBulkMove(collectionId,data,requestOptions)
+          return  bulkMoveCards(collectionId,data,requestOptions)
         }
 
 
@@ -1016,20 +1016,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostCollectionsCollectionIdCardsBulkMoveMutationResult = NonNullable<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>>
-    export type PostCollectionsCollectionIdCardsBulkMoveMutationBody = BulkMoveCardsRequest
-    export type PostCollectionsCollectionIdCardsBulkMoveMutationError = ProblemDetails | void
+    export type BulkMoveCardsMutationResult = NonNullable<Awaited<ReturnType<typeof bulkMoveCards>>>
+    export type BulkMoveCardsMutationBody = BulkMoveCardsRequest
+    export type BulkMoveCardsMutationError = ProblemDetails
 
     /**
  * @summary Move many cards to another collection in one call.
  */
-export const usePostCollectionsCollectionIdCardsBulkMove = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useBulkMoveCards = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkMoveCards>>, TError,{collectionId: string;data: BulkMoveCardsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postCollectionsCollectionIdCardsBulkMove>>,
+        Awaited<ReturnType<typeof bulkMoveCards>>,
         TError,
         {collectionId: string;data: BulkMoveCardsRequest},
         TContext
       > => {
-      return useMutation(getPostCollectionsCollectionIdCardsBulkMoveMutationOptions(options), queryClient);
+      return useMutation(getBulkMoveCardsMutationOptions(options), queryClient);
     }

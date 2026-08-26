@@ -6,7 +6,10 @@
  * OpenAPI spec version: v1
  */
 
-export type GetCardsOracleIdPrintingsPrintingIdPricesParams = {
-from?: string;
-to?: string;
+export type ListSetsParams = {
+setType?: string;
+sort?: string;
+order?: string;
+take?: number;
+skip?: number;
 };

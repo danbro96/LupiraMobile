@@ -7,6 +7,7 @@
  */
 
 export interface WhoAmIResponse {
+  /** The OIDC subject — the caller's email, which every owned document is keyed by. */
   subject: string;
   /** @nullable */
   displayName: string | null;

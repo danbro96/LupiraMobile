@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { keepPreviousData } from '@tanstack/react-query';
-import { useGetCards } from '../../api/generated/cards/cards';
+import { useListCards } from '../../api/generated/cards/cards';
 import type { CardResponse } from '../../api/generated/models';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -31,7 +31,7 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query, 300);
 
-  const { data, isFetching, isError, error, refetch } = useGetCards(
+  const { data, isFetching, isError, error, refetch } = useListCards(
     { q: debounced || undefined, take: 50 },
     { query: { placeholderData: keepPreviousData } },
   );

@@ -14,8 +14,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  deleteSelectionsSelectionIdCardsInstanceId,
-  getSelectionsSelectionId,
+  deleteSelectionCard,
+  getSelection,
 } from '../../api/generated/selections/selections';
 import type { SelectionEntryResponse } from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
@@ -32,13 +32,13 @@ export function SelectionScreen() {
 
   const selection = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: () => getSelectionsSelectionId(currentSelectionId!),
+    queryFn: () => getSelection(currentSelectionId!),
     enabled: !!currentSelectionId,
   });
 
   const removeCard = useMutation({
     mutationFn: (instanceId: string) =>
-      deleteSelectionsSelectionIdCardsInstanceId(currentSelectionId!, instanceId),
+      deleteSelectionCard(currentSelectionId!, instanceId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['selection', currentSelectionId] }),
   });
 

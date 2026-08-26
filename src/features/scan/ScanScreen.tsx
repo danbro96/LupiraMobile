@@ -24,8 +24,8 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError } from '../../api/mutator';
 import {
-  getSelectionsSelectionId,
-  postSelectionsSelectionIdCards,
+  getSelection,
+  createSelectionCard,
 } from '../../api/generated/selections/selections';
 import { scanCard } from '../../api/scan';
 import type { CardCandidateResponse } from '../../api/generated/models';
@@ -126,14 +126,14 @@ export function ScanScreen() {
 
   const selectionQuery = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: () => getSelectionsSelectionId(currentSelectionId!),
+    queryFn: () => getSelection(currentSelectionId!),
     enabled: !!currentSelectionId,
   });
 
   const addToSelection = useMutation({
     mutationFn: async (input: { candidate: CardCandidateResponse; allowDuplicate: boolean }) => {
       const selectionId = await ensureSelection();
-      return postSelectionsSelectionIdCards(selectionId, {
+      return createSelectionCard(selectionId, {
         printingId: input.candidate.printing.id,
         isFoil: false,
         language: 'en',

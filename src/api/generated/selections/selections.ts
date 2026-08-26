@@ -55,7 +55,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getPostSelectionsUrl = () => {
+export const getCreateSelectionUrl = () => {
 
 
 
@@ -66,9 +66,9 @@ export const getPostSelectionsUrl = () => {
 /**
  * @summary Start a new scanning selection.
  */
-export const postSelections = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SelectionResponse> => {
+export const createSelection = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SelectionResponse> => {
 
-  return apiFetch<SelectionResponse>(getPostSelectionsUrl(),
+  return apiFetch<SelectionResponse>(getCreateSelectionUrl(),
   {
     ...options,
     method: 'POST'
@@ -81,11 +81,11 @@ export const postSelections = async ( options?: Parameters<typeof apiFetch>[1]):
 
 
 
-export const getPostSelectionsMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelections>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postSelections>>, TError,void, TContext> => {
+export const getCreateSelectionMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSelection>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSelection>>, TError,void, TContext> => {
 
-const mutationKey = ['postSelections'];
+const mutationKey = ['createSelection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -95,10 +95,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postSelections>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSelection>>, void> = () => {
 
 
-          return  postSelections(requestOptions)
+          return  createSelection(requestOptions)
         }
 
 
@@ -108,24 +108,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostSelectionsMutationResult = NonNullable<Awaited<ReturnType<typeof postSelections>>>
+    export type CreateSelectionMutationResult = NonNullable<Awaited<ReturnType<typeof createSelection>>>
 
-    export type PostSelectionsMutationError = void
+    export type CreateSelectionMutationError = ProblemDetails
 
     /**
  * @summary Start a new scanning selection.
  */
-export const usePostSelections = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelections>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCreateSelection = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSelection>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postSelections>>,
+        Awaited<ReturnType<typeof createSelection>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getPostSelectionsMutationOptions(options), queryClient);
+      return useMutation(getCreateSelectionMutationOptions(options), queryClient);
     }
-    export const getGetSelectionsSelectionIdUrl = (selectionId: string,) => {
+    export const getGetSelectionUrl = (selectionId: string,) => {
 
 
 
@@ -136,9 +136,9 @@ export const usePostSelections = <TError = void,
 /**
  * @summary Get a selection with its current cards.
  */
-export const getSelectionsSelectionId = async (selectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SelectionResponse> => {
+export const getSelection = async (selectionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SelectionResponse> => {
 
-  return apiFetch<SelectionResponse>(getGetSelectionsSelectionIdUrl(selectionId),
+  return apiFetch<SelectionResponse>(getGetSelectionUrl(selectionId),
   {
     ...options,
     method: 'GET'
@@ -151,69 +151,69 @@ export const getSelectionsSelectionId = async (selectionId: string, options?: Pa
 
 
 
-export const getGetSelectionsSelectionIdQueryKey = (selectionId: string,) => {
+export const getGetSelectionQueryKey = (selectionId: string,) => {
     return [
     `/selections/${selectionId}`
     ] as const;
     }
 
 
-export const getGetSelectionsSelectionIdQueryOptions = <TData = Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError = void>(selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetSelectionQueryOptions = <TData = Awaited<ReturnType<typeof getSelection>>, TError = ProblemDetails>(selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSelectionsSelectionIdQueryKey(selectionId);
+  const queryKey =  queryOptions?.queryKey ?? getGetSelectionQueryKey(selectionId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSelectionsSelectionId>>> = ({ signal }) => getSelectionsSelectionId(selectionId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSelection>>> = ({ signal }) => getSelection(selectionId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: selectionId !== null && selectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: selectionId !== null && selectionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetSelectionsSelectionIdQueryResult = NonNullable<Awaited<ReturnType<typeof getSelectionsSelectionId>>>
-export type GetSelectionsSelectionIdQueryError = void
+export type GetSelectionQueryResult = NonNullable<Awaited<ReturnType<typeof getSelection>>>
+export type GetSelectionQueryError = ProblemDetails
 
 
-export function useGetSelectionsSelectionId<TData = Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError = void>(
- selectionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData>> & Pick<
+export function useGetSelection<TData = Awaited<ReturnType<typeof getSelection>>, TError = ProblemDetails>(
+ selectionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSelectionsSelectionId>>,
+          Awaited<ReturnType<typeof getSelection>>,
           TError,
-          Awaited<ReturnType<typeof getSelectionsSelectionId>>
+          Awaited<ReturnType<typeof getSelection>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSelectionsSelectionId<TData = Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError = void>(
- selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData>> & Pick<
+export function useGetSelection<TData = Awaited<ReturnType<typeof getSelection>>, TError = ProblemDetails>(
+ selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSelectionsSelectionId>>,
+          Awaited<ReturnType<typeof getSelection>>,
           TError,
-          Awaited<ReturnType<typeof getSelectionsSelectionId>>
+          Awaited<ReturnType<typeof getSelection>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSelectionsSelectionId<TData = Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError = void>(
- selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetSelection<TData = Awaited<ReturnType<typeof getSelection>>, TError = ProblemDetails>(
+ selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get a selection with its current cards.
  */
 
-export function useGetSelectionsSelectionId<TData = Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError = void>(
- selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelectionsSelectionId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetSelection<TData = Awaited<ReturnType<typeof getSelection>>, TError = ProblemDetails>(
+ selectionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSelection>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetSelectionsSelectionIdQueryOptions(selectionId,options)
+  const queryOptions = getGetSelectionQueryOptions(selectionId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -225,7 +225,7 @@ export function useGetSelectionsSelectionId<TData = Awaited<ReturnType<typeof ge
 
 
 
-export const getPostSelectionsSelectionIdCardsUrl = (selectionId: string,) => {
+export const getCreateSelectionCardUrl = (selectionId: string,) => {
 
 
 
@@ -236,10 +236,10 @@ export const getPostSelectionsSelectionIdCardsUrl = (selectionId: string,) => {
 /**
  * @summary Add a recognized card to the selection. Returns 409 on duplicate unless allowDuplicate=true.
  */
-export const postSelectionsSelectionIdCards = async (selectionId: string,
+export const createSelectionCard = async (selectionId: string,
     addSelectionEntryRequest: AddSelectionEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SelectionEntryResponse> => {
 
-  return apiFetch<SelectionEntryResponse>(getPostSelectionsSelectionIdCardsUrl(selectionId),
+  return apiFetch<SelectionEntryResponse>(getCreateSelectionCardUrl(selectionId),
   {
     ...options,
     method: 'POST',
@@ -252,11 +252,11 @@ export const postSelectionsSelectionIdCards = async (selectionId: string,
 
 
 
-export const getPostSelectionsSelectionIdCardsMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext> => {
+export const getCreateSelectionCardMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSelectionCard>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSelectionCard>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext> => {
 
-const mutationKey = ['postSelectionsSelectionIdCards'];
+const mutationKey = ['createSelectionCard'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -266,10 +266,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>, {selectionId: string;data: AddSelectionEntryRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSelectionCard>>, {selectionId: string;data: AddSelectionEntryRequest}> = (props) => {
           const {selectionId,data} = props ?? {};
 
-          return  postSelectionsSelectionIdCards(selectionId,data,requestOptions)
+          return  createSelectionCard(selectionId,data,requestOptions)
         }
 
 
@@ -279,24 +279,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostSelectionsSelectionIdCardsMutationResult = NonNullable<Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>>
-    export type PostSelectionsSelectionIdCardsMutationBody = AddSelectionEntryRequest
-    export type PostSelectionsSelectionIdCardsMutationError = ProblemDetails | void
+    export type CreateSelectionCardMutationResult = NonNullable<Awaited<ReturnType<typeof createSelectionCard>>>
+    export type CreateSelectionCardMutationBody = AddSelectionEntryRequest
+    export type CreateSelectionCardMutationError = ProblemDetails
 
     /**
  * @summary Add a recognized card to the selection. Returns 409 on duplicate unless allowDuplicate=true.
  */
-export const usePostSelectionsSelectionIdCards = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCreateSelectionCard = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSelectionCard>>, TError,{selectionId: string;data: AddSelectionEntryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postSelectionsSelectionIdCards>>,
+        Awaited<ReturnType<typeof createSelectionCard>>,
         TError,
         {selectionId: string;data: AddSelectionEntryRequest},
         TContext
       > => {
-      return useMutation(getPostSelectionsSelectionIdCardsMutationOptions(options), queryClient);
+      return useMutation(getCreateSelectionCardMutationOptions(options), queryClient);
     }
-    export const getDeleteSelectionsSelectionIdCardsInstanceIdUrl = (selectionId: string,
+    export const getDeleteSelectionCardUrl = (selectionId: string,
     instanceId: string,) => {
 
 
@@ -308,10 +308,10 @@ export const usePostSelectionsSelectionIdCards = <TError = ProblemDetails | void
 /**
  * @summary Remove a card from the selection.
  */
-export const deleteSelectionsSelectionIdCardsInstanceId = async (selectionId: string,
+export const deleteSelectionCard = async (selectionId: string,
     instanceId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-  return apiFetch<void>(getDeleteSelectionsSelectionIdCardsInstanceIdUrl(selectionId,instanceId),
+  return apiFetch<void>(getDeleteSelectionCardUrl(selectionId,instanceId),
   {
     ...options,
     method: 'DELETE'
@@ -324,11 +324,11 @@ export const deleteSelectionsSelectionIdCardsInstanceId = async (selectionId: st
 
 
 
-export const getDeleteSelectionsSelectionIdCardsInstanceIdMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>, TError,{selectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>, TError,{selectionId: string;instanceId: string}, TContext> => {
+export const getDeleteSelectionCardMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionCard>>, TError,{selectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionCard>>, TError,{selectionId: string;instanceId: string}, TContext> => {
 
-const mutationKey = ['deleteSelectionsSelectionIdCardsInstanceId'];
+const mutationKey = ['deleteSelectionCard'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -338,10 +338,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>, {selectionId: string;instanceId: string}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSelectionCard>>, {selectionId: string;instanceId: string}> = (props) => {
           const {selectionId,instanceId} = props ?? {};
 
-          return  deleteSelectionsSelectionIdCardsInstanceId(selectionId,instanceId,requestOptions)
+          return  deleteSelectionCard(selectionId,instanceId,requestOptions)
         }
 
 
@@ -351,24 +351,24 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteSelectionsSelectionIdCardsInstanceIdMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>>
+    export type DeleteSelectionCardMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSelectionCard>>>
 
-    export type DeleteSelectionsSelectionIdCardsInstanceIdMutationError = void
+    export type DeleteSelectionCardMutationError = ProblemDetails
 
     /**
  * @summary Remove a card from the selection.
  */
-export const useDeleteSelectionsSelectionIdCardsInstanceId = <TError = void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>, TError,{selectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useDeleteSelectionCard = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSelectionCard>>, TError,{selectionId: string;instanceId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteSelectionsSelectionIdCardsInstanceId>>,
+        Awaited<ReturnType<typeof deleteSelectionCard>>,
         TError,
         {selectionId: string;instanceId: string},
         TContext
       > => {
-      return useMutation(getDeleteSelectionsSelectionIdCardsInstanceIdMutationOptions(options), queryClient);
+      return useMutation(getDeleteSelectionCardMutationOptions(options), queryClient);
     }
-    export const getPostSelectionsSelectionIdCommitUrl = (selectionId: string,) => {
+    export const getCommitSelectionUrl = (selectionId: string,) => {
 
 
 
@@ -379,10 +379,10 @@ export const useDeleteSelectionsSelectionIdCardsInstanceId = <TError = void,
 /**
  * @summary Commit selection cards into a collection.
  */
-export const postSelectionsSelectionIdCommit = async (selectionId: string,
+export const commitSelection = async (selectionId: string,
     commitSelectionRequest: CommitSelectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CommitSelectionResponse> => {
 
-  return apiFetch<CommitSelectionResponse>(getPostSelectionsSelectionIdCommitUrl(selectionId),
+  return apiFetch<CommitSelectionResponse>(getCommitSelectionUrl(selectionId),
   {
     ...options,
     method: 'POST',
@@ -395,11 +395,11 @@ export const postSelectionsSelectionIdCommit = async (selectionId: string,
 
 
 
-export const getPostSelectionsSelectionIdCommitMutationOptions = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext> => {
+export const getCommitSelectionMutationOptions = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitSelection>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof commitSelection>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext> => {
 
-const mutationKey = ['postSelectionsSelectionIdCommit'];
+const mutationKey = ['commitSelection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -409,10 +409,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>, {selectionId: string;data: CommitSelectionRequest}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof commitSelection>>, {selectionId: string;data: CommitSelectionRequest}> = (props) => {
           const {selectionId,data} = props ?? {};
 
-          return  postSelectionsSelectionIdCommit(selectionId,data,requestOptions)
+          return  commitSelection(selectionId,data,requestOptions)
         }
 
 
@@ -422,20 +422,20 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type PostSelectionsSelectionIdCommitMutationResult = NonNullable<Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>>
-    export type PostSelectionsSelectionIdCommitMutationBody = CommitSelectionRequest
-    export type PostSelectionsSelectionIdCommitMutationError = ProblemDetails | void
+    export type CommitSelectionMutationResult = NonNullable<Awaited<ReturnType<typeof commitSelection>>>
+    export type CommitSelectionMutationBody = CommitSelectionRequest
+    export type CommitSelectionMutationError = ProblemDetails
 
     /**
  * @summary Commit selection cards into a collection.
  */
-export const usePostSelectionsSelectionIdCommit = <TError = ProblemDetails | void,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+export const useCommitSelection = <TError = ProblemDetails,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof commitSelection>>, TError,{selectionId: string;data: CommitSelectionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof postSelectionsSelectionIdCommit>>,
+        Awaited<ReturnType<typeof commitSelection>>,
         TError,
         {selectionId: string;data: CommitSelectionRequest},
         TContext
       > => {
-      return useMutation(getPostSelectionsSelectionIdCommitMutationOptions(options), queryClient);
+      return useMutation(getCommitSelectionMutationOptions(options), queryClient);
     }

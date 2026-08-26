@@ -8,7 +8,10 @@
 
 export interface ScanFeedbackInfo {
   correctPrintingId: string;
-  /** @nullable */
+  /**
+     * 1-based rank of the correct printing among the candidates; null if it wasn't in the candidate pool at all.
+     * @nullable
+     */
   correctPrintingRank: number | null;
   at: string;
 }

@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import { useSelection } from '../../store/selection-store';
 import {
-  getSelectionsSelectionId,
-  postSelections,
+  getSelection,
+  createSelection,
 } from '../../api/generated/selections/selections';
 import { ApiError } from '../../api/mutator';
 
@@ -23,7 +23,7 @@ export function useCurrentSelection() {
   async function ensure(): Promise<string> {
     if (currentSelectionId) {
       try {
-        return (await getSelectionsSelectionId(currentSelectionId)).id;
+        return (await getSelection(currentSelectionId)).id;
       } catch (e: unknown) {
         if (e instanceof ApiError && e.status === 404) {
           await setCurrent(null);
@@ -33,7 +33,7 @@ export function useCurrentSelection() {
       }
     }
 
-    const { id } = await postSelections();
+    const { id } = await createSelection();
     await setCurrent(id);
     return id;
   }

@@ -14,8 +14,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  getCollections,
-  postCollections,
+  listCollections,
+  createCollection,
 } from '../../api/generated/collections/collections';
 import type {
   CollectionResponse,
@@ -31,11 +31,11 @@ export function CollectionsListScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: () => getCollections(),
+    queryFn: () => listCollections(),
   });
 
   const create = useMutation<CollectionResponse, Error, string>({
-    mutationFn: (name: string) => postCollections({ name }),
+    mutationFn: (name: string) => createCollection({ name }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');

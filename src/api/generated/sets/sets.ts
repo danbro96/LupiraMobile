@@ -21,7 +21,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  GetSetsParams,
+  ListSetsParams,
+  ProblemDetails,
   SetListResponse,
   SetResponse
 } from '../models';
@@ -48,7 +49,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getGetSetsUrl = (params?: GetSetsParams,) => {
+export const getListSetsUrl = (params?: ListSetsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -74,9 +75,9 @@ export const getGetSetsUrl = (params?: GetSetsParams,) => {
  * `take` 1–200 (default 50). `skip` for paging.
  * @summary Browse the catalog of Magic sets.
  */
-export const getSets = async (params?: GetSetsParams, options?: Parameters<typeof apiFetch>[1]): Promise<SetListResponse> => {
+export const listSets = async (params?: ListSetsParams, options?: Parameters<typeof apiFetch>[1]): Promise<SetListResponse> => {
 
-  return apiFetch<SetListResponse>(getGetSetsUrl(params),
+  return apiFetch<SetListResponse>(getListSetsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -89,69 +90,69 @@ export const getSets = async (params?: GetSetsParams, options?: Parameters<typeo
 
 
 
-export const getGetSetsQueryKey = (params?: GetSetsParams,) => {
+export const getListSetsQueryKey = (params?: ListSetsParams,) => {
     return [
     `/sets`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetSetsQueryOptions = <TData = Awaited<ReturnType<typeof getSets>>, TError = unknown>(params?: GetSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListSetsQueryOptions = <TData = Awaited<ReturnType<typeof listSets>>, TError = ProblemDetails>(params?: ListSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSetsQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getListSetsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSets>>> = ({ signal }) => getSets(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSets>>> = ({ signal }) => listSets(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetSetsQueryResult = NonNullable<Awaited<ReturnType<typeof getSets>>>
-export type GetSetsQueryError = unknown
+export type ListSetsQueryResult = NonNullable<Awaited<ReturnType<typeof listSets>>>
+export type ListSetsQueryError = ProblemDetails
 
 
-export function useGetSets<TData = Awaited<ReturnType<typeof getSets>>, TError = unknown>(
- params: undefined |  GetSetsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData>> & Pick<
+export function useListSets<TData = Awaited<ReturnType<typeof listSets>>, TError = ProblemDetails>(
+ params: undefined |  ListSetsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSets>>,
+          Awaited<ReturnType<typeof listSets>>,
           TError,
-          Awaited<ReturnType<typeof getSets>>
+          Awaited<ReturnType<typeof listSets>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSets<TData = Awaited<ReturnType<typeof getSets>>, TError = unknown>(
- params?: GetSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData>> & Pick<
+export function useListSets<TData = Awaited<ReturnType<typeof listSets>>, TError = ProblemDetails>(
+ params?: ListSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSets>>,
+          Awaited<ReturnType<typeof listSets>>,
           TError,
-          Awaited<ReturnType<typeof getSets>>
+          Awaited<ReturnType<typeof listSets>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSets<TData = Awaited<ReturnType<typeof getSets>>, TError = unknown>(
- params?: GetSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListSets<TData = Awaited<ReturnType<typeof listSets>>, TError = ProblemDetails>(
+ params?: ListSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Browse the catalog of Magic sets.
  */
 
-export function useGetSets<TData = Awaited<ReturnType<typeof getSets>>, TError = unknown>(
- params?: GetSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListSets<TData = Awaited<ReturnType<typeof listSets>>, TError = ProblemDetails>(
+ params?: ListSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetSetsQueryOptions(params,options)
+  const queryOptions = getListSetsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -163,7 +164,7 @@ export function useGetSets<TData = Awaited<ReturnType<typeof getSets>>, TError =
 
 
 
-export const getGetSetsCodeUrl = (code: string,) => {
+export const getGetSetUrl = (code: string,) => {
 
 
 
@@ -175,9 +176,9 @@ export const getGetSetsCodeUrl = (code: string,) => {
  * Returns set metadata plus a presigned URL for the set icon (if cached locally).
  * @summary Get one set by its lower-case code.
  */
-export const getSetsCode = async (code: string, options?: Parameters<typeof apiFetch>[1]): Promise<SetResponse> => {
+export const getSet = async (code: string, options?: Parameters<typeof apiFetch>[1]): Promise<SetResponse> => {
 
-  return apiFetch<SetResponse>(getGetSetsCodeUrl(code),
+  return apiFetch<SetResponse>(getGetSetUrl(code),
   {
     ...options,
     method: 'GET'
@@ -190,69 +191,69 @@ export const getSetsCode = async (code: string, options?: Parameters<typeof apiF
 
 
 
-export const getGetSetsCodeQueryKey = (code: string,) => {
+export const getGetSetQueryKey = (code: string,) => {
     return [
     `/sets/${code}`
     ] as const;
     }
 
 
-export const getGetSetsCodeQueryOptions = <TData = Awaited<ReturnType<typeof getSetsCode>>, TError = void>(code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetSetQueryOptions = <TData = Awaited<ReturnType<typeof getSet>>, TError = ProblemDetails>(code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetSetsCodeQueryKey(code);
+  const queryKey =  queryOptions?.queryKey ?? getGetSetQueryKey(code);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSetsCode>>> = ({ signal }) => getSetsCode(code, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSet>>> = ({ signal }) => getSet(code, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: code !== null && code !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetSetsCodeQueryResult = NonNullable<Awaited<ReturnType<typeof getSetsCode>>>
-export type GetSetsCodeQueryError = void
+export type GetSetQueryResult = NonNullable<Awaited<ReturnType<typeof getSet>>>
+export type GetSetQueryError = ProblemDetails
 
 
-export function useGetSetsCode<TData = Awaited<ReturnType<typeof getSetsCode>>, TError = void>(
- code: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData>> & Pick<
+export function useGetSet<TData = Awaited<ReturnType<typeof getSet>>, TError = ProblemDetails>(
+ code: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSetsCode>>,
+          Awaited<ReturnType<typeof getSet>>,
           TError,
-          Awaited<ReturnType<typeof getSetsCode>>
+          Awaited<ReturnType<typeof getSet>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSetsCode<TData = Awaited<ReturnType<typeof getSetsCode>>, TError = void>(
- code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData>> & Pick<
+export function useGetSet<TData = Awaited<ReturnType<typeof getSet>>, TError = ProblemDetails>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getSetsCode>>,
+          Awaited<ReturnType<typeof getSet>>,
           TError,
-          Awaited<ReturnType<typeof getSetsCode>>
+          Awaited<ReturnType<typeof getSet>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetSetsCode<TData = Awaited<ReturnType<typeof getSetsCode>>, TError = void>(
- code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetSet<TData = Awaited<ReturnType<typeof getSet>>, TError = ProblemDetails>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get one set by its lower-case code.
  */
 
-export function useGetSetsCode<TData = Awaited<ReturnType<typeof getSetsCode>>, TError = void>(
- code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSetsCode>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetSet<TData = Awaited<ReturnType<typeof getSet>>, TError = ProblemDetails>(
+ code: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetSetsCodeQueryOptions(code,options)
+  const queryOptions = getGetSetQueryOptions(code,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

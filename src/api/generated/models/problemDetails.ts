@@ -6,6 +6,9 @@
  * OpenAPI spec version: v1
  */
 
+/**
+ * RFC 9457 problem details.
+ */
 export interface ProblemDetails {
   /** @nullable */
   type?: string | null;
@@ -17,4 +20,6 @@ export interface ProblemDetails {
   detail?: string | null;
   /** @nullable */
   instance?: string | null;
+  /** @nullable */
+  traceId?: string | null;
 }

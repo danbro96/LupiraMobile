@@ -8,6 +8,10 @@
 
 export interface CommitSelectionRequest {
   collectionId: string;
-  /** @nullable */
+  /**
+     * Optional subset of Guid SelectionEntryResponse.InstanceId values to commit.
+     * When null or empty, commits every card in the selection.
+     * @nullable
+     */
   instanceIds?: string[] | null;
 }

@@ -26,8 +26,9 @@ import type {
   CardPrintingListResponse,
   CardPrintingResponse,
   CardResponse,
-  GetCardsOracleIdPrintingsPrintingIdPricesParams,
-  GetCardsParams
+  ListCardsParams,
+  ListPricesParams,
+  ProblemDetails
 } from '../models';
 
 import { apiFetch } from '../../mutator';
@@ -52,7 +53,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   return result;
 };
 
-export const getGetCardsUrl = (params?: GetCardsParams,) => {
+export const getListCardsUrl = (params?: ListCardsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -93,9 +94,9 @@ export const getGetCardsUrl = (params?: GetCardsParams,) => {
  * Use `GET /cards/{oracleId}/printings` to drill into printings for a specific card.
  * @summary List or search functionally distinct cards (one entry per Oracle ID).
  */
-export const getCards = async (params?: GetCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardListResponse> => {
+export const listCards = async (params?: ListCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardListResponse> => {
 
-  return apiFetch<CardListResponse>(getGetCardsUrl(params),
+  return apiFetch<CardListResponse>(getListCardsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -108,69 +109,69 @@ export const getCards = async (params?: GetCardsParams, options?: Parameters<typ
 
 
 
-export const getGetCardsQueryKey = (params?: GetCardsParams,) => {
+export const getListCardsQueryKey = (params?: ListCardsParams,) => {
     return [
     `/cards`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetCardsQueryOptions = <TData = Awaited<ReturnType<typeof getCards>>, TError = unknown>(params?: GetCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListCardsQueryOptions = <TData = Awaited<ReturnType<typeof listCards>>, TError = ProblemDetails>(params?: ListCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCardsQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getListCardsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCards>>> = ({ signal }) => getCards(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCards>>> = ({ signal }) => listCards(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCardsQueryResult = NonNullable<Awaited<ReturnType<typeof getCards>>>
-export type GetCardsQueryError = unknown
+export type ListCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listCards>>>
+export type ListCardsQueryError = ProblemDetails
 
 
-export function useGetCards<TData = Awaited<ReturnType<typeof getCards>>, TError = unknown>(
- params: undefined |  GetCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData>> & Pick<
+export function useListCards<TData = Awaited<ReturnType<typeof listCards>>, TError = ProblemDetails>(
+ params: undefined |  ListCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCards>>,
+          Awaited<ReturnType<typeof listCards>>,
           TError,
-          Awaited<ReturnType<typeof getCards>>
+          Awaited<ReturnType<typeof listCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCards<TData = Awaited<ReturnType<typeof getCards>>, TError = unknown>(
- params?: GetCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData>> & Pick<
+export function useListCards<TData = Awaited<ReturnType<typeof listCards>>, TError = ProblemDetails>(
+ params?: ListCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCards>>,
+          Awaited<ReturnType<typeof listCards>>,
           TError,
-          Awaited<ReturnType<typeof getCards>>
+          Awaited<ReturnType<typeof listCards>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCards<TData = Awaited<ReturnType<typeof getCards>>, TError = unknown>(
- params?: GetCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListCards<TData = Awaited<ReturnType<typeof listCards>>, TError = ProblemDetails>(
+ params?: ListCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List or search functionally distinct cards (one entry per Oracle ID).
  */
 
-export function useGetCards<TData = Awaited<ReturnType<typeof getCards>>, TError = unknown>(
- params?: GetCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListCards<TData = Awaited<ReturnType<typeof listCards>>, TError = ProblemDetails>(
+ params?: ListCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCardsQueryOptions(params,options)
+  const queryOptions = getListCardsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -182,7 +183,7 @@ export function useGetCards<TData = Awaited<ReturnType<typeof getCards>>, TError
 
 
 
-export const getGetCardsOracleIdUrl = (oracleId: string,) => {
+export const getGetCardUrl = (oracleId: string,) => {
 
 
 
@@ -196,9 +197,9 @@ export const getGetCardsOracleIdUrl = (oracleId: string,) => {
  * collector number, or prices — see `GET /cards/{oracleId}/printings`.
  * @summary Get a single card (oracle-level) by Oracle ID.
  */
-export const getCardsOracleId = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardResponse> => {
+export const getCard = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardResponse> => {
 
-  return apiFetch<CardResponse>(getGetCardsOracleIdUrl(oracleId),
+  return apiFetch<CardResponse>(getGetCardUrl(oracleId),
   {
     ...options,
     method: 'GET'
@@ -211,69 +212,69 @@ export const getCardsOracleId = async (oracleId: string, options?: Parameters<ty
 
 
 
-export const getGetCardsOracleIdQueryKey = (oracleId: string,) => {
+export const getGetCardQueryKey = (oracleId: string,) => {
     return [
     `/cards/${oracleId}`
     ] as const;
     }
 
 
-export const getGetCardsOracleIdQueryOptions = <TData = Awaited<ReturnType<typeof getCardsOracleId>>, TError = void>(oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetCardQueryOptions = <TData = Awaited<ReturnType<typeof getCard>>, TError = ProblemDetails>(oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCardsOracleIdQueryKey(oracleId);
+  const queryKey =  queryOptions?.queryKey ?? getGetCardQueryKey(oracleId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCardsOracleId>>> = ({ signal }) => getCardsOracleId(oracleId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCard>>> = ({ signal }) => getCard(oracleId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCardsOracleIdQueryResult = NonNullable<Awaited<ReturnType<typeof getCardsOracleId>>>
-export type GetCardsOracleIdQueryError = void
+export type GetCardQueryResult = NonNullable<Awaited<ReturnType<typeof getCard>>>
+export type GetCardQueryError = ProblemDetails
 
 
-export function useGetCardsOracleId<TData = Awaited<ReturnType<typeof getCardsOracleId>>, TError = void>(
- oracleId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData>> & Pick<
+export function useGetCard<TData = Awaited<ReturnType<typeof getCard>>, TError = ProblemDetails>(
+ oracleId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleId>>,
+          Awaited<ReturnType<typeof getCard>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleId>>
+          Awaited<ReturnType<typeof getCard>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleId<TData = Awaited<ReturnType<typeof getCardsOracleId>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData>> & Pick<
+export function useGetCard<TData = Awaited<ReturnType<typeof getCard>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleId>>,
+          Awaited<ReturnType<typeof getCard>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleId>>
+          Awaited<ReturnType<typeof getCard>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleId<TData = Awaited<ReturnType<typeof getCardsOracleId>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetCard<TData = Awaited<ReturnType<typeof getCard>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get a single card (oracle-level) by Oracle ID.
  */
 
-export function useGetCardsOracleId<TData = Awaited<ReturnType<typeof getCardsOracleId>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useGetCard<TData = Awaited<ReturnType<typeof getCard>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCard>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCardsOracleIdQueryOptions(oracleId,options)
+  const queryOptions = getGetCardQueryOptions(oracleId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -285,7 +286,7 @@ export function useGetCardsOracleId<TData = Awaited<ReturnType<typeof getCardsOr
 
 
 
-export const getGetCardsOracleIdPrintingsUrl = (oracleId: string,) => {
+export const getListPrintingsUrl = (oracleId: string,) => {
 
 
 
@@ -298,9 +299,9 @@ export const getGetCardsOracleIdPrintingsUrl = (oracleId: string,) => {
  * Bounded list (no pagination) — even the most-reprinted cards have ~100 printings.
  * @summary List every printing of a card.
  */
-export const getCardsOracleIdPrintings = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingListResponse> => {
+export const listPrintings = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingListResponse> => {
 
-  return apiFetch<CardPrintingListResponse>(getGetCardsOracleIdPrintingsUrl(oracleId),
+  return apiFetch<CardPrintingListResponse>(getListPrintingsUrl(oracleId),
   {
     ...options,
     method: 'GET'
@@ -313,69 +314,69 @@ export const getCardsOracleIdPrintings = async (oracleId: string, options?: Para
 
 
 
-export const getGetCardsOracleIdPrintingsQueryKey = (oracleId: string,) => {
+export const getListPrintingsQueryKey = (oracleId: string,) => {
     return [
     `/cards/${oracleId}/printings`
     ] as const;
     }
 
 
-export const getGetCardsOracleIdPrintingsQueryOptions = <TData = Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError = void>(oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListPrintingsQueryOptions = <TData = Awaited<ReturnType<typeof listPrintings>>, TError = ProblemDetails>(oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCardsOracleIdPrintingsQueryKey(oracleId);
+  const queryKey =  queryOptions?.queryKey ?? getListPrintingsQueryKey(oracleId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>> = ({ signal }) => getCardsOracleIdPrintings(oracleId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrintings>>> = ({ signal }) => listPrintings(oracleId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCardsOracleIdPrintingsQueryResult = NonNullable<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>>
-export type GetCardsOracleIdPrintingsQueryError = void
+export type ListPrintingsQueryResult = NonNullable<Awaited<ReturnType<typeof listPrintings>>>
+export type ListPrintingsQueryError = ProblemDetails
 
 
-export function useGetCardsOracleIdPrintings<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError = void>(
- oracleId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData>> & Pick<
+export function useListPrintings<TData = Awaited<ReturnType<typeof listPrintings>>, TError = ProblemDetails>(
+ oracleId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintings>>,
+          Awaited<ReturnType<typeof listPrintings>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintings>>
+          Awaited<ReturnType<typeof listPrintings>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintings<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData>> & Pick<
+export function useListPrintings<TData = Awaited<ReturnType<typeof listPrintings>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintings>>,
+          Awaited<ReturnType<typeof listPrintings>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintings>>
+          Awaited<ReturnType<typeof listPrintings>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintings<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListPrintings<TData = Awaited<ReturnType<typeof listPrintings>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary List every printing of a card.
  */
 
-export function useGetCardsOracleIdPrintings<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError = void>(
- oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListPrintings<TData = Awaited<ReturnType<typeof listPrintings>>, TError = ProblemDetails>(
+ oracleId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrintings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCardsOracleIdPrintingsQueryOptions(oracleId,options)
+  const queryOptions = getListPrintingsQueryOptions(oracleId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -387,7 +388,7 @@ export function useGetCardsOracleIdPrintings<TData = Awaited<ReturnType<typeof g
 
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdUrl = (oracleId: string,
+export const getGetPrintingUrl = (oracleId: string,
     printingId: string,) => {
 
 
@@ -403,10 +404,10 @@ export const getGetCardsOracleIdPrintingsPrintingIdUrl = (oracleId: string,
  * Oracle ID (re-run sync if it should exist).
  * @summary Get a single card printing by Scryfall ID.
  */
-export const getCardsOracleIdPrintingsPrintingId = async (oracleId: string,
+export const getPrinting = async (oracleId: string,
     printingId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingResponse> => {
 
-  return apiFetch<CardPrintingResponse>(getGetCardsOracleIdPrintingsPrintingIdUrl(oracleId,printingId),
+  return apiFetch<CardPrintingResponse>(getGetPrintingUrl(oracleId,printingId),
   {
     ...options,
     method: 'GET'
@@ -419,7 +420,7 @@ export const getCardsOracleIdPrintingsPrintingId = async (oracleId: string,
 
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdQueryKey = (oracleId: string,
+export const getGetPrintingQueryKey = (oracleId: string,
     printingId: string,) => {
     return [
     `/cards/${oracleId}/printings/${printingId}`
@@ -427,67 +428,67 @@ export const getGetCardsOracleIdPrintingsPrintingIdQueryKey = (oracleId: string,
     }
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdQueryOptions = <TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError = void>(oracleId: string,
-    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getGetPrintingQueryOptions = <TData = Awaited<ReturnType<typeof getPrinting>>, TError = ProblemDetails>(oracleId: string,
+    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCardsOracleIdPrintingsPrintingIdQueryKey(oracleId,printingId);
+  const queryKey =  queryOptions?.queryKey ?? getGetPrintingQueryKey(oracleId,printingId);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>> = ({ signal }) => getCardsOracleIdPrintingsPrintingId(oracleId,printingId, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPrinting>>> = ({ signal }) => getPrinting(oracleId,printingId, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined && printingId !== null && printingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined && printingId !== null && printingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCardsOracleIdPrintingsPrintingIdQueryResult = NonNullable<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>>
-export type GetCardsOracleIdPrintingsPrintingIdQueryError = void
+export type GetPrintingQueryResult = NonNullable<Awaited<ReturnType<typeof getPrinting>>>
+export type GetPrintingQueryError = ProblemDetails
 
 
-export function useGetCardsOracleIdPrintingsPrintingId<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError = void>(
+export function useGetPrinting<TData = Awaited<ReturnType<typeof getPrinting>>, TError = ProblemDetails>(
  oracleId: string,
-    printingId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData>> & Pick<
+    printingId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>,
+          Awaited<ReturnType<typeof getPrinting>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>
+          Awaited<ReturnType<typeof getPrinting>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintingsPrintingId<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError = void>(
+export function useGetPrinting<TData = Awaited<ReturnType<typeof getPrinting>>, TError = ProblemDetails>(
  oracleId: string,
-    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData>> & Pick<
+    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>,
+          Awaited<ReturnType<typeof getPrinting>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>
+          Awaited<ReturnType<typeof getPrinting>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintingsPrintingId<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError = void>(
+export function useGetPrinting<TData = Awaited<ReturnType<typeof getPrinting>>, TError = ProblemDetails>(
  oracleId: string,
-    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get a single card printing by Scryfall ID.
  */
 
-export function useGetCardsOracleIdPrintingsPrintingId<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError = void>(
+export function useGetPrinting<TData = Awaited<ReturnType<typeof getPrinting>>, TError = ProblemDetails>(
  oracleId: string,
-    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingId>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    printingId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPrinting>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCardsOracleIdPrintingsPrintingIdQueryOptions(oracleId,printingId,options)
+  const queryOptions = getGetPrintingQueryOptions(oracleId,printingId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -499,9 +500,9 @@ export function useGetCardsOracleIdPrintingsPrintingId<TData = Awaited<ReturnTyp
 
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdPricesUrl = (oracleId: string,
+export const getListPricesUrl = (oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams,) => {
+    params?: ListPricesParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -523,11 +524,11 @@ export const getGetCardsOracleIdPrintingsPrintingIdPricesUrl = (oracleId: string
  * price points have been recorded for the printing.
  * @summary Get the EUR price history of a printing.
  */
-export const getCardsOracleIdPrintingsPrintingIdPrices = async (oracleId: string,
+export const listPrices = async (oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardPriceHistoryResponse> => {
+    params?: ListPricesParams, options?: Parameters<typeof apiFetch>[1]): Promise<CardPriceHistoryResponse> => {
 
-  return apiFetch<CardPriceHistoryResponse>(getGetCardsOracleIdPrintingsPrintingIdPricesUrl(oracleId,printingId,params),
+  return apiFetch<CardPriceHistoryResponse>(getListPricesUrl(oracleId,printingId,params),
   {
     ...options,
     method: 'GET'
@@ -540,81 +541,81 @@ export const getCardsOracleIdPrintingsPrintingIdPrices = async (oracleId: string
 
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdPricesQueryKey = (oracleId: string,
+export const getListPricesQueryKey = (oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams,) => {
+    params?: ListPricesParams,) => {
     return [
     `/cards/${oracleId}/printings/${printingId}/prices`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetCardsOracleIdPrintingsPrintingIdPricesQueryOptions = <TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError = void>(oracleId: string,
+export const getListPricesQueryOptions = <TData = Awaited<ReturnType<typeof listPrices>>, TError = ProblemDetails>(oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetCardsOracleIdPrintingsPrintingIdPricesQueryKey(oracleId,printingId,params);
+  const queryKey =  queryOptions?.queryKey ?? getListPricesQueryKey(oracleId,printingId,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>> = ({ signal }) => getCardsOracleIdPrintingsPrintingIdPrices(oracleId,printingId,params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPrices>>> = ({ signal }) => listPrices(oracleId,printingId,params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined && printingId !== null && printingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, enabled: oracleId !== null && oracleId !== undefined && printingId !== null && printingId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type GetCardsOracleIdPrintingsPrintingIdPricesQueryResult = NonNullable<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>>
-export type GetCardsOracleIdPrintingsPrintingIdPricesQueryError = void
+export type ListPricesQueryResult = NonNullable<Awaited<ReturnType<typeof listPrices>>>
+export type ListPricesQueryError = ProblemDetails
 
 
-export function useGetCardsOracleIdPrintingsPrintingIdPrices<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError = void>(
+export function useListPrices<TData = Awaited<ReturnType<typeof listPrices>>, TError = ProblemDetails>(
  oracleId: string,
     printingId: string,
-    params: undefined |  GetCardsOracleIdPrintingsPrintingIdPricesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData>> & Pick<
+    params: undefined |  ListPricesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>,
+          Awaited<ReturnType<typeof listPrices>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>
+          Awaited<ReturnType<typeof listPrices>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintingsPrintingIdPrices<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError = void>(
+export function useListPrices<TData = Awaited<ReturnType<typeof listPrices>>, TError = ProblemDetails>(
  oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData>> & Pick<
+    params?: ListPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>,
+          Awaited<ReturnType<typeof listPrices>>,
           TError,
-          Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>
+          Awaited<ReturnType<typeof listPrices>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetCardsOracleIdPrintingsPrintingIdPrices<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError = void>(
+export function useListPrices<TData = Awaited<ReturnType<typeof listPrices>>, TError = ProblemDetails>(
  oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
  * @summary Get the EUR price history of a printing.
  */
 
-export function useGetCardsOracleIdPrintingsPrintingIdPrices<TData = Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError = void>(
+export function useListPrices<TData = Awaited<ReturnType<typeof listPrices>>, TError = ProblemDetails>(
  oracleId: string,
     printingId: string,
-    params?: GetCardsOracleIdPrintingsPrintingIdPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardsOracleIdPrintingsPrintingIdPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+    params?: ListPricesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPrices>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getGetCardsOracleIdPrintingsPrintingIdPricesQueryOptions(oracleId,printingId,params,options)
+  const queryOptions = getListPricesQueryOptions(oracleId,printingId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

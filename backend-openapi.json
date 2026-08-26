@@ -13,6 +13,7 @@
         ],
         "summary": "Return the caller's identity.",
         "description": "Projects the validated Authentik access token's claims: `subject` (the caller's\nemail — the identity that owns collections/selections/scans), `displayName` (the\n`name` claim), and `isAdmin` (derived from the `groups` claim). Useful as a token\nsanity-check from the mobile client on cold start.",
+        "operationId": "WhoAmI",
         "responses": {
           "200": {
             "description": "OK",
@@ -25,7 +26,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -42,6 +60,7 @@
         ],
         "summary": "Recognize a Magic card from a photo.",
         "description": "Multipart upload — send the photo as a `multipart/form-data` field named `image`\n(jpeg, ≤4 MB). The backend runs perceptual-hash matching against the local Scryfall\nart-crop index AND OCR via FlorenceApi in parallel, then fuses the two signals into\na confidence-ranked list of `CardCandidate` objects.\n\nThe `confidence` field (`high|medium|low`) drives the mobile UX: HIGH auto-adds the\ntop candidate to the active selection; MEDIUM offers a disambiguation picker; LOW\nfalls back to manual lookup.",
+        "operationId": "CreateScan",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -80,6 +99,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -96,6 +135,7 @@
         ],
         "summary": "Report the actual correct printing for a previous scan.",
         "description": "Tells the API which printing the user actually wanted from a scan referenced\nby `scanId` (returned in `POST /scans`). The response reports the 1-based\n`rank` of that printing in the original candidate list, or `null` when the\nprinting wasn't in the pool at all.\n\nThe submission is persisted on the scan record and accumulates as training\ndata for future ranker work. Submitting a second time overwrites the prior\nfeedback — assume the latest is the user's most considered answer.",
+        "operationId": "SubmitScanFeedback",
         "parameters": [
           {
             "name": "scanId",
@@ -139,10 +179,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -159,6 +223,7 @@
         ],
         "summary": "Trigger a Scryfall sync run synchronously.",
         "description": "Runs the same Scryfall sync the cron-scheduled job runs, in-process, and returns the\ncompleted report. The first call against an empty database can take several hours\n(downloading and pHashing every printing); subsequent calls only download new printings.\n\nThis endpoint is auth-gated; in production it should be restricted further (admin role)\nonce roles are introduced.",
+        "operationId": "RunSync",
         "responses": {
           "200": {
             "description": "OK",
@@ -166,6 +231,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SyncRunResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -185,6 +270,7 @@
         ],
         "summary": "List every card the caller owns across all collections.",
         "description": "Sorted by card name (ascending). `take` 1–200 (default 50). `skip` for paging.\nResponse includes `total` so the client can render \"X of Y\" headers.",
+        "operationId": "ListMeCards",
         "parameters": [
           {
             "name": "take",
@@ -215,7 +301,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -232,6 +335,7 @@
         ],
         "summary": "List set-type weights used by the scan-confidence ranker.",
         "description": "The scan ranker biases candidates by their printing's set type — e.g. weighting\ncore/expansion above commander/funny so a Lightning Bolt scan prefers the M21\nprinting over a Funko Pop one. This endpoint exposes the live values.",
+        "operationId": "ListSetTypeWeights",
         "responses": {
           "200": {
             "description": "OK",
@@ -244,7 +348,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -261,6 +382,7 @@
         ],
         "summary": "Upsert the weight for one set type.",
         "description": "Body: `{ weight: number }`. Weight must be finite and non-negative; 1.0 is the\nneutral baseline, < 1 down-weights, > 1 up-weights. New `setType` keys are created\non the fly so you don't have to pre-seed.\n\nThe change takes effect on the *next* scan; the ranker reads weights per request.",
+        "operationId": "UpdateSetTypeWeight",
         "parameters": [
           {
             "name": "setType",
@@ -303,7 +425,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -320,6 +459,7 @@
         ],
         "summary": "Paginated scan history (newest first).",
         "description": "Returns the caller's recent scans with the top match hydrated for each. `take` is\n1–100 (default 25); `skip` for paging. Use `GET /me/scans/{scanId}` for the full\nScanLog projection (every candidate, OCR zones, set-symbol detection, feedback).",
+        "operationId": "ListScans",
         "parameters": [
           {
             "name": "take",
@@ -350,7 +490,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -367,6 +524,7 @@
         ],
         "summary": "Full detail of one scan.",
         "description": "Returns every candidate (hydrated with the printing's metadata + presigned image),\nthe OCR zone texts, the set-symbol detection if any, the originally captured image\n(presigned URL, 15-min TTL) when retained, and feedback if submitted. Useful for\na \"why did the scan match this card?\" diagnostic UI without needing OpenObserve.",
+        "operationId": "GetScan",
         "parameters": [
           {
             "name": "scanId",
@@ -390,10 +548,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -410,6 +592,7 @@
         ],
         "summary": "List or search functionally distinct cards (one entry per Oracle ID).",
         "description": "Returns one row per Oracle ID — i.e. functionally distinct cards. Each row carries\noracle-level fields (name, type line, oracle text, color identity, mana cost, CMC)\nplus a representative thumbnail picked deterministically (English, latest non-foil\nprinting with an image).\n\n**Filters** (all optional, AND'd together):\n- `q` — fuzzy match on card name (Postgres `pg_trgm`).\n- `set` — keep only cards with a printing in this set code (e.g. `m21`).\n- `rarity` — `common|uncommon|rare|mythic|special`.\n- `color` — single color identity letter (`W|U|B|R|G`).\n- `colors` — comma-separated multi-color identity (AND), e.g. `colors=W,U` keeps\n  only cards whose color identity contains every listed letter.\n- `type` — fuzzy match on the recomposed type line (e.g. `type=goblin warrior`).\n- `cmc` — exact converted mana cost.\n- `cmcMin` / `cmcMax` — CMC range bounds (inclusive).\n- `power` / `toughness` — exact match (strings, since `*` and `1+1` are valid).\n\n**Sort**: `sort=name|cmc|releasedAt|rarity|relevance`. Defaults to `relevance` when\n`q` is provided, otherwise `name`. `order=asc|desc` (relevance is always best-first).\n\n**Pagination**: `take` 1–100 (default 25), `skip` for paging.\n\nUse `GET /cards/{oracleId}/printings` to drill into printings for a specific card.",
+        "operationId": "ListCards",
         "parameters": [
           {
             "name": "q",
@@ -532,6 +715,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -548,6 +751,7 @@
         ],
         "summary": "Get a single card (oracle-level) by Oracle ID.",
         "description": "Returns the oracle-level view of a card: name, type line, oracle text, color identity,\nand a representative thumbnail. Does **not** return printing-specific data such as set,\ncollector number, or prices — see `GET /cards/{oracleId}/printings`.",
+        "operationId": "GetCard",
         "parameters": [
           {
             "name": "oracleId",
@@ -569,8 +773,35 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -587,6 +818,7 @@
         ],
         "summary": "List every printing of a card.",
         "description": "Returns every printing that shares this Oracle ID, ordered newest-set first.\nBounded list (no pagination) — even the most-reprinted cards have ~100 printings.",
+        "operationId": "ListPrintings",
         "parameters": [
           {
             "name": "oracleId",
@@ -608,8 +840,35 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -626,6 +885,7 @@
         ],
         "summary": "Get a single card printing by Scryfall ID.",
         "description": "Returns a printing's metadata along with presigned URLs for the normal-size image\nand the art crop (if present in the local image store). Returns 404 if the printing\nis unknown to the local catalog or if `oracleId` does not match the printing's\nOracle ID (re-run sync if it should exist).",
+        "operationId": "GetPrinting",
         "parameters": [
           {
             "name": "oracleId",
@@ -655,8 +915,35 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -673,6 +960,7 @@
         ],
         "summary": "Get the EUR price history of a printing.",
         "description": "Returns the daily price history for a printing (store-on-change: a point exists only\nfor days the price moved), oldest first, clamped to the configured retention window.\nOptional `from`/`to` query params (`yyyy-MM-dd`) narrow the range. Returns 404 when no\nprice points have been recorded for the printing.",
+        "operationId": "ListPrices",
         "parameters": [
           {
             "name": "oracleId",
@@ -718,8 +1006,35 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -736,6 +1051,7 @@
         ],
         "summary": "Browse the catalog of Magic sets.",
         "description": "Returns paginated set metadata. Use this to power a set picker (the `?set=`\nfilter on `GET /cards` takes the same `code` returned here).\n\n`setType` filters by Scryfall set type (`core`, `expansion`, `masters`,\n`commander`, `funny`, …).\n`sort` ∈ `releasedAt|code|name`, default `releasedAt`.\n`order` ∈ `asc|desc`, default `desc` (newest first).\n`take` 1–200 (default 50). `skip` for paging.",
+        "operationId": "ListSets",
         "parameters": [
           {
             "name": "setType",
@@ -785,6 +1101,26 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -801,6 +1137,7 @@
         ],
         "summary": "Get one set by its lower-case code.",
         "description": "Returns set metadata plus a presigned URL for the set icon (if cached locally).",
+        "operationId": "GetSet",
         "parameters": [
           {
             "name": "code",
@@ -822,8 +1159,35 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -839,6 +1203,7 @@
           "Collections"
         ],
         "summary": "List the caller's collections.",
+        "operationId": "ListCollections",
         "responses": {
           "200": {
             "description": "OK",
@@ -851,7 +1216,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -865,6 +1247,7 @@
           "Collections"
         ],
         "summary": "Create a new collection.",
+        "operationId": "CreateCollection",
         "requestBody": {
           "content": {
             "application/json": {
@@ -897,7 +1280,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -913,6 +1313,7 @@
           "Collections"
         ],
         "summary": "Get a collection with its cards.",
+        "operationId": "GetCollection",
         "parameters": [
           {
             "name": "collectionId",
@@ -936,10 +1337,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -953,6 +1378,7 @@
           "Collections"
         ],
         "summary": "Rename a collection.",
+        "operationId": "UpdateCollection",
         "parameters": [
           {
             "name": "collectionId",
@@ -996,10 +1422,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1013,6 +1463,7 @@
           "Collections"
         ],
         "summary": "Soft-delete a collection.",
+        "operationId": "DeleteCollection",
         "parameters": [
           {
             "name": "collectionId",
@@ -1029,10 +1480,34 @@
             "description": "No Content"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1049,6 +1524,7 @@
         ],
         "summary": "List the cards in a collection.",
         "description": "Sorted by card name (ascending). `take` 1–200 (default 50). `skip` for paging.\nResponse includes `total`.",
+        "operationId": "ListCollectionCards",
         "parameters": [
           {
             "name": "collectionId",
@@ -1088,10 +1564,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1105,6 +1605,7 @@
           "Collections"
         ],
         "summary": "Add a card to a collection (manual, no scan).",
+        "operationId": "CreateCollectionCard",
         "parameters": [
           {
             "name": "collectionId",
@@ -1148,10 +1649,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1167,6 +1692,7 @@
           "Collections"
         ],
         "summary": "Remove a card from a collection.",
+        "operationId": "DeleteCollectionCard",
         "parameters": [
           {
             "name": "collectionId",
@@ -1192,10 +1718,34 @@
             "description": "No Content"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1211,6 +1761,7 @@
           "Collections"
         ],
         "summary": "Move a card to another collection.",
+        "operationId": "MoveCard",
         "parameters": [
           {
             "name": "collectionId",
@@ -1263,10 +1814,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1283,6 +1858,7 @@
         ],
         "summary": "Add many cards to a collection in one call.",
         "description": "Body: `{ items: [{ printingId, isFoil?, language?, condition?, count? }] }`.\nPer-item `count` is clamped to 1..50; total instances per call capped at 500.\nReturns the newly-created `CardInstanceResponse` rows in the same order they\nwere generated. Validates every `printingId` up front — if any is unknown the\nwhole call is rejected with `400`, no partial writes.",
+        "operationId": "BulkAddCards",
         "parameters": [
           {
             "name": "collectionId",
@@ -1326,10 +1902,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1346,6 +1946,7 @@
         ],
         "summary": "Remove many cards from a collection in one call.",
         "description": "Body: `{ instanceIds: [...] }`. Idempotent on missing ids — returns\n`{ removedCount, missingCount }` so the client can tell the user what landed.",
+        "operationId": "BulkRemoveCards",
         "parameters": [
           {
             "name": "collectionId",
@@ -1389,10 +1990,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1409,6 +2034,7 @@
         ],
         "summary": "Move many cards to another collection in one call.",
         "description": "Body: `{ instanceIds: [...], toCollectionId }`. Both source and destination\nmust exist and belong to the caller. Returns the moved instances (now with\nthe destination collection set) plus a count of ids that weren't in the source.",
+        "operationId": "BulkMoveCards",
         "parameters": [
           {
             "name": "collectionId",
@@ -1452,10 +2078,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1471,6 +2121,7 @@
           "Selections"
         ],
         "summary": "Start a new scanning selection.",
+        "operationId": "CreateSelection",
         "responses": {
           "200": {
             "description": "OK",
@@ -1483,7 +2134,24 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1499,6 +2167,7 @@
           "Selections"
         ],
         "summary": "Get a selection with its current cards.",
+        "operationId": "GetSelection",
         "parameters": [
           {
             "name": "selectionId",
@@ -1522,10 +2191,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1541,6 +2234,7 @@
           "Selections"
         ],
         "summary": "Add a recognized card to the selection. Returns 409 on duplicate unless allowDuplicate=true.",
+        "operationId": "CreateSelectionCard",
         "parameters": [
           {
             "name": "selectionId",
@@ -1584,13 +2278,37 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1613,6 +2331,7 @@
           "Selections"
         ],
         "summary": "Remove a card from the selection.",
+        "operationId": "DeleteSelectionCard",
         "parameters": [
           {
             "name": "selectionId",
@@ -1638,10 +2357,34 @@
             "description": "No Content"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1657,6 +2400,7 @@
           "Selections"
         ],
         "summary": "Commit selection cards into a collection.",
+        "operationId": "CommitSelection",
         "parameters": [
           {
             "name": "selectionId",
@@ -1700,10 +2444,34 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not Found"
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2021,7 +2789,8 @@
               }
             ]
           }
-        }
+        },
+        "description": "One face of a multi-faced card. Returned alongside the parent on IReadOnlyList&lt;CardFaceResponse&gt;? CardResponse.Faces\n(oracle level — language-neutral fields) and IReadOnlyList&lt;CardFaceResponse&gt;? CardPrintingResponse.Faces (printing\nlevel — same fields plus presigned per-face image URLs). Single-faced cards leave `faces` null\nand the client uses the parent's top-level fields."
       },
       "CardImageUrls": {
         "required": [
@@ -2205,7 +2974,8 @@
             ],
             "format": "date-time"
           }
-        }
+        },
+        "description": "Latest EUR price for a printing. Null fields = no price recorded for that finish."
       },
       "CardPrintingListResponse": {
         "required": [
@@ -2498,7 +3268,8 @@
             "items": {
               "type": "string",
               "format": "uuid"
-            }
+            },
+            "description": "Optional subset of Guid SelectionEntryResponse.InstanceId values to commit.\nWhen null or empty, commits every card in the selection."
           }
         }
       },
@@ -2588,8 +3359,15 @@
               "null",
               "string"
             ]
+          },
+          "traceId": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
-        }
+        },
+        "description": "RFC 9457 problem details."
       },
       "RecognitionConfidence": {
         "enum": [
@@ -2720,7 +3498,8 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Presigned URL for the originally captured image (15-min TTL). Null if the image was not retained."
           },
           "imageMediaType": {
             "type": [
@@ -2775,6 +3554,7 @@
               "null",
               "integer"
             ],
+            "description": "1-based rank of the correct printing among the candidates; null if it wasn't in the candidate pool at all.",
             "format": "int32"
           },
           "at": {
@@ -2815,10 +3595,12 @@
               "null",
               "integer"
             ],
+            "description": "1-based rank of the correct printing in the original candidate list. Null when the printing wasn't in the candidate pool.",
             "format": "int32"
           },
           "candidateCount": {
             "type": "integer",
+            "description": "Size of the original candidate pool that was searched.",
             "format": "int32"
           }
         }
@@ -2918,15 +3700,18 @@
                 "type": "null"
               },
               {
+                "description": "The highest-ranked candidate at scan time. Null when no candidates were found.",
                 "$ref": "#/components/schemas/CardPrintingResponse"
               }
             ]
           },
           "hasFeedback": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "True iff the user has submitted feedback for this scan via `POST /scans/{id}/feedback`."
           },
           "feedbackChangedTop": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "True when feedback exists AND the user said the top match was wrong."
           }
         }
       },
@@ -3214,7 +3999,8 @@
         "type": "object",
         "properties": {
           "subject": {
-            "type": "string"
+            "type": "string",
+            "description": "The OIDC subject — the caller's email, which every owned document is keyed by."
           },
           "displayName": {
             "type": [
