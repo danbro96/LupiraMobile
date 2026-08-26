@@ -6,13 +6,10 @@
  * OpenAPI spec version: v1
  */
 
-export interface SetResponse {
-  code: string;
+export interface CollectionDto {
+  id: string;
   name: string;
-  setType: string;
-  /** @nullable */
-  releasedAt: string | null;
   cardCount: number;
-  /** @nullable */
-  iconUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

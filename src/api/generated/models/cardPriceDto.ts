@@ -6,8 +6,14 @@
  * OpenAPI spec version: v1
  */
 
-export interface SetTypeWeightResponse {
-  setType: string;
-  weight: number;
-  updatedAt: string;
+/**
+ * Latest EUR price for a printing. Null fields = no price recorded for that finish.
+ */
+export interface CardPriceDto {
+  /** @nullable */
+  eur: number | null;
+  /** @nullable */
+  eurFoil: number | null;
+  /** @nullable */
+  updatedAt: string | null;
 }

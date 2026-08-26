@@ -6,14 +6,13 @@
  * OpenAPI spec version: v1
  */
 
-/**
- * Latest EUR price for a printing. Null fields = no price recorded for that finish.
- */
-export interface CardPriceResponse {
+export interface SetDto {
+  code: string;
+  name: string;
+  setType: string;
   /** @nullable */
-  eur: number | null;
+  releasedAt: string | null;
+  cardCount: number;
   /** @nullable */
-  eurFoil: number | null;
-  /** @nullable */
-  updatedAt: string | null;
+  iconUrl: string | null;
 }

@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import type { CardCandidateResponse } from '../../../api/generated/models';
+import type { CardCandidateDto } from '../../../api/generated/models';
 import type {
   CaptureId,
   CaptureRecord,
@@ -21,7 +21,7 @@ import { CandidateRow } from './CandidateRow';
 type Props = {
   records: CaptureRecord[];
   /** Adds the chosen candidate to the current selection. */
-  onAdd: (id: CaptureId, candidate: CardCandidateResponse) => void;
+  onAdd: (id: CaptureId, candidate: CardCandidateDto) => void;
   /** Removes a record from the queue (swipe-away / explicit dismiss). */
   onDismiss: (id: CaptureId) => void;
 };
@@ -152,7 +152,7 @@ function ReviewModalBody({
   onClose,
 }: {
   state: Extract<CaptureState, { kind: 'recognised' }>;
-  onAdd: (candidate: CardCandidateResponse) => void;
+  onAdd: (candidate: CardCandidateDto) => void;
   onDismiss: () => void;
   onClose: () => void;
 }) {

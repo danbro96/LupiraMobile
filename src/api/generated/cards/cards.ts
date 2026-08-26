@@ -21,11 +21,10 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CardDto,
   CardListResponse,
   CardPriceHistoryResponse,
-  CardPrintingListResponse,
-  CardPrintingResponse,
-  CardResponse,
+  CardPrintingDto,
   ListCardsParams,
   ListPricesParams,
   ProblemDetails
@@ -197,9 +196,9 @@ export const getGetCardUrl = (oracleId: string,) => {
  * collector number, or prices — see `GET /cards/{oracleId}/printings`.
  * @summary Get a single card (oracle-level) by Oracle ID.
  */
-export const getCard = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardResponse> => {
+export const getCard = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardDto> => {
 
-  return apiFetch<CardResponse>(getGetCardUrl(oracleId),
+  return apiFetch<CardDto>(getGetCardUrl(oracleId),
   {
     ...options,
     method: 'GET'
@@ -299,9 +298,9 @@ export const getListPrintingsUrl = (oracleId: string,) => {
  * Bounded list (no pagination) — even the most-reprinted cards have ~100 printings.
  * @summary List every printing of a card.
  */
-export const listPrintings = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingListResponse> => {
+export const listPrintings = async (oracleId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingDto[]> => {
 
-  return apiFetch<CardPrintingListResponse>(getListPrintingsUrl(oracleId),
+  return apiFetch<CardPrintingDto[]>(getListPrintingsUrl(oracleId),
   {
     ...options,
     method: 'GET'
@@ -405,9 +404,9 @@ export const getGetPrintingUrl = (oracleId: string,
  * @summary Get a single card printing by Scryfall ID.
  */
 export const getPrinting = async (oracleId: string,
-    printingId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingResponse> => {
+    printingId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CardPrintingDto> => {
 
-  return apiFetch<CardPrintingResponse>(getGetPrintingUrl(oracleId,printingId),
+  return apiFetch<CardPrintingDto>(getGetPrintingUrl(oracleId,printingId),
   {
     ...options,
     method: 'GET'

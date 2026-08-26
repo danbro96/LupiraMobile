@@ -15,7 +15,7 @@ import {
   useGetCard,
   useListPrintings,
 } from '../../api/generated/cards/cards';
-import type { CardPrintingResponse } from '../../api/generated/models';
+import type { CardPrintingDto } from '../../api/generated/models';
 import { MtgStackParamList } from '../../navigation/types';
 import { ColorPips } from './ColorPips';
 
@@ -35,7 +35,7 @@ export function CardDetailScreen() {
   const printingsQuery = useListPrintings(params.oracleId);
 
   const card = cardQuery.data;
-  const printings = printingsQuery.data?.results ?? [];
+  const printings = printingsQuery.data ?? [];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -117,7 +117,7 @@ function PrintingTile({
   printing,
   onPress,
 }: {
-  printing: CardPrintingResponse;
+  printing: CardPrintingDto;
   onPress: () => void;
 }) {
   const thumb = printing.images?.artCrop ?? printing.images?.normal ?? null;

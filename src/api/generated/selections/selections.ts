@@ -29,7 +29,7 @@ import type {
   CommitSelectionRequest,
   CommitSelectionResponse,
   ProblemDetails,
-  SelectionEntryResponse,
+  SelectionEntryDto,
   SelectionResponse
 } from '../models';
 
@@ -237,9 +237,9 @@ export const getCreateSelectionCardUrl = (selectionId: string,) => {
  * @summary Add a recognized card to the selection. Returns 409 on duplicate unless allowDuplicate=true.
  */
 export const createSelectionCard = async (selectionId: string,
-    addSelectionEntryRequest: AddSelectionEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SelectionEntryResponse> => {
+    addSelectionEntryRequest: AddSelectionEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SelectionEntryDto> => {
 
-  return apiFetch<SelectionEntryResponse>(getCreateSelectionCardUrl(selectionId),
+  return apiFetch<SelectionEntryDto>(getCreateSelectionCardUrl(selectionId),
   {
     ...options,
     method: 'POST',

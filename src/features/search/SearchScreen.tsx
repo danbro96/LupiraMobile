@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useListCards } from '../../api/generated/cards/cards';
-import type { CardResponse } from '../../api/generated/models';
+import type { CardDto } from '../../api/generated/models';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { MtgStackParamList } from '../../navigation/types';
@@ -95,7 +95,7 @@ export function SearchScreen() {
   );
 }
 
-function CardRow({ card, onPress }: { card: CardResponse; onPress: () => void }) {
+function CardRow({ card, onPress }: { card: CardDto; onPress: () => void }) {
   const thumb = card.thumbnail?.artCrop ?? card.thumbnail?.normal ?? null;
   return (
     <Pressable onPress={onPress} style={styles.row}>

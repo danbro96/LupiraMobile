@@ -18,7 +18,7 @@ import {
   createCollection,
 } from '../../api/generated/collections/collections';
 import type {
-  CollectionResponse,
+  CollectionDto,
 } from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
 
@@ -34,7 +34,7 @@ export function CollectionsListScreen() {
     queryFn: () => listCollections(),
   });
 
-  const create = useMutation<CollectionResponse, Error, string>({
+  const create = useMutation<CollectionDto, Error, string>({
     mutationFn: (name: string) => createCollection({ name }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
@@ -75,7 +75,7 @@ export function CollectionsListScreen() {
       ) : null}
 
       <FlatList
-        data={collections.data?.collections ?? []}
+        data={collections.data ?? []}
         keyExtractor={c => c.id}
         renderItem={({ item }) => (
           <Row
@@ -98,7 +98,7 @@ export function CollectionsListScreen() {
   );
 }
 
-function Row({ collection, onPress }: { collection: CollectionResponse; onPress: () => void }) {
+function Row({ collection, onPress }: { collection: CollectionDto; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={styles.row}>
       <View style={styles.rowText}>

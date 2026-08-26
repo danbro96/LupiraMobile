@@ -6,10 +6,8 @@
  * OpenAPI spec version: v1
  */
 
-export interface CollectionResponse {
-  id: string;
-  name: string;
-  cardCount: number;
-  createdAt: string;
+export interface SetTypeWeightDto {
+  setType: string;
+  weight: number;
   updatedAt: string;
 }

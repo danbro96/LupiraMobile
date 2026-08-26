@@ -32,11 +32,10 @@ import type {
   BulkMoveCardsResponse,
   BulkRemoveCardsRequest,
   BulkRemoveCardsResponse,
+  CardInstanceDto,
   CardInstanceListResponse,
-  CardInstanceResponse,
   CollectionDetailResponse,
-  CollectionListResponse,
-  CollectionResponse,
+  CollectionDto,
   CreateCollectionRequest,
   ListCollectionCardsParams,
   MoveCardRequest,
@@ -77,9 +76,9 @@ export const getListCollectionsUrl = () => {
 /**
  * @summary List the caller's collections.
  */
-export const listCollections = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CollectionListResponse> => {
+export const listCollections = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CollectionDto[]> => {
 
-  return apiFetch<CollectionListResponse>(getListCollectionsUrl(),
+  return apiFetch<CollectionDto[]>(getListCollectionsUrl(),
   {
     ...options,
     method: 'GET'
@@ -177,9 +176,9 @@ export const getCreateCollectionUrl = () => {
 /**
  * @summary Create a new collection.
  */
-export const createCollection = async (createCollectionRequest: CreateCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionResponse> => {
+export const createCollection = async (createCollectionRequest: CreateCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionDto> => {
 
-  return apiFetch<CollectionResponse>(getCreateCollectionUrl(),
+  return apiFetch<CollectionDto>(getCreateCollectionUrl(),
   {
     ...options,
     method: 'POST',
@@ -348,9 +347,9 @@ export const getUpdateCollectionUrl = (collectionId: string,) => {
  * @summary Rename a collection.
  */
 export const updateCollection = async (collectionId: string,
-    renameCollectionRequest: RenameCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionResponse> => {
+    renameCollectionRequest: RenameCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CollectionDto> => {
 
-  return apiFetch<CollectionResponse>(getUpdateCollectionUrl(collectionId),
+  return apiFetch<CollectionDto>(getUpdateCollectionUrl(collectionId),
   {
     ...options,
     method: 'PATCH',
@@ -606,9 +605,9 @@ export const getCreateCollectionCardUrl = (collectionId: string,) => {
  * @summary Add a card to a collection (manual, no scan).
  */
 export const createCollectionCard = async (collectionId: string,
-    addCardToCollectionRequest: AddCardToCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceResponse> => {
+    addCardToCollectionRequest: AddCardToCollectionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceDto> => {
 
-  return apiFetch<CardInstanceResponse>(getCreateCollectionCardUrl(collectionId),
+  return apiFetch<CardInstanceDto>(getCreateCollectionCardUrl(collectionId),
   {
     ...options,
     method: 'POST',
@@ -751,9 +750,9 @@ export const useDeleteCollectionCard = <TError = ProblemDetails,
  */
 export const moveCard = async (collectionId: string,
     instanceId: string,
-    moveCardRequest: MoveCardRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceResponse> => {
+    moveCardRequest: MoveCardRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CardInstanceDto> => {
 
-  return apiFetch<CardInstanceResponse>(getMoveCardUrl(collectionId,instanceId),
+  return apiFetch<CardInstanceDto>(getMoveCardUrl(collectionId,instanceId),
   {
     ...options,
     method: 'POST',
@@ -821,7 +820,7 @@ export const useMoveCard = <TError = ProblemDetails,
 /**
  * Body: `{ items: [{ printingId, isFoil?, language?, condition?, count? }] }`.
  * Per-item `count` is clamped to 1..50; total instances per call capped at 500.
- * Returns the newly-created `CardInstanceResponse` rows in the same order they
+ * Returns the newly-created `CardInstanceDto` rows in the same order they
  * were generated. Validates every `printingId` up front — if any is unknown the
  * whole call is rejected with `400`, no partial writes.
  * @summary Add many cards to a collection in one call.

@@ -19,7 +19,7 @@ import {
 } from '../../api/generated/collections/collections';
 import { commitSelection } from '../../api/generated/selections/selections';
 import type {
-  CollectionResponse,
+  CollectionDto,
   CommitSelectionResponse,
 } from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
@@ -141,7 +141,7 @@ export function PickCollectionScreen() {
       {collections.isLoading ? <ActivityIndicator style={styles.center} /> : null}
 
       <FlatList
-        data={collections.data?.collections ?? []}
+        data={collections.data ?? []}
         keyExtractor={c => c.id}
         renderItem={({ item }) => (
           <CollectionRow
@@ -168,7 +168,7 @@ function CollectionRow({
   disabled,
   onPress,
 }: {
-  collection: CollectionResponse;
+  collection: CollectionDto;
   armed: boolean;
   disabled: boolean;
   onPress: () => void;

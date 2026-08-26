@@ -17,7 +17,7 @@ import {
   deleteSelectionCard,
   getSelection,
 } from '../../api/generated/selections/selections';
-import type { SelectionEntryResponse } from '../../api/generated/models';
+import type { SelectionEntryDto } from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -118,7 +118,7 @@ export function SelectionScreen() {
   );
 }
 
-function EntryRow({ entry, onRemove }: { entry: SelectionEntryResponse; onRemove: () => void }) {
+function EntryRow({ entry, onRemove }: { entry: SelectionEntryDto; onRemove: () => void }) {
   const thumb = entry.printing.images?.artCrop ?? entry.printing.images?.normal ?? null;
   return (
     <View style={styles.row}>

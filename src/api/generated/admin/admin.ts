@@ -26,8 +26,7 @@ import type {
 
 import type {
   ProblemDetails,
-  SetTypeWeightListResponse,
-  SetTypeWeightResponse,
+  SetTypeWeightDto,
   SyncRunResponse,
   UpdateSetTypeWeightRequest
 } from '../models';
@@ -144,9 +143,9 @@ export const useRunSync = <TError = ProblemDetails,
  * printing over a Funko Pop one. This endpoint exposes the live values.
  * @summary List set-type weights used by the scan-confidence ranker.
  */
-export const listSetTypeWeights = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightListResponse> => {
+export const listSetTypeWeights = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightDto[]> => {
 
-  return apiFetch<SetTypeWeightListResponse>(getListSetTypeWeightsUrl(),
+  return apiFetch<SetTypeWeightDto[]>(getListSetTypeWeightsUrl(),
   {
     ...options,
     method: 'GET'
@@ -250,9 +249,9 @@ export const getUpdateSetTypeWeightUrl = (setType: string,) => {
  * @summary Upsert the weight for one set type.
  */
 export const updateSetTypeWeight = async (setType: string,
-    updateSetTypeWeightRequest: UpdateSetTypeWeightRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightResponse> => {
+    updateSetTypeWeightRequest: UpdateSetTypeWeightRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SetTypeWeightDto> => {
 
-  return apiFetch<SetTypeWeightResponse>(getUpdateSetTypeWeightUrl(setType),
+  return apiFetch<SetTypeWeightDto>(getUpdateSetTypeWeightUrl(setType),
   {
     ...options,
     method: 'PUT',

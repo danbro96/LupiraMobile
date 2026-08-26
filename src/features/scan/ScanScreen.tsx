@@ -28,7 +28,7 @@ import {
   createSelectionCard,
 } from '../../api/generated/selections/selections';
 import { scanCard } from '../../api/scan';
-import type { CardCandidateResponse } from '../../api/generated/models';
+import type { CardCandidateDto } from '../../api/generated/models';
 import { ScanStackParamList } from '../../navigation/types';
 import { useCurrentSelection } from './useCurrentSelection';
 import { useScanSettings } from '../../store/scan-settings-store';
@@ -131,7 +131,7 @@ export function ScanScreen() {
   });
 
   const addToSelection = useMutation({
-    mutationFn: async (input: { candidate: CardCandidateResponse; allowDuplicate: boolean }) => {
+    mutationFn: async (input: { candidate: CardCandidateDto; allowDuplicate: boolean }) => {
       const selectionId = await ensureSelection();
       return createSelectionCard(selectionId, {
         printingId: input.candidate.printing.id,
@@ -349,7 +349,7 @@ export function ScanScreen() {
 
   // Tile add (manual review) — used by the gallery's modal.
   const onAddFromReview = useCallback(
-    (id: CaptureId, candidate: CardCandidateResponse) => {
+    (id: CaptureId, candidate: CardCandidateDto) => {
       addToSelection.mutate(
         { candidate, allowDuplicate: false },
         {

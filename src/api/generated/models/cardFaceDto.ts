@@ -8,12 +8,12 @@
 import type { CardImageUrls } from './cardImageUrls';
 
 /**
- * One face of a multi-faced card. Returned alongside the parent on IReadOnlyList&lt;CardFaceResponse&gt;? CardResponse.Faces
- * (oracle level — language-neutral fields) and IReadOnlyList&lt;CardFaceResponse&gt;? CardPrintingResponse.Faces (printing
+ * One face of a multi-faced card. Returned alongside the parent on IReadOnlyList&lt;CardFaceDto&gt;? CardDto.Faces
+ * (oracle level — language-neutral fields) and IReadOnlyList&lt;CardFaceDto&gt;? CardPrintingDto.Faces (printing
  * level — same fields plus presigned per-face image URLs). Single-faced cards leave `faces` null
  * and the client uses the parent's top-level fields.
  */
-export interface CardFaceResponse {
+export interface CardFaceDto {
   faceIndex: number;
   name: string;
   /** @nullable */

@@ -23,8 +23,8 @@ import type {
 import type {
   ListSetsParams,
   ProblemDetails,
-  SetListResponse,
-  SetResponse
+  SetDto,
+  SetListResponse
 } from '../models';
 
 import { apiFetch } from '../../mutator';
@@ -176,9 +176,9 @@ export const getGetSetUrl = (code: string,) => {
  * Returns set metadata plus a presigned URL for the set icon (if cached locally).
  * @summary Get one set by its lower-case code.
  */
-export const getSet = async (code: string, options?: Parameters<typeof apiFetch>[1]): Promise<SetResponse> => {
+export const getSet = async (code: string, options?: Parameters<typeof apiFetch>[1]): Promise<SetDto> => {
 
-  return apiFetch<SetResponse>(getGetSetUrl(code),
+  return apiFetch<SetDto>(getGetSetUrl(code),
   {
     ...options,
     method: 'GET'

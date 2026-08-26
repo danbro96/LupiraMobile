@@ -5,27 +5,25 @@
  * Backend for the Lupira MTG mobile app — Magic: The Gathering card metadata, scan-based recognition, and per-user collection management. Authenticate with a Bearer token issued by Authentik (OIDC).
  * OpenAPI spec version: v1
  */
-import type { CardFaceResponse } from './cardFaceResponse';
+import type { CardFaceDto } from './cardFaceDto';
 import type { CardImageUrls } from './cardImageUrls';
+import type { CardPriceDto } from './cardPriceDto';
 
-export interface CardResponse {
+export interface CardPrintingDto {
+  id: string;
   oracleId: string;
   name: string;
-  typeLine: string;
-  /** @nullable */
-  oracleText: string | null;
+  setCode: string;
+  setName: string;
+  collectorNumber: string;
   colorIdentity: string[];
+  rarity: string;
   /** @nullable */
   manaCost: string | null;
   /** @nullable */
   cmc: number | null;
+  images: null | CardImageUrls;
+  prices: null | CardPriceDto;
   /** @nullable */
-  power: string | null;
-  /** @nullable */
-  toughness: string | null;
-  layout: string;
-  thumbnail: null | CardImageUrls;
-  printingCount: number;
-  /** @nullable */
-  faces: CardFaceResponse[] | null;
+  faces: CardFaceDto[] | null;
 }

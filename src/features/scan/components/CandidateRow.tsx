@@ -1,12 +1,12 @@
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { CardCandidateResponse } from '../../../api/generated/models';
+import type { CardCandidateDto } from '../../../api/generated/models';
 import { Icon } from '../../../components/Icon';
 
 const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '—');
 
 type Props = {
-  candidate: CardCandidateResponse;
+  candidate: CardCandidateDto;
   /** Highlights the row with a brand-coloured border (use for the top match). */
   isTop: boolean;
   onAdd: () => void;

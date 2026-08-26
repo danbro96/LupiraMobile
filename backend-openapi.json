@@ -48,7 +48,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -123,7 +123,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -168,6 +168,16 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -180,16 +190,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -211,7 +211,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -258,7 +258,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -323,7 +323,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -342,7 +342,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SetTypeWeightListResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SetTypeWeightDto"
+                  }
                 }
               }
             }
@@ -370,7 +373,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -409,7 +412,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SetTypeWeightResponse"
+                  "$ref": "#/components/schemas/SetTypeWeightDto"
                 }
               }
             }
@@ -447,7 +450,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -512,7 +515,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -547,8 +550,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -557,8 +560,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -580,7 +583,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -739,7 +742,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -768,13 +771,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardResponse"
+                  "$ref": "#/components/schemas/CardDto"
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -783,8 +786,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -806,7 +809,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -835,13 +838,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardPrintingListResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CardPrintingDto"
+                  }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -850,8 +856,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -873,7 +879,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -910,13 +916,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardPrintingResponse"
+                  "$ref": "#/components/schemas/CardPrintingDto"
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -925,8 +931,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -948,7 +954,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1006,8 +1012,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1016,8 +1022,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1039,7 +1045,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1125,7 +1131,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1154,13 +1160,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SetResponse"
+                  "$ref": "#/components/schemas/SetDto"
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1169,8 +1175,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1192,7 +1198,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1210,7 +1216,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionListResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionDto"
+                  }
                 }
               }
             }
@@ -1238,7 +1247,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -1264,7 +1273,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionResponse"
+                  "$ref": "#/components/schemas/CollectionDto"
                 }
               }
             }
@@ -1302,7 +1311,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1336,8 +1345,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1346,8 +1355,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1369,7 +1378,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -1406,7 +1415,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectionResponse"
+                  "$ref": "#/components/schemas/CollectionDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1431,16 +1450,6 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1454,7 +1463,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -1479,8 +1488,8 @@
           "204": {
             "description": "No Content"
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1489,8 +1498,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1512,7 +1521,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1563,8 +1572,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1573,8 +1582,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1596,7 +1605,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       },
@@ -1633,7 +1642,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardInstanceResponse"
+                  "$ref": "#/components/schemas/CardInstanceDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1658,16 +1677,6 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1681,7 +1690,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1717,8 +1726,8 @@
           "204": {
             "description": "No Content"
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1727,8 +1736,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1750,7 +1759,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1798,7 +1807,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CardInstanceResponse"
+                  "$ref": "#/components/schemas/CardInstanceDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1823,16 +1842,6 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "500": {
             "description": "Internal server error",
             "content": {
@@ -1846,7 +1855,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1857,7 +1866,7 @@
           "Collections"
         ],
         "summary": "Add many cards to a collection in one call.",
-        "description": "Body: `{ items: [{ printingId, isFoil?, language?, condition?, count? }] }`.\nPer-item `count` is clamped to 1..50; total instances per call capped at 500.\nReturns the newly-created `CardInstanceResponse` rows in the same order they\nwere generated. Validates every `printingId` up front — if any is unknown the\nwhole call is rejected with `400`, no partial writes.",
+        "description": "Body: `{ items: [{ printingId, isFoil?, language?, condition?, count? }] }`.\nPer-item `count` is clamped to 1..50; total instances per call capped at 500.\nReturns the newly-created `CardInstanceDto` rows in the same order they\nwere generated. Validates every `printingId` up front — if any is unknown the\nwhole call is rejected with `400`, no partial writes.",
         "operationId": "BulkAddCards",
         "parameters": [
           {
@@ -1891,6 +1900,16 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -1903,16 +1922,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1934,7 +1943,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -1979,6 +1988,16 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -1991,16 +2010,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2022,7 +2031,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2067,6 +2076,16 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2079,16 +2098,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2110,7 +2119,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2156,7 +2165,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2190,8 +2199,8 @@
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2200,8 +2209,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2223,7 +2232,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2262,27 +2271,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SelectionEntryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/SelectionEntryDto"
                 }
               }
             }
@@ -2297,8 +2286,28 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2320,7 +2329,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2356,8 +2365,8 @@
           "204": {
             "description": "No Content"
           },
-          "401": {
-            "description": "Unauthorized",
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2366,8 +2375,8 @@
               }
             }
           },
-          "404": {
-            "description": "Not Found",
+          "401": {
+            "description": "Unauthorized",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2389,7 +2398,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2433,6 +2442,16 @@
               }
             }
           },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Bad Request",
             "content": {
@@ -2445,16 +2464,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2476,7 +2485,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "Bearer": [ ]
           }
         ]
       }
@@ -2581,7 +2590,7 @@
           "added": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CardInstanceResponse"
+              "$ref": "#/components/schemas/CardInstanceDto"
             }
           }
         }
@@ -2616,7 +2625,7 @@
           "moved": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CardInstanceResponse"
+              "$ref": "#/components/schemas/CardInstanceDto"
             }
           },
           "missingCount": {
@@ -2657,7 +2666,7 @@
           }
         }
       },
-      "CardCandidateResponse": {
+      "CardCandidateDto": {
         "required": [
           "printing",
           "combinedScore",
@@ -2676,7 +2685,7 @@
         "type": "object",
         "properties": {
           "printing": {
-            "$ref": "#/components/schemas/CardPrintingResponse"
+            "$ref": "#/components/schemas/CardPrintingDto"
           },
           "combinedScore": {
             "type": "number",
@@ -2729,358 +2738,7 @@
           }
         }
       },
-      "CardFaceResponse": {
-        "required": [
-          "faceIndex",
-          "name",
-          "manaCost",
-          "typeLine",
-          "oracleText",
-          "power",
-          "toughness",
-          "images"
-        ],
-        "type": "object",
-        "properties": {
-          "faceIndex": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "name": {
-            "type": "string"
-          },
-          "manaCost": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "typeLine": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "oracleText": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "power": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "toughness": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "images": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CardImageUrls"
-              }
-            ]
-          }
-        },
-        "description": "One face of a multi-faced card. Returned alongside the parent on IReadOnlyList&lt;CardFaceResponse&gt;? CardResponse.Faces\n(oracle level — language-neutral fields) and IReadOnlyList&lt;CardFaceResponse&gt;? CardPrintingResponse.Faces (printing\nlevel — same fields plus presigned per-face image URLs). Single-faced cards leave `faces` null\nand the client uses the parent's top-level fields."
-      },
-      "CardImageUrls": {
-        "required": [
-          "normal",
-          "artCrop"
-        ],
-        "type": "object",
-        "properties": {
-          "normal": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "artCrop": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "CardInstanceListResponse": {
-        "required": [
-          "cards",
-          "total"
-        ],
-        "type": "object",
-        "properties": {
-          "cards": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardInstanceResponse"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "CardInstanceResponse": {
-        "required": [
-          "instanceId",
-          "printing",
-          "isFoil",
-          "language",
-          "condition",
-          "acquiredAt",
-          "collectionId",
-          "collectionName"
-        ],
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "printing": {
-            "$ref": "#/components/schemas/CardPrintingResponse"
-          },
-          "isFoil": {
-            "type": "boolean"
-          },
-          "language": {
-            "type": "string"
-          },
-          "condition": {
-            "type": "string"
-          },
-          "acquiredAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "collectionId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "collectionName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "CardListResponse": {
-        "required": [
-          "results",
-          "total"
-        ],
-        "type": "object",
-        "properties": {
-          "results": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardResponse"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "CardPriceHistoryResponse": {
-        "required": [
-          "printingId",
-          "points"
-        ],
-        "type": "object",
-        "properties": {
-          "printingId": {
-            "type": "string"
-          },
-          "points": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardPricePointResponse"
-            }
-          }
-        }
-      },
-      "CardPricePointResponse": {
-        "required": [
-          "observedOn",
-          "eur",
-          "eurFoil"
-        ],
-        "type": "object",
-        "properties": {
-          "observedOn": {
-            "type": "string",
-            "format": "date"
-          },
-          "eur": {
-            "type": [
-              "null",
-              "number"
-            ],
-            "format": "double"
-          },
-          "eurFoil": {
-            "type": [
-              "null",
-              "number"
-            ],
-            "format": "double"
-          }
-        }
-      },
-      "CardPriceResponse": {
-        "required": [
-          "eur",
-          "eurFoil",
-          "updatedAt"
-        ],
-        "type": "object",
-        "properties": {
-          "eur": {
-            "type": [
-              "null",
-              "number"
-            ],
-            "format": "double"
-          },
-          "eurFoil": {
-            "type": [
-              "null",
-              "number"
-            ],
-            "format": "double"
-          },
-          "updatedAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          }
-        },
-        "description": "Latest EUR price for a printing. Null fields = no price recorded for that finish."
-      },
-      "CardPrintingListResponse": {
-        "required": [
-          "results"
-        ],
-        "type": "object",
-        "properties": {
-          "results": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CardPrintingResponse"
-            }
-          }
-        }
-      },
-      "CardPrintingResponse": {
-        "required": [
-          "id",
-          "oracleId",
-          "name",
-          "setCode",
-          "setName",
-          "collectorNumber",
-          "colorIdentity",
-          "rarity",
-          "manaCost",
-          "cmc",
-          "images",
-          "prices",
-          "faces"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "oracleId": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "setCode": {
-            "type": "string"
-          },
-          "setName": {
-            "type": "string"
-          },
-          "collectorNumber": {
-            "type": "string"
-          },
-          "colorIdentity": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "rarity": {
-            "type": "string"
-          },
-          "manaCost": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "cmc": {
-            "type": [
-              "null",
-              "number"
-            ],
-            "format": "float"
-          },
-          "images": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CardImageUrls"
-              }
-            ]
-          },
-          "prices": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/CardPriceResponse"
-              }
-            ]
-          },
-          "faces": {
-            "type": [
-              "null",
-              "array"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/CardFaceResponse"
-            }
-          }
-        }
-      },
-      "CardResponse": {
+      "CardDto": {
         "required": [
           "oracleId",
           "name",
@@ -3167,7 +2825,344 @@
               "array"
             ],
             "items": {
-              "$ref": "#/components/schemas/CardFaceResponse"
+              "$ref": "#/components/schemas/CardFaceDto"
+            }
+          }
+        }
+      },
+      "CardFaceDto": {
+        "required": [
+          "faceIndex",
+          "name",
+          "manaCost",
+          "typeLine",
+          "oracleText",
+          "power",
+          "toughness",
+          "images"
+        ],
+        "type": "object",
+        "properties": {
+          "faceIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "manaCost": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "typeLine": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "oracleText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "power": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "toughness": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "images": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardImageUrls"
+              }
+            ]
+          }
+        },
+        "description": "One face of a multi-faced card. Returned alongside the parent on IReadOnlyList&lt;CardFaceDto&gt;? CardDto.Faces\n(oracle level — language-neutral fields) and IReadOnlyList&lt;CardFaceDto&gt;? CardPrintingDto.Faces (printing\nlevel — same fields plus presigned per-face image URLs). Single-faced cards leave `faces` null\nand the client uses the parent's top-level fields."
+      },
+      "CardImageUrls": {
+        "required": [
+          "normal",
+          "artCrop"
+        ],
+        "type": "object",
+        "properties": {
+          "normal": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "artCrop": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CardInstanceDto": {
+        "required": [
+          "instanceId",
+          "printing",
+          "isFoil",
+          "language",
+          "condition",
+          "acquiredAt",
+          "collectionId",
+          "collectionName"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "printing": {
+            "$ref": "#/components/schemas/CardPrintingDto"
+          },
+          "isFoil": {
+            "type": "boolean"
+          },
+          "language": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string"
+          },
+          "acquiredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "collectionId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "collectionName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CardInstanceListResponse": {
+        "required": [
+          "cards",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "cards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardInstanceDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CardListResponse": {
+        "required": [
+          "results",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CardPriceDto": {
+        "required": [
+          "eur",
+          "eurFoil",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "eur": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "eurFoil": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "updatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "Latest EUR price for a printing. Null fields = no price recorded for that finish."
+      },
+      "CardPriceHistoryResponse": {
+        "required": [
+          "printingId",
+          "points"
+        ],
+        "type": "object",
+        "properties": {
+          "printingId": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CardPricePointDto"
+            }
+          }
+        }
+      },
+      "CardPricePointDto": {
+        "required": [
+          "observedOn",
+          "eur",
+          "eurFoil"
+        ],
+        "type": "object",
+        "properties": {
+          "observedOn": {
+            "type": "string",
+            "format": "date"
+          },
+          "eur": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "eurFoil": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "CardPrintingDto": {
+        "required": [
+          "id",
+          "oracleId",
+          "name",
+          "setCode",
+          "setName",
+          "collectorNumber",
+          "colorIdentity",
+          "rarity",
+          "manaCost",
+          "cmc",
+          "images",
+          "prices",
+          "faces"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "oracleId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "setCode": {
+            "type": "string"
+          },
+          "setName": {
+            "type": "string"
+          },
+          "collectorNumber": {
+            "type": "string"
+          },
+          "colorIdentity": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rarity": {
+            "type": "string"
+          },
+          "manaCost": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "cmc": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "float"
+          },
+          "images": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardImageUrls"
+              }
+            ]
+          },
+          "prices": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardPriceDto"
+              }
+            ]
+          },
+          "faces": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CardFaceDto"
             }
           }
         }
@@ -3192,7 +3187,7 @@
           "cards": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CardInstanceResponse"
+              "$ref": "#/components/schemas/CardInstanceDto"
             }
           },
           "createdAt": {
@@ -3205,21 +3200,7 @@
           }
         }
       },
-      "CollectionListResponse": {
-        "required": [
-          "collections"
-        ],
-        "type": "object",
-        "properties": {
-          "collections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CollectionResponse"
-            }
-          }
-        }
-      },
-      "CollectionResponse": {
+      "CollectionDto": {
         "required": [
           "id",
           "name",
@@ -3269,7 +3250,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "Optional subset of Guid SelectionEntryResponse.InstanceId values to commit.\nWhen null or empty, commits every card in the selection."
+            "description": "Optional subset of Guid SelectionEntryDto.InstanceId values to commit.\nWhen null or empty, commits every card in the selection."
           }
         }
       },
@@ -3523,7 +3504,7 @@
           "candidates": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CardCandidateResponse"
+              "$ref": "#/components/schemas/CardCandidateDto"
             }
           },
           "feedback": {
@@ -3615,7 +3596,7 @@
           "results": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ScanSummaryResponse"
+              "$ref": "#/components/schemas/ScanSummaryDto"
             }
           },
           "total": {
@@ -3643,7 +3624,7 @@
           "candidates": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/CardCandidateResponse"
+              "$ref": "#/components/schemas/CardCandidateDto"
             }
           },
           "debug": {
@@ -3672,7 +3653,7 @@
           }
         }
       },
-      "ScanSummaryResponse": {
+      "ScanSummaryDto": {
         "required": [
           "id",
           "scannedAt",
@@ -3701,7 +3682,7 @@
               },
               {
                 "description": "The highest-ranked candidate at scan time. Null when no candidates were found.",
-                "$ref": "#/components/schemas/CardPrintingResponse"
+                "$ref": "#/components/schemas/CardPrintingDto"
               }
             ]
           },
@@ -3767,7 +3748,7 @@
           }
         }
       },
-      "SelectionEntryResponse": {
+      "SelectionEntryDto": {
         "required": [
           "instanceId",
           "printing",
@@ -3783,7 +3764,7 @@
             "format": "uuid"
           },
           "printing": {
-            "$ref": "#/components/schemas/CardPrintingResponse"
+            "$ref": "#/components/schemas/CardPrintingDto"
           },
           "isFoil": {
             "type": "boolean"
@@ -3816,7 +3797,7 @@
           "cards": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SelectionEntryResponse"
+              "$ref": "#/components/schemas/SelectionEntryDto"
             }
           },
           "createdAt": {
@@ -3829,26 +3810,7 @@
           }
         }
       },
-      "SetListResponse": {
-        "required": [
-          "results",
-          "total"
-        ],
-        "type": "object",
-        "properties": {
-          "results": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SetResponse"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "format": "int32"
-          }
-        }
-      },
-      "SetResponse": {
+      "SetDto": {
         "required": [
           "code",
           "name",
@@ -3887,21 +3849,26 @@
           }
         }
       },
-      "SetTypeWeightListResponse": {
+      "SetListResponse": {
         "required": [
-          "weights"
+          "results",
+          "total"
         ],
         "type": "object",
         "properties": {
-          "weights": {
+          "results": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SetTypeWeightResponse"
+              "$ref": "#/components/schemas/SetDto"
             }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
-      "SetTypeWeightResponse": {
+      "SetTypeWeightDto": {
         "required": [
           "setType",
           "weight",

@@ -22,7 +22,7 @@ import {
   updateCollection,
 } from '../../api/generated/collections/collections';
 import type {
-  CardInstanceResponse,
+  CardInstanceDto,
 } from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -122,7 +122,7 @@ export function CollectionDetailScreen() {
   );
 }
 
-function CardRow({ card, onRemove }: { card: CardInstanceResponse; onRemove: () => void }) {
+function CardRow({ card, onRemove }: { card: CardInstanceDto; onRemove: () => void }) {
   const thumb = card.printing.images?.artCrop ?? card.printing.images?.normal ?? null;
   return (
     <View style={styles.row}>
