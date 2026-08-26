@@ -55,5 +55,9 @@
     "node": ">=24.19.0",
     "npm": ">=11.10.0"
   },
-  "private": true
+  "private": true,
+  "allowScripts": {
+    "@sentry/cli": false,
+    "esbuild": false
+  }
 }
