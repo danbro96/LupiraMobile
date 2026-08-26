@@ -18,7 +18,6 @@ import {
   postCollections,
 } from '../../api/generated/collections/collections';
 import type {
-  CollectionListResponse,
   CollectionResponse,
 } from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
@@ -32,17 +31,11 @@ export function CollectionsListScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: async () => {
-      const envelope = await getCollections();
-      return envelope.data as CollectionListResponse;
-    },
+    queryFn: () => getCollections(),
   });
 
   const create = useMutation<CollectionResponse, Error, string>({
-    mutationFn: async (name: string) => {
-      const envelope = await postCollections({ name });
-      return envelope.data as CollectionResponse;
-    },
+    mutationFn: (name: string) => postCollections({ name }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');

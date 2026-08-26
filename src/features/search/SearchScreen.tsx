@@ -31,13 +31,10 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query, 300);
 
-  const { data: envelope, isFetching, isError, error, refetch } = useGetCards(
+  const { data, isFetching, isError, error, refetch } = useGetCards(
     { q: debounced || undefined, take: 50 },
     { query: { placeholderData: keepPreviousData } },
   );
-  // Orval's `client: 'react-query'` mode wraps responses in `{ data, status,
-  // headers }` — the inner `.data` is the actual `CardListResponse`.
-  const data = envelope?.data;
 
   const totalText = useMemo(() => {
     if (isFetching) return 'Searching…';

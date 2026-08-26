@@ -17,20 +17,12 @@ export class ApiError extends Error {
 }
 
 /**
- * Custom fetch invoked by every Orval-generated request. Returns the envelope `{ status, data, headers }` that
- * Orval's `client: 'react-query'` mode expects from a mutator; since the generator widens hook types as
- * `{ data: T; status: 200 } & { headers: Headers }`, consumers end up at `result.data?.data` — one `.data` from
- * react-query, one from this envelope. Same pattern LupiraWeb runs.
+ * Custom fetch invoked by every Orval-generated request. Returns the parsed body, matching
+ * `includeHttpResponseReturnType: false` in orval.config.ts.
  *
  * Owns the base URL (read live from `useAuth.getState().mtgApiUrl`, so the settings-screen override is always
- * honoured), bearer injection, content-type handling, 204 → undefined data, and non-2xx → `ApiError`.
+ * honoured), bearer injection, content-type handling, 204 → undefined, and non-2xx → `ApiError`.
  */
-type ApiEnvelope<T> = {
-  status: number;
-  data: T;
-  headers: Headers;
-};
-
 export async function apiFetch<T>(
   url: string,
   init?: RequestInit,
@@ -76,22 +68,10 @@ export async function apiFetch<T>(
     throw new ApiError(res.status, text || res.statusText);
   }
 
-  let body: unknown;
-  if (res.status === 204) {
-    body = undefined;
-  } else {
-    const contentType = res.headers.get('content-type') ?? '';
-    body = contentType.includes('application/json')
-      ? await res.json()
-      : await res.text();
-  }
+  if (res.status === 204) return undefined as T;
 
-  const envelope: ApiEnvelope<unknown> = {
-    status: res.status,
-    data: body,
-    headers: res.headers,
-  };
-  return envelope as T;
+  const contentType = res.headers.get('content-type') ?? '';
+  return (contentType.includes('application/json') ? await res.json() : await res.text()) as T;
 }
 
 export default apiFetch;

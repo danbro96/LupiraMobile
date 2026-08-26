@@ -15,10 +15,8 @@ type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
  */
 export function PrintingDetailScreen() {
   const { params } = useRoute<Route>();
-  const { data: envelope, isLoading, isError, error } =
+  const { data, isLoading, isError, error } =
     useGetCardsOracleIdPrintingsPrintingId(params.oracleId, params.printingId);
-  // Orval envelope: `.data?.data` is the `CardPrintingResponse`.
-  const data = envelope?.data;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

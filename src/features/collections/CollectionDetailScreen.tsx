@@ -23,7 +23,6 @@ import {
 } from '../../api/generated/collections/collections';
 import type {
   CardInstanceResponse,
-  CollectionDetailResponse,
 } from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -39,10 +38,7 @@ export function CollectionDetailScreen() {
 
   const detail = useQuery({
     queryKey: ['collection', params.collectionId],
-    queryFn: async () => {
-      const envelope = await getCollectionsCollectionId(params.collectionId);
-      return envelope.data as CollectionDetailResponse;
-    },
+    queryFn: () => getCollectionsCollectionId(params.collectionId),
   });
 
   const removeCard = useMutation({

@@ -7,6 +7,8 @@ import { defineConfig } from 'orval';
  * tighter diffs. `client: 'react-query'` generates the hooks that replaced both the hand-typed `mtgApi` client
  * and the per-screen `useQuery({ queryFn: ... })` boilerplate. The mutator reads `useAuth.getState()` at call
  * time, so the settings-screen API URL override applies live.
+ *
+ * No `includeHttpResponseReturnType`: the mutator throws on non-2xx, so the status union is always the success branch.
  */
 export default defineConfig({
   lupiraMtg: {
@@ -20,6 +22,7 @@ export default defineConfig({
       baseUrl: '',
       override: {
         mutator: { path: './src/api/mutator.ts', name: 'apiFetch' },
+        fetch: { includeHttpResponseReturnType: false },
         query: {
           signal: true,
         },

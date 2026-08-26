@@ -17,7 +17,7 @@ import {
   deleteSelectionsSelectionIdCardsInstanceId,
   getSelectionsSelectionId,
 } from '../../api/generated/selections/selections';
-import type { SelectionEntryResponse, SelectionResponse } from '../../api/generated/models';
+import type { SelectionEntryResponse } from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
 import { ScanStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
@@ -32,11 +32,7 @@ export function SelectionScreen() {
 
   const selection = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: async () => {
-      const envelope = await getSelectionsSelectionId(currentSelectionId!);
-      // Mutator throws on non-2xx — narrow off the void branch.
-      return envelope.data as SelectionResponse;
-    },
+    queryFn: () => getSelectionsSelectionId(currentSelectionId!),
     enabled: !!currentSelectionId,
   });
 

@@ -19,7 +19,6 @@ import {
 } from '../../api/generated/collections/collections';
 import { postSelectionsSelectionIdCommit } from '../../api/generated/selections/selections';
 import type {
-  CollectionListResponse,
   CollectionResponse,
   CommitSelectionResponse,
 } from '../../api/generated/models';
@@ -44,17 +43,11 @@ export function PickCollectionScreen() {
 
   const collections = useQuery({
     queryKey: ['collections'],
-    queryFn: async () => {
-      const envelope = await getCollections();
-      return envelope.data as CollectionListResponse;
-    },
+    queryFn: () => getCollections(),
   });
 
   const createCollection = useMutation({
-    mutationFn: async (name: string) => {
-      const envelope = await postCollections({ name });
-      return envelope.data as CollectionResponse;
-    },
+    mutationFn: (name: string) => postCollections({ name }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');
@@ -62,10 +55,8 @@ export function PickCollectionScreen() {
   });
 
   const commit = useMutation<CommitSelectionResponse, Error, string>({
-    mutationFn: async (collectionId: string) => {
-      const envelope = await postSelectionsSelectionIdCommit(params.selectionId, { collectionId });
-      return envelope.data as CommitSelectionResponse;
-    },
+    mutationFn: (collectionId: string) =>
+      postSelectionsSelectionIdCommit(params.selectionId, { collectionId }),
     onSuccess: async result => {
       if (result.remainingCount === 0) {
         await setCurrent(null);

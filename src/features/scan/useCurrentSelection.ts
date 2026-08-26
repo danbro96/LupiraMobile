@@ -4,7 +4,6 @@ import {
   getSelectionsSelectionId,
   postSelections,
 } from '../../api/generated/selections/selections';
-import type { SelectionResponse } from '../../api/generated/models';
 import { ApiError } from '../../api/mutator';
 
 /**
@@ -24,9 +23,7 @@ export function useCurrentSelection() {
   async function ensure(): Promise<string> {
     if (currentSelectionId) {
       try {
-        const envelope = await getSelectionsSelectionId(currentSelectionId);
-        // Mutator throws on non-2xx — 200 branch is the only one reachable.
-        return (envelope.data as SelectionResponse).id;
+        return (await getSelectionsSelectionId(currentSelectionId)).id;
       } catch (e: unknown) {
         if (e instanceof ApiError && e.status === 404) {
           await setCurrent(null);
@@ -36,8 +33,7 @@ export function useCurrentSelection() {
       }
     }
 
-    const created = await postSelections();
-    const id = (created.data as SelectionResponse).id;
+    const { id } = await postSelections();
     await setCurrent(id);
     return id;
   }

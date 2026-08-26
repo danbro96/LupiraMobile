@@ -43,11 +43,10 @@ export function usePostScansWithSpan() {
 /**
  * Imperative `POST /scans` for fire-and-forget call sites (e.g. the gallery's
  * streaming-capture path that doesn't want to bind a mutation hook per
- * record). Same Sentry span as the hook variant. Returns the unwrapped
- * `ScanResponse` body — callers don't need the envelope.
+ * record). Same Sentry span as the hook variant.
  */
-export async function scanCard(input: ScanInput): Promise<ScanResponse> {
-  const envelope = await Sentry.startSpan(
+export function scanCard(input: ScanInput): Promise<ScanResponse> {
+  return Sentry.startSpan(
     {
       name: 'POST /scans',
       op: 'http.client',
@@ -59,7 +58,4 @@ export async function scanCard(input: ScanInput): Promise<ScanResponse> {
     },
     () => rawPostScans({ image: buildScanFormData(input) as unknown as Blob }),
   );
-  // The envelope union also encodes 400 (ProblemDetails); the mutator throws
-  // on non-2xx so in practice we only see the 200 branch — narrow.
-  return envelope.data as ScanResponse;
 }

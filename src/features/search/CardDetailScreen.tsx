@@ -34,10 +34,8 @@ export function CardDetailScreen() {
   const cardQuery = useGetCardsOracleId(params.oracleId);
   const printingsQuery = useGetCardsOracleIdPrintings(params.oracleId);
 
-  // Orval envelope: `.data?.data` is the actual `CardResponse` /
-  // `CardPrintingListResponse`.
-  const card = cardQuery.data?.data;
-  const printings = printingsQuery.data?.data?.results ?? [];
+  const card = cardQuery.data;
+  const printings = printingsQuery.data?.results ?? [];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>

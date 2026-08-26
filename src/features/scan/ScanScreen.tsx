@@ -126,17 +126,14 @@ export function ScanScreen() {
 
   const selectionQuery = useQuery({
     queryKey: ['selection', currentSelectionId],
-    queryFn: async () => {
-      const envelope = await getSelectionsSelectionId(currentSelectionId!);
-      return envelope.data;
-    },
+    queryFn: () => getSelectionsSelectionId(currentSelectionId!),
     enabled: !!currentSelectionId,
   });
 
   const addToSelection = useMutation({
     mutationFn: async (input: { candidate: CardCandidateResponse; allowDuplicate: boolean }) => {
       const selectionId = await ensureSelection();
-      const envelope = await postSelectionsSelectionIdCards(selectionId, {
+      return postSelectionsSelectionIdCards(selectionId, {
         printingId: input.candidate.printing.id,
         isFoil: false,
         language: 'en',
@@ -144,7 +141,6 @@ export function ScanScreen() {
         confidence: input.candidate.combinedScore,
         allowDuplicate: input.allowDuplicate,
       });
-      return envelope.data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['selection'] });
