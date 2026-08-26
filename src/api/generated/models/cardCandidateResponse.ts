@@ -19,7 +19,7 @@ export interface CardCandidateResponse {
   hammingScore: number;
   setTypeWeight: number;
   /** @nullable */
-  hammingDistance?: number | null;
-  matchedByPHash?: boolean;
-  matchedByName?: boolean;
+  hammingDistance: number | null;
+  matchedByPHash: boolean;
+  matchedByName: boolean;
 }

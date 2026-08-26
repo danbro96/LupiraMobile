@@ -15,7 +15,7 @@ export interface CardInstanceResponse {
   condition: string;
   acquiredAt: string;
   /** @nullable */
-  collectionId?: string | null;
+  collectionId: string | null;
   /** @nullable */
-  collectionName?: string | null;
+  collectionName: string | null;
 }

@@ -1900,7 +1900,10 @@
           "powerToughnessScore",
           "bottomMetadataScore",
           "hammingScore",
-          "setTypeWeight"
+          "setTypeWeight",
+          "hammingDistance",
+          "matchedByPHash",
+          "matchedByName"
         ],
         "type": "object",
         "properties": {
@@ -1961,7 +1964,13 @@
       "CardFaceResponse": {
         "required": [
           "faceIndex",
-          "name"
+          "name",
+          "manaCost",
+          "typeLine",
+          "oracleText",
+          "power",
+          "toughness",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -2015,6 +2024,10 @@
         }
       },
       "CardImageUrls": {
+        "required": [
+          "normal",
+          "artCrop"
+        ],
         "type": "object",
         "properties": {
           "normal": {
@@ -2057,7 +2070,9 @@
           "isFoil",
           "language",
           "condition",
-          "acquiredAt"
+          "acquiredAt",
+          "collectionId",
+          "collectionName"
         ],
         "type": "object",
         "properties": {
@@ -2135,7 +2150,9 @@
       },
       "CardPricePointResponse": {
         "required": [
-          "observedOn"
+          "observedOn",
+          "eur",
+          "eurFoil"
         ],
         "type": "object",
         "properties": {
@@ -2160,6 +2177,11 @@
         }
       },
       "CardPriceResponse": {
+        "required": [
+          "eur",
+          "eurFoil",
+          "updatedAt"
+        ],
         "type": "object",
         "properties": {
           "eur": {
@@ -2208,7 +2230,12 @@
           "setName",
           "collectorNumber",
           "colorIdentity",
-          "rarity"
+          "rarity",
+          "manaCost",
+          "cmc",
+          "images",
+          "prices",
+          "faces"
         ],
         "type": "object",
         "properties": {
@@ -2288,8 +2315,16 @@
           "oracleId",
           "name",
           "typeLine",
+          "oracleText",
           "colorIdentity",
-          "layout"
+          "manaCost",
+          "cmc",
+          "power",
+          "toughness",
+          "layout",
+          "thumbnail",
+          "printingCount",
+          "faces"
         ],
         "type": "object",
         "properties": {
@@ -2577,6 +2612,8 @@
       "ScanDebug": {
         "required": [
           "zones",
+          "setSymbol",
+          "imagePHash",
           "isCropped",
           "cropConfidence",
           "cropRotated",
@@ -2659,8 +2696,12 @@
           "id",
           "scannedAt",
           "confidence",
+          "imageUrl",
+          "imageMediaType",
           "ocrZones",
-          "candidates"
+          "setSymbol",
+          "candidates",
+          "feedback"
         ],
         "type": "object",
         "properties": {
@@ -2721,6 +2762,7 @@
       "ScanFeedbackInfo": {
         "required": [
           "correctPrintingId",
+          "correctPrintingRank",
           "at"
         ],
         "type": "object",
@@ -2852,7 +2894,10 @@
         "required": [
           "id",
           "scannedAt",
-          "confidence"
+          "confidence",
+          "topMatch",
+          "hasFeedback",
+          "feedbackChangedTop"
         ],
         "type": "object",
         "properties": {
@@ -3022,7 +3067,10 @@
         "required": [
           "code",
           "name",
-          "setType"
+          "setType",
+          "releasedAt",
+          "cardCount",
+          "iconUrl"
         ],
         "type": "object",
         "properties": {
@@ -3092,7 +3140,14 @@
       "SyncRunResponse": {
         "required": [
           "status",
-          "startedAt"
+          "startedAt",
+          "finishedAt",
+          "printingsTotal",
+          "printingsAdded",
+          "printingsUpdated",
+          "imagesUploaded",
+          "pHashesComputed",
+          "error"
         ],
         "type": "object",
         "properties": {
@@ -3152,7 +3207,9 @@
       },
       "WhoAmIResponse": {
         "required": [
-          "subject"
+          "subject",
+          "displayName",
+          "isAdmin"
         ],
         "type": "object",
         "properties": {

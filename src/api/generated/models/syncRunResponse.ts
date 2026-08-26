@@ -10,12 +10,12 @@ export interface SyncRunResponse {
   status: string;
   startedAt: string;
   /** @nullable */
-  finishedAt?: string | null;
-  printingsTotal?: number;
-  printingsAdded?: number;
-  printingsUpdated?: number;
-  imagesUploaded?: number;
-  pHashesComputed?: number;
+  finishedAt: string | null;
+  printingsTotal: number;
+  printingsAdded: number;
+  printingsUpdated: number;
+  imagesUploaded: number;
+  pHashesComputed: number;
   /** @nullable */
-  error?: string | null;
+  error: string | null;
 }

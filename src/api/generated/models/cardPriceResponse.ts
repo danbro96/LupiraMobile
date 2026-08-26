@@ -8,9 +8,9 @@
 
 export interface CardPriceResponse {
   /** @nullable */
-  eur?: number | null;
+  eur: number | null;
   /** @nullable */
-  eurFoil?: number | null;
+  eurFoil: number | null;
   /** @nullable */
-  updatedAt?: string | null;
+  updatedAt: string | null;
 }

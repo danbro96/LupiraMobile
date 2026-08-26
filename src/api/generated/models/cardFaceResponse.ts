@@ -11,14 +11,14 @@ export interface CardFaceResponse {
   faceIndex: number;
   name: string;
   /** @nullable */
-  manaCost?: string | null;
+  manaCost: string | null;
   /** @nullable */
-  typeLine?: string | null;
+  typeLine: string | null;
   /** @nullable */
-  oracleText?: string | null;
+  oracleText: string | null;
   /** @nullable */
-  power?: string | null;
+  power: string | null;
   /** @nullable */
-  toughness?: string | null;
-  images?: null | CardImageUrls;
+  toughness: string | null;
+  images: null | CardImageUrls;
 }

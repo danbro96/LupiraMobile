@@ -13,19 +13,19 @@ export interface CardResponse {
   name: string;
   typeLine: string;
   /** @nullable */
-  oracleText?: string | null;
+  oracleText: string | null;
   colorIdentity: string[];
   /** @nullable */
-  manaCost?: string | null;
+  manaCost: string | null;
   /** @nullable */
-  cmc?: number | null;
+  cmc: number | null;
   /** @nullable */
-  power?: string | null;
+  power: string | null;
   /** @nullable */
-  toughness?: string | null;
+  toughness: string | null;
   layout: string;
-  thumbnail?: null | CardImageUrls;
-  printingCount?: number;
+  thumbnail: null | CardImageUrls;
+  printingCount: number;
   /** @nullable */
-  faces?: CardFaceResponse[] | null;
+  faces: CardFaceResponse[] | null;
 }

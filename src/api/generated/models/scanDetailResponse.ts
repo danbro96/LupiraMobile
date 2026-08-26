@@ -16,11 +16,11 @@ export interface ScanDetailResponse {
   scannedAt: string;
   confidence: RecognitionConfidence;
   /** @nullable */
-  imageUrl?: string | null;
+  imageUrl: string | null;
   /** @nullable */
-  imageMediaType?: string | null;
+  imageMediaType: string | null;
   ocrZones: ScanZoneTexts;
-  setSymbol?: null | ScanSetSymbol;
+  setSymbol: null | ScanSetSymbol;
   candidates: CardCandidateResponse[];
-  feedback?: null | ScanFeedbackInfo;
+  feedback: null | ScanFeedbackInfo;
 }

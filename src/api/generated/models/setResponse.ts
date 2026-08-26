@@ -11,8 +11,8 @@ export interface SetResponse {
   name: string;
   setType: string;
   /** @nullable */
-  releasedAt?: string | null;
-  cardCount?: number;
+  releasedAt: string | null;
+  cardCount: number;
   /** @nullable */
-  iconUrl?: string | null;
+  iconUrl: string | null;
 }

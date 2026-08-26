@@ -9,6 +9,6 @@
 export interface ScanFeedbackInfo {
   correctPrintingId: string;
   /** @nullable */
-  correctPrintingRank?: number | null;
+  correctPrintingRank: number | null;
   at: string;
 }

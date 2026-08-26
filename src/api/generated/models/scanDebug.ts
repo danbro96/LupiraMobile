@@ -10,9 +10,9 @@ import type { ScanZoneTexts } from './scanZoneTexts';
 
 export interface ScanDebug {
   zones: ScanZoneTexts;
-  setSymbol?: null | ScanSetSymbol;
+  setSymbol: null | ScanSetSymbol;
   /** @nullable */
-  imagePHash?: number | null;
+  imagePHash: number | null;
   isCropped: boolean;
   cropConfidence: number;
   cropRotated: boolean;

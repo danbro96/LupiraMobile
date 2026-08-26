@@ -19,11 +19,11 @@ export interface CardPrintingResponse {
   colorIdentity: string[];
   rarity: string;
   /** @nullable */
-  manaCost?: string | null;
+  manaCost: string | null;
   /** @nullable */
-  cmc?: number | null;
-  images?: null | CardImageUrls;
-  prices?: null | CardPriceResponse;
+  cmc: number | null;
+  images: null | CardImageUrls;
+  prices: null | CardPriceResponse;
   /** @nullable */
-  faces?: CardFaceResponse[] | null;
+  faces: CardFaceResponse[] | null;
 }

@@ -9,7 +9,7 @@
 export interface CardPricePointResponse {
   observedOn: string;
   /** @nullable */
-  eur?: number | null;
+  eur: number | null;
   /** @nullable */
-  eurFoil?: number | null;
+  eurFoil: number | null;
 }

@@ -8,7 +8,7 @@
 
 export interface CardImageUrls {
   /** @nullable */
-  normal?: string | null;
+  normal: string | null;
   /** @nullable */
-  artCrop?: string | null;
+  artCrop: string | null;
 }

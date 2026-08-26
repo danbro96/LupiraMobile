@@ -12,7 +12,7 @@ export interface ScanSummaryResponse {
   id: string;
   scannedAt: string;
   confidence: RecognitionConfidence;
-  topMatch?: null | CardPrintingResponse;
-  hasFeedback?: boolean;
-  feedbackChangedTop?: boolean;
+  topMatch: null | CardPrintingResponse;
+  hasFeedback: boolean;
+  feedbackChangedTop: boolean;
 }

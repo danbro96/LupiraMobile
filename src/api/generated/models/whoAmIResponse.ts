@@ -9,6 +9,6 @@
 export interface WhoAmIResponse {
   subject: string;
   /** @nullable */
-  displayName?: string | null;
-  isAdmin?: boolean;
+  displayName: string | null;
+  isAdmin: boolean;
 }
