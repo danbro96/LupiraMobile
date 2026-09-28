@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "LupiraMobile",
-    "slug": "LupiraMobile",
+    "name": "Lupira MTG",
+    "slug": "lupiramtg",
     "scheme": "lupiramtg",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -24,7 +24,7 @@
       "permissions": [
         "android.permission.CAMERA"
       ],
-      "package": "com.danbro96.LupiraMobile"
+      "package": "com.lupira.mtg"
     },
     "web": {
       "favicon": "./assets/favicon.png"

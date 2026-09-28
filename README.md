@@ -1,4 +1,4 @@
-# LupiraMobile
+# LupiraMtgMobile
 
 React Native (Expo + TypeScript) client for the [KokoroApi](https://github.com/danbro96/KokoroApi) WebSocket TTS service.
 
@@ -66,7 +66,7 @@ If sub-segment latency ever matters, the next step is a custom native module tha
 ## Repo layout
 
 ```
-LupiraMobile/
+LupiraMtgMobile/
 ├── App.tsx                          entry
 ├── app.json                         Expo config
 ├── package.json
