@@ -220,7 +220,7 @@ const QUAD_SMOOTH_GRACE_FRAMES = 2;
 export const HARD_FLOORS = {
   coverage: 0.2,
   stability: 0.55,
-  sharpness: 0.45,
+  sharpness: 0.65,
   /** Raw luminance band (0..255) the captured frame must sit inside. */
   brightnessMin: 30,
   brightnessMax: 235,
@@ -233,11 +233,11 @@ const HARD_FLOOR_BRIGHTNESS_MIN = HARD_FLOORS.brightnessMin;
 const HARD_FLOOR_BRIGHTNESS_MAX = HARD_FLOORS.brightnessMax;
 
 /**
- * Sharpness normalisation divisor for the mean-absolute-Laplacian metric. 25 was picked empirically: at the
- * YUV-Y small-Mat resolution with a 3×3 Laplacian kernel, in-focus card scans cluster around ~30–60 and
- * blurred frames sit under ~10, so dividing by 25 maps "definitely in focus" to ≥ 1 (clamped).
+ * Sharpness normalisation divisor for the mean-absolute-Laplacian metric (YUV-Y small Mat, 3×3 kernel). On
+ * device, sharp sleeved-card captures measured 53–63 raw and a motion-blurred one 31 — which still OCRs to
+ * mush. Dividing by 60 keeps them apart; with the 0.65 hard floor the gate sits at raw ≈ 39.
  */
-const SHARPNESS_NORM_DIVISOR = 25;
+const SHARPNESS_NORM_DIVISOR = 60;
 /**
  * Stability ceiling as a fraction of the *quad's short edge*: 0.05 accepts up to 5% of the card's short side
  * worth of average corner displacement before stability drops to 0. Relative rather than an absolute pixel
@@ -499,7 +499,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
           // Sharpness: mean of |Laplacian| on the small Mat. Higher = sharper.
           // Using mean(|L|) instead of var(L) avoids needing a separate
-          // squaring step; in-focus card scans cluster ~30-60, blur < 10.
+          // squaring step.
           lastStep = 'Laplacian';
           const lapl = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_16SC1);
           OpenCV.invoke('Laplacian', small, lapl, DataTypes.CV_16S, 3, 1, 0, BorderTypes.BORDER_DEFAULT);
