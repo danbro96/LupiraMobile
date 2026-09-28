@@ -10,6 +10,7 @@ import { MtgStackParamList } from '../../navigation/types';
 import { Button } from '../../ui/components/Button';
 import { TextField } from '../../ui/components/TextField';
 import { cardSurface, radii, spacing, useColors, type Palette } from '../../ui/theme';
+import { extraIdentity, ManaCost } from '../../ui/symbols';
 import { ColorPips } from './ColorPips';
 
 type Nav = NativeStackNavigationProp<MtgStackParamList, 'Search'>;
@@ -105,14 +106,17 @@ function CardRow({ card, styles, onPress }: { card: CardDto; styles: Styles; onP
           <Text variant="titleMedium" style={styles.cardName} numberOfLines={1}>
             {card.name}
           </Text>
-          <ColorPips colors={card.colorIdentity} />
+          <ManaCost cost={card.manaCost} />
         </View>
         <Text variant="bodySmall" style={styles.typeLine} numberOfLines={1}>
           {card.typeLine}
         </Text>
-        <Text variant="bodySmall" style={styles.cardMeta}>
-          {card.printingCount} printing{card.printingCount === 1 ? '' : 's'}
-        </Text>
+        <View style={styles.metaRow}>
+          <Text variant="bodySmall" style={styles.cardMeta}>
+            {card.printingCount} printing{card.printingCount === 1 ? '' : 's'}
+          </Text>
+          <ColorPips colors={extraIdentity(card.colorIdentity, card.manaCost)} size={13} />
+        </View>
       </View>
     </Pressable>
   );
@@ -152,8 +156,9 @@ const makeStyles = (c: Palette) =>
     thumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
     thumbPlaceholderText: { color: c.textMuted, fontWeight: '700' },
     rowText: { flex: 1, gap: 2 },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
     cardName: { flexShrink: 1 },
+    metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
     typeLine: { color: c.text },
     cardMeta: { color: c.textSubtle },
     empty: { padding: spacing.xl, alignItems: 'center' },

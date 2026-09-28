@@ -9,9 +9,10 @@ import {
   useGetCard,
   useListPrintings,
 } from '../../api/generated/cards/cards';
-import type { CardPrintingDto } from '../../api/generated/models';
+import type { CardFaceDto, CardPrintingDto } from '../../api/generated/models';
 import { MtgStackParamList } from '../../navigation/types';
 import { cardSurface, radii, spacing, useColors, type Palette } from '../../ui/theme';
+import { extraIdentity, ManaCost, SymbolText } from '../../ui/symbols';
 import { ColorPips } from './ColorPips';
 
 type Route = RouteProp<MtgStackParamList, 'CardDetail'>;
@@ -68,22 +69,19 @@ export function CardDetailScreen() {
 
             <View style={styles.titleRow}>
               <Text variant="headlineSmall" style={styles.name}>{card.name}</Text>
-              <ColorPips colors={card.colorIdentity} />
+              <ManaCost cost={card.manaCost} size={20} />
             </View>
 
-            <Text variant="bodyMedium">{card.typeLine}</Text>
+            <View style={styles.typeRow}>
+              <Text variant="bodyMedium" style={styles.typeLine}>{card.typeLine}</Text>
+              <ColorPips colors={extraIdentity(card.colorIdentity, card.manaCost)} />
+            </View>
 
-            {card.power || card.toughness ? (
-              <Text variant="bodyMedium" style={styles.pt}>
-                {card.power ?? '—'} / {card.toughness ?? '—'}
-              </Text>
-            ) : null}
-
-            {card.oracleText ? (
-              <View style={styles.oracleBox}>
-                <Text variant="bodyMedium" style={styles.oracleText}>{card.oracleText}</Text>
-              </View>
-            ) : null}
+            {card.faces && card.faces.length > 1 ? (
+              card.faces.map(face => <FaceBox key={face.faceIndex} face={face} styles={styles} />)
+            ) : (
+              <RulesBox oracleText={card.oracleText} power={card.power} toughness={card.toughness} styles={styles} />
+            )}
 
             <View style={styles.printingsHeader}>
               <Text variant="titleMedium" style={styles.printingsTitle}>Printings</Text>
@@ -113,6 +111,43 @@ export function CardDetailScreen() {
         ) : null}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function FaceBox({ face, styles }: { face: CardFaceDto; styles: Styles }) {
+  return (
+    <View style={styles.face}>
+      <View style={styles.titleRow}>
+        <Text variant="titleMedium" style={styles.name}>{face.name}</Text>
+        <ManaCost cost={face.manaCost} />
+      </View>
+      {face.typeLine ? <Text variant="bodyMedium">{face.typeLine}</Text> : null}
+      <RulesBox oracleText={face.oracleText} power={face.power} toughness={face.toughness} styles={styles} />
+    </View>
+  );
+}
+
+function RulesBox({
+  oracleText,
+  power,
+  toughness,
+  styles,
+}: {
+  oracleText: string | null;
+  power: string | null;
+  toughness: string | null;
+  styles: Styles;
+}) {
+  if (!oracleText && !power && !toughness) return null;
+  return (
+    <View style={styles.oracleBox}>
+      {oracleText ? <SymbolText text={oracleText} style={styles.oracleText} /> : null}
+      {power || toughness ? (
+        <Text variant="bodyMedium" style={styles.pt}>
+          {power ?? '—'} / {toughness ?? '—'}
+        </Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -151,10 +186,13 @@ const makeStyles = (c: Palette) =>
     scroll: { padding: spacing.xl, gap: spacing.md },
     loading: { marginTop: spacing.xxl },
     heroImage: { width: '100%', height: 480, borderRadius: radii.lg, backgroundColor: c.surface },
-    titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: spacing.sm },
+    titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: spacing.sm },
     name: { fontWeight: '700', flexShrink: 1 },
-    pt: { fontWeight: '600' },
-    oracleBox: { ...cardSurface(c), marginTop: spacing.xs },
+    typeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    typeLine: { flexShrink: 1 },
+    face: { gap: spacing.xs },
+    pt: { fontWeight: '600', alignSelf: 'flex-end' },
+    oracleBox: { ...cardSurface(c), marginTop: spacing.xs, gap: spacing.sm },
     oracleText: { lineHeight: 20 },
     printingsHeader: {
       flexDirection: 'row',

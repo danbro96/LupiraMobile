@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fetch:openapi": "node scripts/fetch-openapi.mjs",
+    "fetch:symbols": "node scripts/fetch-symbols.mjs",
     "generate:api": "orval --config ./orval.config.ts",
     "regen:api": "npm run fetch:openapi && npm run generate:api"
   },
