@@ -8,7 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "runtimeVersion": { "policy": "fingerprint" },
-    "updates": { "url": "https://u.expo.dev/b85d3a81-589d-450b-9121-8c9c64a310fc" },
+    "updates": { "url": "https://u.expo.dev/6f9cc1b4-b47b-49bc-b634-6bcf96bb8a0c" },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -65,8 +65,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b85d3a81-589d-450b-9121-8c9c64a310fc"
+        "projectId": "6f9cc1b4-b47b-49bc-b634-6bcf96bb8a0c"
       }
-    }
+    },
+    "owner": "danbro96"
   }
 }
