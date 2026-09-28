@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { FlashList, type ListRenderItem } from '@shopify/flash-list';
 import { ActivityIndicator, Button as PaperButton, Dialog, Portal, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -156,7 +157,7 @@ const CardRow = memo(function CardRow({
   return (
     <View style={styles.row}>
       {thumb ? (
-        <Image source={{ uri: thumb }} style={styles.thumb} />
+        <Image source={thumb} recyclingKey={card.instanceId} style={styles.thumb} contentFit="cover" transition={120} />
       ) : (
         <View style={styles.thumb} />
       )}

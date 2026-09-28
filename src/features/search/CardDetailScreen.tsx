@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { FlashList, type ListRenderItem } from '@shopify/flash-list';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,11 +61,7 @@ export function CardDetailScreen() {
         {card ? (
           <>
             {card.thumbnail?.normal ? (
-              <Image
-                source={{ uri: card.thumbnail.normal }}
-                style={styles.heroImage}
-                resizeMode="contain"
-              />
+              <Image source={card.thumbnail.normal} style={styles.heroImage} contentFit="contain" transition={120} />
             ) : null}
 
             <View style={styles.titleRow}>
@@ -166,7 +163,7 @@ const PrintingTile = memo(function PrintingTile({
   return (
     <Pressable onPress={onPress} style={styles.printingTile}>
       {thumb ? (
-        <Image source={{ uri: thumb }} style={styles.printingThumb} resizeMode="cover" />
+        <Image source={thumb} recyclingKey={printing.id} style={styles.printingThumb} contentFit="cover" transition={120} />
       ) : (
         <View style={styles.printingThumb} />
       )}

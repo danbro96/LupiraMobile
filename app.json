@@ -62,7 +62,8 @@
           "project": "lupira-mtg",
           "organization": "brostrom"
         }
-      ]
+      ],
+      "expo-image"
     ],
     "extra": {
       "eas": {
