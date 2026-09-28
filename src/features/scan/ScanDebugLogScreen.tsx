@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useMemo, useState } from 'react';
+import { FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Button, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Icon } from '../../components/Icon';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { toast, toastError } from '../../feedback/toast';
+import { cardSurface, radii, spacing, useColors, type Palette } from '../../ui/theme';
+import { ICONS } from '../../ui/icons';
 import {
   type DecisionLogEntry,
   type DecisionReason,
@@ -27,73 +23,50 @@ import {
 export function ScanDebugLogScreen() {
   const entries = useDecisionLog((s) => s.entries);
   const clear = useDecisionLog((s) => s.clear);
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  const empty = entries.length === 0;
 
   const onShare = async () => {
-    if (entries.length === 0) {
-      Alert.alert('Nothing to share', 'The decision log is empty.');
+    if (empty) {
+      toast('Nothing to share — the decision log is empty.');
       return;
     }
     try {
       await Share.share({ message: JSON.stringify(entries, null, 2) });
     } catch (e: unknown) {
-      Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
+      toastError(`Share failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
   // Render newest-first without mutating the underlying array.
-  const reversed = React.useMemo(() => [...entries].reverse(), [entries]);
+  const reversed = useMemo(() => [...entries].reverse(), [entries]);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.toolbar}>
-        <Text style={styles.toolbarText}>{entries.length} entries</Text>
+        <Text variant="bodySmall" style={styles.toolbarText}>{entries.length} entries</Text>
         <View style={styles.toolbarActions}>
-          <Pressable
+          <Button
+            icon={ICONS.delete}
+            compact
             onPress={clear}
-            disabled={entries.length === 0}
-            style={[styles.toolbarButton, entries.length === 0 && styles.toolbarButtonDisabled]}
+            disabled={empty}
+            textColor={c.danger}
           >
-            <Icon
-              name="trash-outline"
-              size={16}
-              color={entries.length === 0 ? 'muted' : 'destructive'}
-            />
-            <Text
-              style={[
-                styles.toolbarButtonText,
-                { color: entries.length === 0 ? '#6e7686' : '#f97373' },
-              ]}
-            >
-              Clear
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={onShare}
-            disabled={entries.length === 0}
-            style={[styles.toolbarButton, entries.length === 0 && styles.toolbarButtonDisabled]}
-          >
-            <Icon
-              name="share-outline"
-              size={16}
-              color={entries.length === 0 ? 'muted' : 'primary'}
-            />
-            <Text
-              style={[
-                styles.toolbarButtonText,
-                { color: entries.length === 0 ? '#6e7686' : '#3b82f6' },
-              ]}
-            >
-              Share JSON
-            </Text>
-          </Pressable>
+            Clear
+          </Button>
+          <Button icon={ICONS.share} compact onPress={() => void onShare()} disabled={empty}>
+            Share JSON
+          </Button>
         </View>
       </View>
 
-      {entries.length === 0 ? (
+      {empty ? (
         <View style={styles.empty}>
-          <Icon name="document-text-outline" size={36} tint="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyTitle}>No decisions logged yet</Text>
-          <Text style={styles.emptyBody}>
+          <MaterialIcons name={ICONS.log} size={36} color={c.textDisabled} />
+          <Text variant="titleMedium">No decisions logged yet</Text>
+          <Text variant="bodySmall" style={styles.emptyBody}>
             Open the Scan tab and aim at a card. Every state transition (blocked, progressing, fired, etc.) is recorded here.
           </Text>
         </View>
@@ -101,7 +74,7 @@ export function ScanDebugLogScreen() {
         <FlatList
           data={reversed}
           keyExtractor={(item) => `${item.ts}-${item.framesProcessed}`}
-          renderItem={({ item }) => <Row entry={item} />}
+          renderItem={({ item }) => <Row entry={item} c={c} styles={styles} />}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator
         />
@@ -110,9 +83,11 @@ export function ScanDebugLogScreen() {
   );
 }
 
-function Row({ entry }: { entry: DecisionLogEntry }) {
+type Styles = ReturnType<typeof makeStyles>;
+
+function Row({ entry, c, styles }: { entry: DecisionLogEntry; c: Palette; styles: Styles }) {
   const [expanded, setExpanded] = useState(false);
-  const { tint, label } = renderReason(entry.reason);
+  const { tint, label } = renderReason(entry.reason, c);
   const time = new Date(entry.ts);
   const hh = time.getHours().toString().padStart(2, '0');
   const mm = time.getMinutes().toString().padStart(2, '0');
@@ -125,7 +100,7 @@ function Row({ entry }: { entry: DecisionLogEntry }) {
         <Text style={[styles.rowChipText, { color: tint }]}>{entry.reason.kind}</Text>
       </View>
       <View style={styles.rowMain}>
-        <Text style={styles.rowLabel} numberOfLines={1}>
+        <Text variant="bodyMedium" numberOfLines={1}>
           {label}
         </Text>
         <Text style={styles.rowMeta}>
@@ -133,17 +108,18 @@ function Row({ entry }: { entry: DecisionLogEntry }) {
         </Text>
         {expanded ? (
           <View style={styles.rowExpanded}>
-            <DataLine label="stab" value={entry.stability.toFixed(3)} />
-            <DataLine label="sharp" value={entry.sharpness.toFixed(3)} />
-            <DataLine label="cover" value={entry.coverage.toFixed(3)} />
+            <DataLine styles={styles} label="stab" value={entry.stability.toFixed(3)} />
+            <DataLine styles={styles} label="sharp" value={entry.sharpness.toFixed(3)} />
+            <DataLine styles={styles} label="cover" value={entry.coverage.toFixed(3)} />
             <DataLine
+              styles={styles}
               label="bright"
               value={`${Math.round(entry.brightness)} (fit ${entry.brightnessFit.toFixed(2)})`}
             />
-            <DataLine label="band" value={entry.inHysteresis ? 'in' : 'out'} />
-            <DataLine label="floors" value={entry.hardFloorPass ? 'pass' : 'FAIL'} />
-            <DataLine label="cooldown" value={entry.cooldownActive ? 'BLOCK' : 'clear'} />
-            <DataLine label="frames#" value={String(entry.framesProcessed)} />
+            <DataLine styles={styles} label="band" value={entry.inHysteresis ? 'in' : 'out'} />
+            <DataLine styles={styles} label="floors" value={entry.hardFloorPass ? 'pass' : 'FAIL'} />
+            <DataLine styles={styles} label="cooldown" value={entry.cooldownActive ? 'BLOCK' : 'clear'} />
+            <DataLine styles={styles} label="frames#" value={String(entry.framesProcessed)} />
           </View>
         ) : null}
       </View>
@@ -151,7 +127,7 @@ function Row({ entry }: { entry: DecisionLogEntry }) {
   );
 }
 
-function DataLine({ label, value }: { label: string; value: string }) {
+function DataLine({ label, value, styles }: { label: string; value: string; styles: Styles }) {
   return (
     <View style={styles.dataLine}>
       <Text style={styles.dataLineLabel}>{label}</Text>
@@ -160,30 +136,30 @@ function DataLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function renderReason(reason: DecisionReason): { tint: string; label: string } {
+function renderReason(reason: DecisionReason, c: Palette): { tint: string; label: string } {
   switch (reason.kind) {
     case 'no-quad':
-      return { tint: '#6e7686', label: 'No card seen' };
+      return { tint: c.textSubtle, label: 'No card seen' };
     case 'blocked-floor':
       return {
-        tint: '#f59e0b',
+        tint: c.warning,
         label: `${reason.floor} ${fmt(reason.value)} below floor ${fmt(reason.threshold)}`,
       };
     case 'cooldown':
       return {
-        tint: '#f59e0b',
+        tint: c.warning,
         label: `Cooldown — ${(reason.msRemaining / 1000).toFixed(1)} s remaining`,
       };
     case 'below-band':
       return {
-        tint: '#cbd1da',
+        tint: c.text,
         label: `Score ${reason.composite.toFixed(2)} below threshold ${reason.thresholdHigh.toFixed(2)}`,
       };
     case 'progressing':
-      return { tint: '#22c55e', label: 'In band — counting stable frames' };
+      return { tint: c.success, label: 'In band — counting stable frames' };
     case 'fired':
       return {
-        tint: '#22c55e',
+        tint: c.success,
         label: `Fired @ centroid ${reason.quadCentroid.x.toFixed(0)}, ${reason.quadCentroid.y.toFixed(0)}`,
       };
   }
@@ -194,70 +170,57 @@ function fmt(n: number): string {
   return n.toFixed(2);
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0e1117' },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1f29',
-  },
-  toolbarText: { color: '#9aa3b2', fontSize: 13, fontFamily: 'monospace' },
-  toolbarActions: { flexDirection: 'row', gap: 12 },
-  toolbarButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: '#1a1f29',
-  },
-  toolbarButtonDisabled: { opacity: 0.5 },
-  toolbarButtonText: { fontSize: 13, fontWeight: '600' },
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    toolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.divider,
+    },
+    toolbarText: { color: c.textMuted, fontFamily: 'monospace' },
+    toolbarActions: { flexDirection: 'row', gap: spacing.xs },
 
-  list: { paddingHorizontal: 12, paddingVertical: 12, gap: 6 },
-  row: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-    backgroundColor: '#1a1f29',
-    borderRadius: 8,
-    padding: 10,
-  },
-  rowChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  rowChipText: { fontSize: 10, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 0.5 },
-  rowMain: { flex: 1, gap: 2 },
-  rowLabel: { color: '#f5f5f5', fontSize: 13 },
-  rowMeta: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
-  rowExpanded: {
-    marginTop: 8,
-    paddingTop: 8,
-    gap: 2,
-    borderTopWidth: 1,
-    borderTopColor: '#0e1117',
-  },
-  dataLine: { flexDirection: 'row', justifyContent: 'space-between' },
-  dataLineLabel: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
-  dataLineValue: { color: '#cbd1da', fontSize: 11, fontFamily: 'monospace' },
+    list: { padding: spacing.md, gap: 6 },
+    row: {
+      ...cardSurface(c),
+      flexDirection: 'row',
+      gap: 10,
+      alignItems: 'flex-start',
+      borderRadius: radii.md,
+    },
+    rowChip: {
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      borderRadius: radii.round,
+      borderWidth: 1,
+      minWidth: 72,
+      alignItems: 'center',
+    },
+    rowChipText: { fontSize: 10, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 0.5 },
+    rowMain: { flex: 1, gap: 2 },
+    rowMeta: { color: c.textSubtle, fontSize: 11, fontFamily: 'monospace' },
+    rowExpanded: {
+      marginTop: spacing.sm,
+      paddingTop: spacing.sm,
+      gap: 2,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.divider,
+    },
+    dataLine: { flexDirection: 'row', justifyContent: 'space-between' },
+    dataLineLabel: { color: c.textSubtle, fontSize: 11, fontFamily: 'monospace' },
+    dataLineValue: { color: c.text, fontSize: 11, fontFamily: 'monospace' },
 
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 8,
-  },
-  emptyTitle: { color: '#cbd1da', fontSize: 16, fontWeight: '600' },
-  emptyBody: { color: '#6e7686', fontSize: 13, textAlign: 'center', lineHeight: 18 },
-});
+    empty: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: spacing.xxl,
+      gap: spacing.sm,
+    },
+    emptyBody: { color: c.textSubtle, textAlign: 'center', lineHeight: 18 },
+  });

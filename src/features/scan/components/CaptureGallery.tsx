@@ -1,21 +1,22 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native-paper';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { CardCandidateDto } from '../../../api/generated/models';
 import type {
   CaptureId,
   CaptureRecord,
   CaptureState,
 } from '../captureQueueReducer';
-import { Icon } from '../../../components/Icon';
+import { ICONS } from '../../../ui/icons';
+import { darkColors as d, HIT_SLOP } from '../../../ui/theme';
 import { CandidateRow } from './CandidateRow';
 
 type Props = {
@@ -167,8 +168,8 @@ function ReviewModalBody({
             Confidence: {response.confidence.toUpperCase()} · {response.candidates.length} candidate{response.candidates.length === 1 ? '' : 's'}
           </Text>
         </View>
-        <Pressable onPress={onClose} hitSlop={12} style={styles.modalClose}>
-          <Icon name="close" size={22} color="muted" />
+        <Pressable onPress={onClose} hitSlop={HIT_SLOP} style={styles.modalClose}>
+          <MaterialIcons name={ICONS.close} size={22} color={d.textMuted} />
         </Pressable>
       </View>
 
@@ -192,7 +193,7 @@ function ReviewModalBody({
 
       <View style={styles.modalActions}>
         <Pressable onPress={onDismiss} style={[styles.modalAction, styles.modalDismiss]}>
-          <Icon name="trash-outline" size={16} color="destructive" />
+          <MaterialIcons name={ICONS.delete} size={16} color={d.danger} />
           <Text style={styles.modalDismissText}>Discard scan</Text>
         </Pressable>
       </View>
@@ -230,19 +231,19 @@ function overlayFor(state: CaptureState): React.ReactNode {
       if (state.addedPrintingId != null) {
         return (
           <View style={[styles.overlayBadge, styles.overlayBadgeSuccess]}>
-            <Icon name="checkmark" size={12} color="white" />
+            <MaterialIcons name={ICONS.check} size={12} color={d.bg} />
           </View>
         );
       }
       return (
         <View style={[styles.overlayBadge, styles.overlayBadgeWarning]}>
-          <Icon name="help" size={12} color="white" />
+          <MaterialIcons name={ICONS.help} size={12} color={d.bg} />
         </View>
       );
     case 'error':
       return (
         <View style={[styles.overlayBadge, styles.overlayBadgeError]}>
-          <Icon name="alert" size={12} color="white" />
+          <MaterialIcons name={ICONS.alert} size={12} color={d.bg} />
         </View>
       );
   }
@@ -295,7 +296,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   tileImagePlaceholder: {
-    backgroundColor: '#1a1f29',
+    backgroundColor: d.surface,
   },
   tileCaption: {
     marginTop: 4,
@@ -328,18 +329,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  overlayBadgeSuccess: { backgroundColor: '#22c55e' },
-  overlayBadgeWarning: { backgroundColor: '#f59e0b' },
-  overlayBadgeError: { backgroundColor: '#ef4444' },
+  overlayBadgeSuccess: { backgroundColor: d.success },
+  overlayBadgeWarning: { backgroundColor: d.warning },
+  overlayBadgeError: { backgroundColor: d.danger },
 
-  // Review modal
+  // Review modal: opens over the camera, so it stays dark too.
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: '#0e1117',
+    backgroundColor: d.bg,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     maxHeight: '80%',
@@ -354,24 +355,24 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#1a1f29',
+    borderBottomColor: d.divider,
   },
   modalThumb: {
     width: 56,
     height: 78,
     borderRadius: 6,
-    backgroundColor: '#1a1f29',
+    backgroundColor: d.surface,
   },
   modalHeaderText: { flex: 1 },
-  modalTitle: { color: '#f5f5f5', fontSize: 16, fontWeight: '700' },
-  modalSubtitle: { color: '#9aa3b2', fontSize: 12, marginTop: 2 },
+  modalTitle: { color: d.text, fontSize: 16, fontWeight: '700' },
+  modalSubtitle: { color: d.textMuted, fontSize: 12, marginTop: 2 },
   modalClose: { padding: 4 },
   modalScroll: {
     padding: 16,
     gap: 8,
   },
   modalEmpty: {
-    color: '#6e7686',
+    color: d.textSubtle,
     fontSize: 14,
     textAlign: 'center',
     padding: 24,
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#1a1f29',
+    borderTopColor: d.divider,
   },
   modalAction: {
     flex: 1,
@@ -395,7 +396,7 @@ const styles = StyleSheet.create({
   },
   modalDismiss: {
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: d.danger,
   },
-  modalDismissText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+  modalDismissText: { color: d.danger, fontSize: 14, fontWeight: '600' },
 });

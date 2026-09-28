@@ -6,7 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "runtimeVersion": { "policy": "fingerprint" },
     "updates": { "url": "https://u.expo.dev/6f9cc1b4-b47b-49bc-b634-6bcf96bb8a0c" },
     "ios": {

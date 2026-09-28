@@ -8,6 +8,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "fetch:openapi": "node scripts/fetch-openapi.mjs",
     "generate:api": "orval --config ./orval.config.ts",
     "regen:api": "npm run fetch:openapi && npm run generate:api"
@@ -29,6 +31,7 @@
     "expo-dev-client": "~57.0.19",
     "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
+    "expo-haptics": "~57.0.3",
     "expo-image-manipulator": "~57.0.20",
     "expo-secure-store": "~57.0.4",
     "expo-splash-screen": "~57.0.9",
@@ -38,6 +41,7 @@
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-fast-opencv": "0.4.8",
+    "react-native-paper": "5.15.3",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
@@ -49,7 +53,8 @@
   "devDependencies": {
     "@types/react": "19.2.17",
     "orval": "8.37.0",
-    "typescript": "~7.0.2"
+    "typescript": "~7.0.2",
+    "vitest": "5.0.2"
   },
   "engines": {
     "node": ">=24.19.0",

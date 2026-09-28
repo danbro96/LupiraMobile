@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics } from '../detection/useCardDetection';
+import { darkColors as d } from '../../../ui/theme';
 
 type Props = {
   metrics: Synchronizable<DetectionMetrics>;
@@ -46,7 +48,7 @@ export function DebugMetricsPanel({
   return (
     <ScrollView style={styles.wrap} contentContainerStyle={styles.content}>
       <Section title="Score">
-        <Row label="combined" value={fmt(m.score)} accent={meets ? '#22c55e' : '#cbd1da'} />
+        <Row label="combined" value={fmt(m.score)} accent={meets ? d.success : d.text} />
         <Row label="stab" value={fmt(m.stability)} />
         <Row label="sharp" value={fmt(m.sharpness)} />
         <Row label="cover" value={fmt(m.coverage)} />
@@ -55,7 +57,7 @@ export function DebugMetricsPanel({
         <Row
           label="frames"
           value={`${stable}/${minStableFrames}`}
-          accent={stable > 0 ? '#22c55e' : '#cbd1da'}
+          accent={stable > 0 ? d.success : d.text}
         />
       </Section>
 
@@ -63,22 +65,22 @@ export function DebugMetricsPanel({
         <Row
           label="floors"
           value={m.hardFloorPass ? 'pass' : 'FAIL'}
-          accent={m.hardFloorPass ? '#22c55e' : '#f97373'}
+          accent={m.hardFloorPass ? d.success : d.danger}
         />
         <Row
           label="band"
           value={m.inHysteresis ? 'in' : 'out'}
-          accent={m.inHysteresis ? '#22c55e' : '#cbd1da'}
+          accent={m.inHysteresis ? d.success : d.text}
         />
         <Row
           label="cooldown"
           value={m.cooldownActive ? 'BLOCK' : 'clear'}
-          accent={m.cooldownActive ? '#f59e0b' : '#22c55e'}
+          accent={m.cooldownActive ? d.warning : d.success}
         />
       </Section>
 
       <Section title="Tunables">
-        <Row label="auto" value={autoCaptureEnabled ? 'on' : 'off'} accent={autoCaptureEnabled ? '#22c55e' : '#f97373'} />
+        <Row label="auto" value={autoCaptureEnabled ? 'on' : 'off'} accent={autoCaptureEnabled ? d.success : d.danger} />
         <Row label="w.stab" value={fmt(weightStability)} />
         <Row label="w.sharp" value={fmt(weightSharpness)} />
         <Row label="w.cover" value={fmt(weightCoverage)} />
@@ -86,7 +88,7 @@ export function DebugMetricsPanel({
       </Section>
 
       <Section title="Detection">
-        <Row label="quad" value={m.hasQuad ? 'yes' : 'no'} accent={m.hasQuad ? '#22c55e' : '#f97373'} />
+        <Row label="quad" value={m.hasQuad ? 'yes' : 'no'} accent={m.hasQuad ? d.success : d.danger} />
         <Row label="edges px" value={String(m.edgePixelCount)} />
         <Row label="contours" value={String(m.contourCount)} />
         <Row label="big" value={String(m.largeContourCount)} />
@@ -103,13 +105,13 @@ export function DebugMetricsPanel({
         <Row
           label="last step"
           value={m.lastStep || '—'}
-          accent={m.lastStep === 'done' ? '#22c55e' : m.lastStep === 'detection-disabled' ? '#cbd1da' : '#f59e0b'}
+          accent={m.lastStep === 'done' ? d.success : m.lastStep === 'detection-disabled' ? d.text : d.warning}
           multiline
         />
         <Row
           label="error"
           value={m.lastError || '—'}
-          accent={m.lastError ? '#f97373' : '#cbd1da'}
+          accent={m.lastError ? d.danger : d.text}
           multiline
         />
       </Section>
@@ -127,19 +129,19 @@ export function DebugMetricsPanel({
         <Row
           label="capture"
           value={capturing ? 'shooting' : 'idle'}
-          accent={capturing ? '#f59e0b' : '#cbd1da'}
+          accent={capturing ? d.warning : d.text}
         />
         <Row
           label="upload"
           value={uploadStatus}
           accent={
             uploadStatus === 'success'
-              ? '#22c55e'
+              ? d.success
               : uploadStatus === 'error'
-                ? '#f97373'
+                ? d.danger
                 : uploadStatus === 'pending'
-                  ? '#f59e0b'
-                  : '#cbd1da'
+                  ? d.warning
+                  : d.text
           }
         />
       </Section>
@@ -204,7 +206,7 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   sectionTitle: {
-    color: '#3b82f6',
+    color: d.primary,
     fontSize: 10,
     fontWeight: '700',
     fontFamily: 'monospace',
@@ -219,12 +221,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   label: {
-    color: '#6e7686',
+    color: d.textSubtle,
     fontSize: 11,
     fontFamily: 'monospace',
   },
   value: {
-    color: '#cbd1da',
+    color: d.text,
     fontSize: 11,
     fontFamily: 'monospace',
     flexShrink: 1,

@@ -1,9 +1,11 @@
-import React from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Image, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { useGetPrinting } from '../../api/generated/cards/cards';
 import { MtgStackParamList } from '../../navigation/types';
+import { cardSurface, radii, spacing, useColors, type Palette } from '../../ui/theme';
 
 type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
 
@@ -15,15 +17,17 @@ type Route = RouteProp<MtgStackParamList, 'PrintingDetail'>;
  */
 export function PrintingDetailScreen() {
   const { params } = useRoute<Route>();
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const { data, isLoading, isError, error } =
     useGetPrinting(params.oracleId, params.printingId);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {isLoading ? <ActivityIndicator style={{ marginTop: 32 }} /> : null}
+        {isLoading ? <ActivityIndicator style={styles.loading} /> : null}
         {isError ? (
-          <Text style={styles.error}>
+          <Text variant="bodyMedium" style={styles.error}>
             {(error as unknown as Error)?.message ?? 'Unknown error'}
           </Text>
         ) : null}
@@ -36,23 +40,23 @@ export function PrintingDetailScreen() {
                 resizeMode="contain"
               />
             ) : null}
-            <Text style={styles.name}>{data.name}</Text>
-            <Text style={styles.meta}>
+            <Text variant="headlineSmall" style={styles.name}>{data.name}</Text>
+            <Text variant="bodyMedium" style={styles.meta}>
               {data.setName} ({data.setCode.toUpperCase()}) · #{data.collectorNumber}
             </Text>
-            <Text style={styles.meta}>
+            <Text variant="bodyMedium" style={styles.meta}>
               {data.rarity}
               {data.colorIdentity.length ? ` · ${data.colorIdentity.join('/')}` : ''}
             </Text>
             {data.prices && Object.keys(data.prices).length ? (
               <View style={styles.pricesBox}>
-                <Text style={styles.pricesTitle}>Prices</Text>
+                <Text variant="titleSmall">Prices</Text>
                 {Object.entries(data.prices).map(([key, value]) => {
                   // `prices` mixes numeric fields with a string `updatedAt`; non-numeric
                   // entries fall through to their raw string below.
                   const n = typeof value === 'number' ? value : Number.NaN;
                   return (
-                    <Text key={key} style={styles.priceLine}>
+                    <Text key={key} variant="bodyMedium">
                       {key}: {Number.isFinite(n) ? n.toFixed(2) : String(value)}
                     </Text>
                   );
@@ -66,21 +70,19 @@ export function PrintingDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0e1117' },
-  scroll: { padding: 24, gap: 12, alignItems: 'center' },
-  heroImage: { width: '100%', height: 480, borderRadius: 16, backgroundColor: '#1a1f29' },
-  name: { color: '#f5f5f5', fontSize: 24, fontWeight: '700', marginTop: 8 },
-  meta: { color: '#9aa3b2', fontSize: 14 },
-  pricesBox: {
-    width: '100%',
-    backgroundColor: '#1a1f29',
-    padding: 16,
-    borderRadius: 8,
-    gap: 4,
-    marginTop: 12,
-  },
-  pricesTitle: { color: '#f5f5f5', fontSize: 14, fontWeight: '700' },
-  priceLine: { color: '#cbd1da', fontSize: 14 },
-  error: { color: '#f97373', fontSize: 14 },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    scroll: { padding: spacing.xl, gap: spacing.md, alignItems: 'center' },
+    loading: { marginTop: spacing.xxl },
+    heroImage: { width: '100%', height: 480, borderRadius: radii.lg, backgroundColor: c.surface },
+    name: { fontWeight: '700', marginTop: spacing.sm },
+    meta: { color: c.textMuted },
+    pricesBox: {
+      ...cardSurface(c),
+      width: '100%',
+      padding: spacing.lg,
+      marginTop: spacing.md,
+    },
+    error: { color: c.danger },
+  });

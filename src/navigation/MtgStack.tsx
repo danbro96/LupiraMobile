@@ -1,17 +1,16 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SettingsButton } from '../components/SettingsButton';
+import { SettingsButton } from '../ui/components/SettingsButton';
 import { SearchScreen } from '../features/search/SearchScreen';
 import { CardDetailScreen } from '../features/search/CardDetailScreen';
 import { PrintingDetailScreen } from '../features/search/PrintingDetailScreen';
-import { stackScreenOptions } from './stackScreenOptions';
 import { SearchStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<SearchStackParamList>();
 
 export function MtgStack() {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
+    <Stack.Navigator>
       <Stack.Screen
         name="Search"
         component={SearchScreen}

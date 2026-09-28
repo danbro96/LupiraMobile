@@ -1,14 +1,7 @@
-import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native-paper';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -20,6 +13,11 @@ import type {
   CollectionDto,
 } from '../../api/generated/models';
 import { CollectionsStackParamList } from '../../navigation/types';
+import { Button } from '../../ui/components/Button';
+import { TextField } from '../../ui/components/TextField';
+import { cardSurface, spacing, useColors, type Palette } from '../../ui/theme';
+import { ICONS } from '../../ui/icons';
+import { toastError } from '../../feedback/toast';
 
 type Nav = NativeStackNavigationProp<CollectionsStackParamList, 'Collections'>;
 
@@ -27,6 +25,8 @@ export function CollectionsListScreen() {
   const navigation = useNavigation<Nav>();
   const queryClient = useQueryClient();
   const [newName, setNewName] = useState('');
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   const collections = useQuery({
     queryKey: ['collections'],
@@ -39,42 +39,39 @@ export function CollectionsListScreen() {
       void queryClient.invalidateQueries({ queryKey: ['collections'] });
       setNewName('');
     },
-    onError: (e: Error) => Alert.alert('Create failed', e.message),
+    onError: (e: Error) => toastError(`Create failed: ${e.message}`),
   });
 
   return (
     <View style={styles.container}>
       <View style={styles.createRow}>
-        <TextInput
+        <TextField
           value={newName}
           onChangeText={setNewName}
           placeholder="New collection name"
-          placeholderTextColor="#6e7686"
-          style={styles.input}
           maxLength={64}
         />
-        <Pressable
+        <Button
+          title="Create"
           onPress={() => create.mutate(newName.trim())}
-          disabled={!newName.trim() || create.isPending}
-          style={[
-            styles.createButton,
-            (!newName.trim() || create.isPending) && styles.disabled,
-          ]}
-        >
-          {create.isPending ? <ActivityIndicator color="#fff" /> : <Text style={styles.createButtonText}>Create</Text>}
-        </Pressable>
+          disabled={!newName.trim()}
+          loading={create.isPending}
+          style={styles.createButton}
+        />
       </View>
 
       {collections.isError ? (
-        <Text style={styles.errorText}>{(collections.error as Error).message}</Text>
+        <Text variant="bodyMedium" style={styles.errorText}>{(collections.error as Error).message}</Text>
       ) : null}
 
       <FlatList
         data={collections.data ?? []}
-        keyExtractor={c => c.id}
+        keyExtractor={col => col.id}
         renderItem={({ item }) => (
           <Row
             collection={item}
+            styles={styles}
+            palette={c}
             onPress={() => navigation.navigate('CollectionDetail', { collectionId: item.id })}
           />
         )}
@@ -82,7 +79,7 @@ export function CollectionsListScreen() {
           collections.isLoading ? (
             <ActivityIndicator style={styles.center} />
           ) : (
-            <Text style={styles.emptyText}>No collections yet. Create one above or commit a scan selection.</Text>
+            <Text variant="bodyMedium" style={styles.emptyText}>No collections yet. Create one above or commit a scan selection.</Text>
           )
         }
         contentContainerStyle={styles.list}
@@ -93,53 +90,39 @@ export function CollectionsListScreen() {
   );
 }
 
-function Row({ collection, onPress }: { collection: CollectionDto; onPress: () => void }) {
+function Row({
+  collection,
+  styles,
+  palette,
+  onPress,
+}: {
+  collection: CollectionDto;
+  styles: ReturnType<typeof makeStyles>;
+  palette: Palette;
+  onPress: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={styles.row}>
       <View style={styles.rowText}>
-        <Text style={styles.rowName}>{collection.name}</Text>
-        <Text style={styles.rowMeta}>{collection.cardCount} card(s)</Text>
+        <Text variant="titleMedium" style={styles.rowName}>{collection.name}</Text>
+        <Text variant="bodySmall" style={styles.rowMeta}>{collection.cardCount} card(s)</Text>
       </View>
-      <Text style={styles.rowChevron}>›</Text>
+      <MaterialIcons name={ICONS.chevronRight} size={24} color={palette.textSubtle} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0e1117' },
-  createRow: { flexDirection: 'row', gap: 8, padding: 16 },
-  input: {
-    flex: 1,
-    backgroundColor: '#1a1f29',
-    color: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#2c3340',
-  },
-  createButton: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
-  },
-  createButtonText: { color: '#fff', fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-  list: { paddingHorizontal: 16, paddingBottom: 24, gap: 8 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a1f29',
-    borderRadius: 8,
-    padding: 14,
-  },
-  rowText: { flex: 1, gap: 2 },
-  rowName: { color: '#f5f5f5', fontSize: 16, fontWeight: '600' },
-  rowMeta: { color: '#9aa3b2', fontSize: 12 },
-  rowChevron: { color: '#6e7686', fontSize: 24 },
-  emptyText: { color: '#6e7686', fontSize: 14, textAlign: 'center', padding: 24 },
-  errorText: { color: '#f97373', fontSize: 14, padding: 16 },
-  center: { padding: 24, alignItems: 'center' },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    createRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.lg },
+    createButton: { justifyContent: 'center' },
+    list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm },
+    row: { ...cardSurface(c), flexDirection: 'row', alignItems: 'center' },
+    rowText: { flex: 1, gap: 2 },
+    rowName: { color: c.text },
+    rowMeta: { color: c.textMuted },
+    emptyText: { color: c.textSubtle, textAlign: 'center', padding: spacing.xl },
+    errorText: { color: c.danger, padding: spacing.lg },
+    center: { padding: spacing.xl, alignItems: 'center' },
+  });

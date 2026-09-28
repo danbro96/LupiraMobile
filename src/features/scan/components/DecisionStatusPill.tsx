@@ -1,5 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
+import { darkColors as d } from '../../../ui/theme';
 import {
   selectLatestDecision,
   useDecisionLog,
@@ -33,29 +35,29 @@ export function DecisionStatusPill() {
 function renderReason(reason: DecisionReason): { tint: string; label: string } {
   switch (reason.kind) {
     case 'no-quad':
-      return { tint: '#6e7686', label: 'No card seen' };
+      return { tint: d.textSubtle, label: 'No card seen' };
     case 'blocked-floor':
       return {
-        tint: '#f59e0b',
+        tint: d.warning,
         label: `Blocked: ${reason.floor} ${fmt(reason.value)} / ${fmt(reason.threshold)}`,
       };
     case 'cooldown': {
       const seconds = (reason.msRemaining / 1000).toFixed(1);
-      return { tint: '#f59e0b', label: `Cooldown ${seconds}s` };
+      return { tint: d.warning, label: `Cooldown ${seconds}s` };
     }
     case 'below-band':
       return {
-        tint: '#cbd1da',
+        tint: d.text,
         label: `Score ${reason.composite.toFixed(2)} / ${reason.thresholdHigh.toFixed(2)} — too low`,
       };
     case 'progressing':
       return {
-        tint: '#22c55e',
+        tint: d.success,
         label: 'Stable — capture imminent',
       };
     case 'fired':
       return {
-        tint: '#22c55e',
+        tint: d.success,
         label: 'Fired',
       };
   }
@@ -91,7 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   text: {
-    color: '#f5f5f5',
+    color: d.text,
     fontSize: 12,
     fontWeight: '600',
     fontFamily: 'monospace',

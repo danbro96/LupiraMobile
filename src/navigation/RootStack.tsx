@@ -6,28 +6,28 @@ import { LoginScreen } from '../features/me/LoginScreen';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { ScanSettingsScreen } from '../features/scan/ScanSettingsScreen';
 import { ScanDebugLogScreen } from '../features/scan/ScanDebugLogScreen';
-import { colors } from '../components/theme';
+import { useColors } from '../ui/theme';
 import { MtgTabs } from './MtgTabs';
-import { stackScreenOptions } from './stackScreenOptions';
 import { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 // Auth-gated: Login until signed in, then the tabs with Settings and its sub-screens pushed over them.
 export function RootStack() {
+  const c = useColors();
   const loaded = useAuth(s => s.loaded);
   const authed = useAuth(s => !!s.token && !!s.user);
 
   if (!loaded) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: c.bg }]}>
         <ActivityIndicator />
       </View>
     );
   }
 
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
+    <Stack.Navigator>
       {authed ? (
         <>
           <Stack.Screen name="Tabs" component={MtgTabs} options={{ headerShown: false }} />
@@ -43,5 +43,5 @@ export function RootStack() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

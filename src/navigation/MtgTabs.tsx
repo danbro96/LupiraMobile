@@ -1,21 +1,23 @@
 import React from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Ionicons } from '@expo/vector-icons';
 import { MtgStack } from './MtgStack';
 import { ScanStack } from './ScanStack';
 import { CollectionsStack } from './CollectionsStack';
 import { MtgTabParamList } from './types';
+import { useColors } from '../ui/theme';
+import { ICONS } from '../ui/icons';
 
 const Tab = createBottomTabNavigator<MtgTabParamList>();
 
 export function MtgTabs() {
+  const c = useColors();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: '#0e1117', borderTopColor: '#1a1f29' },
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#6e7686',
+        tabBarActiveTintColor: c.primary,
+        tabBarInactiveTintColor: c.textMuted,
       }}
     >
       <Tab.Screen
@@ -23,9 +25,7 @@ export function MtgTabs() {
         component={MtgStack}
         options={{
           title: 'Cards',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialIcons name={ICONS.search} size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -33,9 +33,7 @@ export function MtgTabs() {
         component={ScanStack}
         options={{
           title: 'Scan',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'scan' : 'scan-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialIcons name={ICONS.scan} size={size} color={color} />,
         }}
       />
       <Tab.Screen
@@ -43,9 +41,7 @@ export function MtgTabs() {
         component={CollectionsStack}
         options={{
           title: 'Collections',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'folder' : 'folder-outline'} size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <MaterialIcons name={ICONS.folder} size={size} color={color} />,
         }}
       />
     </Tab.Navigator>

@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
   AppState,
   AppStateStatus,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native-paper';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import {
   Camera,
   type CameraRef,
@@ -54,13 +53,21 @@ import {
   useDecisionLog,
   type DecisionReason,
 } from './decisionLogStore';
-import { Icon } from '../../components/Icon';
 import { breadcrumb } from '../../observability/breadcrumb';
+import { ICONS } from '../../ui/icons';
+import { darkColors, spacing, useColors, type Palette } from '../../ui/theme';
+import { Button } from '../../ui/components/Button';
+import { useConfirm } from '../../ui/components/ConfirmDialog';
+import { toastError } from '../../feedback/toast';
+import { hapticSuccess } from '../../feedback/haptics';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
+  const c = useColors();
+  const themed = useMemo(() => makeStyles(c), [c]);
+  const confirm = useConfirm();
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
   useEffect(() => {
@@ -352,35 +359,35 @@ export function ScanScreen() {
       addToSelection.mutate(
         { candidate, allowDuplicate: false },
         {
-          onSuccess: () => dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id }),
-          onError: (err) => {
+          onSuccess: () => {
+            hapticSuccess();
+            dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
+          },
+          onError: async (err) => {
             if (err instanceof ApiError && err.status === 409) {
-              Alert.alert(
-                'Already in selection',
-                'This printing is already in your current selection. Add another copy?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Add another',
-                    onPress: () =>
-                      addToSelection.mutate(
-                        { candidate, allowDuplicate: true },
-                        {
-                          onSuccess: () =>
-                            dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id }),
-                        },
-                      ),
+              const again = await confirm({
+                title: 'Already in selection',
+                message: 'This printing is already in your current selection. Add another copy?',
+                confirmLabel: 'Add another',
+              });
+              if (!again) return;
+              addToSelection.mutate(
+                { candidate, allowDuplicate: true },
+                {
+                  onSuccess: () => {
+                    hapticSuccess();
+                    dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
                   },
-                ],
+                },
               );
             } else {
-              Alert.alert('Add failed', (err as Error).message);
+              toastError((err as Error).message);
             }
           },
         },
       );
     },
-    [addToSelection],
+    [addToSelection, confirm],
   );
   const onDismissTile = useCallback((id: CaptureId) => {
     dispatch({ type: 'capture/dismiss', id });
@@ -398,15 +405,13 @@ export function ScanScreen() {
 
   if (!hasPermission) {
     return (
-      <View style={styles.container}>
-        <View style={styles.permissionWrap}>
-          <Text style={styles.permissionTitle}>Camera access required</Text>
-          <Text style={styles.permissionBody}>
+      <View style={themed.screen}>
+        <View style={themed.permissionWrap}>
+          <Text variant="headlineSmall">Camera access required</Text>
+          <Text variant="bodyMedium" style={themed.permissionBody}>
             Lupira MTG uses the camera to scan Magic: The Gathering cards. Tap below to grant access.
           </Text>
-          <Pressable onPress={() => void requestPermission()} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Grant access</Text>
-          </Pressable>
+          <Button title="Grant access" onPress={() => void requestPermission()} />
         </View>
       </View>
     );
@@ -414,7 +419,7 @@ export function ScanScreen() {
 
   if (!device) {
     return (
-      <View style={styles.container}>
+      <View style={themed.screen}>
         <ActivityIndicator style={styles.center} />
       </View>
     );
@@ -478,7 +483,7 @@ export function ScanScreen() {
       <View style={styles.cameraOverlay} pointerEvents="box-none">
         {selectionCount > 0 ? (
           <Pressable style={styles.selectionBadge} onPress={goToSelection}>
-            <Icon name="layers" size={14} color="white" />
+            <MaterialIcons name={ICONS.layers} size={14} color={darkColors.onPrimary} />
             <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
           </Pressable>
         ) : null}
@@ -500,7 +505,11 @@ export function ScanScreen() {
           disabled={selectionCount === 0}
           accessibilityLabel="Review scanned selection"
         >
-          <Icon name="layers-outline" size={18} color={selectionCount === 0 ? 'muted' : 'white'} />
+          <MaterialIcons
+            name={ICONS.layers}
+            size={18}
+            color={selectionCount === 0 ? HUD_MUTED : darkColors.onPrimary}
+          />
           <Text
             style={[
               styles.doneButtonText,
@@ -540,12 +549,22 @@ function FrameTheCardHint({
 
   return (
     <View style={styles.frameHintWrap} pointerEvents="none">
-      <Icon name="scan-outline" size={56} tint="rgba(255,255,255,0.45)" />
+      <MaterialIcons name={ICONS.scan} size={56} color="rgba(255,255,255,0.45)" />
       <Text style={styles.frameHintText}>Position a card in view</Text>
     </View>
   );
 }
 
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: c.bg },
+    permissionWrap: { flex: 1, padding: spacing.xl, justifyContent: 'center', gap: spacing.lg },
+    permissionBody: { color: c.textMuted },
+  });
+
+const HUD_MUTED = 'rgba(255,255,255,0.6)';
+
+// Camera HUD: always dark regardless of scheme.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -572,12 +591,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#3b82f6',
+    backgroundColor: darkColors.primary,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  selectionBadgeText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  selectionBadgeText: { color: darkColors.onPrimary, fontWeight: '700', fontSize: 13 },
   frameHintWrap: {
     position: 'absolute',
     top: 0,
@@ -596,22 +615,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  permissionWrap: { flex: 1, padding: 24, justifyContent: 'center', gap: 16 },
-  permissionTitle: { color: '#f5f5f5', fontSize: 24, fontWeight: '700' },
-  permissionBody: { color: '#cbd1da', fontSize: 14, lineHeight: 20 },
-  primaryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-
   doneBar: {
     position: 'absolute',
     bottom: 116,
@@ -623,7 +626,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#3b82f6',
+    backgroundColor: darkColors.primary,
     borderRadius: 999,
     paddingVertical: 12,
     paddingHorizontal: 18,
@@ -633,6 +636,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  doneButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  doneButtonTextDisabled: { color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
+  doneButtonText: { color: darkColors.onPrimary, fontSize: 14, fontWeight: '700' },
+  doneButtonTextDisabled: { color: HUD_MUTED, fontWeight: '500' },
 });

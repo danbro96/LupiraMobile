@@ -3,9 +3,11 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Polygon } from 'react-native-svg';
 import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics, FrameSize, Quad } from '../detection/useCardDetection';
+import { darkColors } from '../../../ui/theme';
 
-const ACCENT = '#3b82f6';
-const ACCENT_BRIGHT = '#60a5fa';
+const ACCENT = darkColors.primary;
+// Threshold met / countdown running: green, matching the status pill's "progressing" state.
+const ACCENT_BRIGHT = darkColors.success;
 
 type Props = {
   quad: Synchronizable<Quad | null>;
@@ -102,7 +104,7 @@ function CornerRing({
   const dash = circumference * progress;
   return (
     <>
-      <Circle cx={cx} cy={cy} r={r + 2} stroke="#0e1117" strokeOpacity={0.5} strokeWidth={1} fill="transparent" />
+      <Circle cx={cx} cy={cy} r={r + 2} stroke={darkColors.bg} strokeOpacity={0.5} strokeWidth={1} fill="transparent" />
       <Circle cx={cx} cy={cy} r={r} stroke={active ? ACCENT_BRIGHT : ACCENT} strokeOpacity={0.35} strokeWidth={2} fill="transparent" />
       <Circle
         cx={cx}

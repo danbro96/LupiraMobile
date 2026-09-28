@@ -1,17 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuth } from '../../store/auth-store';
 import {
   OIDC_CLIENT_ID,
@@ -22,6 +15,11 @@ import {
 } from '../../auth/oidcConfig';
 import { decodeJwt, exchangeAuthCode } from '../../auth/oidc';
 import { logAuth } from '../../auth/authDebug';
+import { Button } from '../../ui/components/Button';
+import { TextField } from '../../ui/components/TextField';
+import { toastError } from '../../feedback/toast';
+import { radii, spacing, useColors, type Palette } from '../../ui/theme';
+import { ICONS } from '../../ui/icons';
 
 // Lets the auth redirect dismiss the in-app browser and resolve the pending session.
 WebBrowser.maybeCompleteAuthSession();
@@ -50,6 +48,8 @@ export function LoginScreen() {
   const [apiInput, setApiInput] = useState(mtgApiUrl);
   const [savingApi, setSavingApi] = useState(false);
   const apiDirty = apiInput.trim() !== mtgApiUrl;
+  const c = useColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
 
   async function handleSignIn() {
     setError(null);
@@ -117,7 +117,7 @@ export function LoginScreen() {
   const onSaveApi = async () => {
     const url = apiInput.trim();
     if (!url) {
-      Alert.alert('API URL required.');
+      toastError('API URL required.');
       return;
     }
     setSavingApi(true);
@@ -131,49 +131,51 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Lupira MTG</Text>
+        <View style={styles.logo}>
+          <MaterialIcons name={ICONS.layers} size={52} color={c.onPrimary} />
+        </View>
+        <Text variant="headlineSmall">Lupira MTG</Text>
         <Text style={styles.subtitle}>Sign in with your Lupira account to reach your collections.</Text>
 
-        <Pressable
+        <Button
+          title="Sign in with Authentik"
           onPress={() => void handleSignIn()}
-          disabled={!request || busy || apiDirty}
-          style={[styles.primaryButton, (!request || busy || apiDirty) && styles.disabled]}
-        >
-          {busy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.primaryButtonText}>Sign in with Authentik</Text>
-          )}
-        </Pressable>
+          disabled={!request || apiDirty}
+          loading={busy}
+          style={styles.button}
+          contentStyle={styles.buttonContent}
+        />
 
         {apiDirty ? <Text style={styles.hint}>Save the API URL first, then sign in.</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable onPress={() => setShowAdvanced(v => !v)} style={styles.advancedToggle}>
-          <Text style={styles.advancedTitle}>{showAdvanced ? 'Hide advanced' : 'Advanced'}</Text>
-        </Pressable>
+        <Button
+          title={showAdvanced ? 'Hide advanced' : 'Advanced'}
+          variant="text"
+          onPress={() => setShowAdvanced(v => !v)}
+          style={styles.advancedToggle}
+        />
 
         {showAdvanced ? (
           <View style={styles.formGroup}>
-            <Text style={styles.label}>API base URL</Text>
-            <TextInput
+            <TextField
+              label="API base URL"
               value={apiInput}
               onChangeText={setApiInput}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="url"
               placeholder="https://mtg-api.lupira.com"
-              placeholderTextColor="#6e7686"
               style={styles.input}
             />
             <Text style={styles.hint}>Override for dev (e.g. http://192.168.x.x:8080).</Text>
-            <Pressable
-              onPress={onSaveApi}
-              disabled={!apiDirty || savingApi}
-              style={[styles.secondaryButton, (!apiDirty || savingApi) && styles.disabled]}
-            >
-              {savingApi ? <ActivityIndicator /> : <Text style={styles.secondaryButtonText}>Save API URL</Text>}
-            </Pressable>
+            <Button
+              title="Save API URL"
+              variant="secondary"
+              onPress={() => void onSaveApi()}
+              disabled={!apiDirty}
+              loading={savingApi}
+            />
             <Text style={styles.hint}>redirect: {redirectUri}</Text>
           </View>
         ) : null}
@@ -182,43 +184,25 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0e1117' },
-  scroll: { padding: 24, gap: 16 },
-  title: { color: '#f5f5f5', fontSize: 32, fontWeight: '700', marginTop: 32 },
-  subtitle: { color: '#9aa3b2', fontSize: 16, marginBottom: 16 },
-  formGroup: { gap: 6 },
-  label: { color: '#cbd1da', fontSize: 14, fontWeight: '600' },
-  input: {
-    backgroundColor: '#1a1f29',
-    color: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#2c3340',
-  },
-  hint: { color: '#6e7686', fontSize: 12 },
-  primaryButton: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  secondaryButton: {
-    borderColor: '#3b82f6',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  secondaryButtonText: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
-  disabled: { opacity: 0.5 },
-  error: { color: '#f97373', fontSize: 14, marginTop: 8 },
-  advancedToggle: { marginTop: 16, paddingVertical: 4 },
-  advancedTitle: { color: '#cbd1da', fontSize: 14, fontWeight: '700' },
-});
+const makeStyles = (c: Palette) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+    logo: {
+      width: 96,
+      height: 96,
+      borderRadius: radii.lg + 8,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.xl,
+    },
+    subtitle: { marginTop: spacing.sm, marginBottom: 28, fontSize: 15, color: c.textMuted, textAlign: 'center' },
+    button: { width: '100%', maxWidth: 360, borderRadius: radii.round },
+    buttonContent: { paddingVertical: 8 },
+    error: { marginTop: spacing.lg, color: c.danger, textAlign: 'center' },
+    hint: { marginTop: spacing.md, fontSize: 11, color: c.textDisabled },
+    advancedToggle: { marginTop: spacing.lg },
+    formGroup: { width: '100%', maxWidth: 360, gap: spacing.sm },
+    input: { flex: 0 },
+  });

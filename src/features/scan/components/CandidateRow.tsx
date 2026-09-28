@@ -1,7 +1,10 @@
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { CardCandidateDto } from '../../../api/generated/models';
-import { Icon } from '../../../components/Icon';
+import { ICONS } from '../../../ui/icons';
+import { darkColors as d } from '../../../ui/theme';
 
 const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '—');
 
@@ -14,6 +17,8 @@ type Props = {
 };
 
 /**
+ * Rendered in the camera's review modal, so styling is fixed-dark.
+ *
  * One row in the post-scan candidate list. Shows artCrop thumbnail, name +
  * metadata, all sub-scores from the backend, and an "Add" button that fires
  * the parent's `onAdd` handler. Pulled out of `ScanScreen.tsx` so the new
@@ -52,7 +57,7 @@ export function CandidateRow({ candidate, isTop, onAdd, addPending }: Props) {
         disabled={addPending}
         style={[styles.addButton, addPending && styles.disabled]}
       >
-        <Icon name="add-circle" size={16} color="white" />
+        <MaterialIcons name={ICONS.addCircle} size={16} color={d.onPrimary} />
         <Text style={styles.addButtonText}>Add</Text>
       </Pressable>
     </View>
@@ -62,28 +67,28 @@ export function CandidateRow({ candidate, isTop, onAdd, addPending }: Props) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    backgroundColor: '#1a1f29',
+    backgroundColor: d.surface,
     borderRadius: 8,
     padding: 8,
     gap: 12,
     alignItems: 'center',
   },
-  rowTop: { borderColor: '#3b82f6', borderWidth: 1 },
-  thumb: { width: 56, height: 56, borderRadius: 6, backgroundColor: '#2c3340' },
-  thumbPlaceholder: { backgroundColor: '#2c3340' },
+  rowTop: { borderColor: d.primary, borderWidth: 1 },
+  thumb: { width: 56, height: 56, borderRadius: 6, backgroundColor: d.border },
+  thumbPlaceholder: { backgroundColor: d.border },
   text: { flex: 1, gap: 2 },
-  name: { color: '#f5f5f5', fontSize: 15, fontWeight: '600' },
-  meta: { color: '#9aa3b2', fontSize: 12 },
-  scores: { color: '#6e7686', fontSize: 11, fontFamily: 'monospace' },
+  name: { color: d.text, fontSize: 15, fontWeight: '600' },
+  meta: { color: d.textMuted, fontSize: 12 },
+  scores: { color: d.textSubtle, fontSize: 11, fontFamily: 'monospace' },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#3b82f6',
+    backgroundColor: d.primary,
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  addButtonText: { color: d.onPrimary, fontWeight: '700', fontSize: 13 },
   disabled: { opacity: 0.5 },
 });

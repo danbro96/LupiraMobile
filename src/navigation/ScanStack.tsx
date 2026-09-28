@@ -1,19 +1,18 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SettingsButton } from '../components/SettingsButton';
+import { SettingsButton } from '../ui/components/SettingsButton';
 import { ScanScreen } from '../features/scan/ScanScreen';
 import { SelectionScreen } from '../features/scan/SelectionScreen';
 import { PickCollectionScreen } from '../features/scan/PickCollectionScreen';
 import { CardDetailScreen } from '../features/search/CardDetailScreen';
 import { PrintingDetailScreen } from '../features/search/PrintingDetailScreen';
-import { stackScreenOptions } from './stackScreenOptions';
 import { ScanStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<ScanStackParamList>();
 
 export function ScanStack() {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
+    <Stack.Navigator>
       <Stack.Screen
         name="Scan"
         component={ScanScreen}

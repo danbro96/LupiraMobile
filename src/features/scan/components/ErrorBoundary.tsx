@@ -1,6 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from 'react-native-paper';
 import { Sentry } from '../../../observability/breadcrumb';
+import { darkColors } from '../../../ui/theme';
 
 type Props = {
   children: React.ReactNode;
@@ -53,6 +55,6 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 4,
   },
-  title: { color: '#f97373', fontWeight: '700', fontSize: 12 },
+  title: { color: darkColors.danger, fontWeight: '700', fontSize: 12 },
   body: { color: '#fff', fontFamily: 'monospace', fontSize: 11 },
 });
