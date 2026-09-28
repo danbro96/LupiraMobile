@@ -183,7 +183,11 @@ const STABILITY_HISTORY = 8;
 const QUAD_SMOOTH_ALPHA = 0.4;
 /** How many missed-detection frames the smoothed quad survives before clearing. */
 const QUAD_SMOOTH_GRACE_FRAMES = 2;
-/** Consecutive missed frames (~0.3 s at 30 fps) that count as the captured card having left the frame. */
+/**
+ * Consecutive frames (~0.3 s at 30 fps) with no card-shaped contour at all — neither detected nor clipped by the
+ * guide edge — that count as the captured card having left the frame. A card slipping past the guide edge is still
+ * in view and must not re-arm capture.
+ */
 const CARD_REMOVED_MISS_FRAMES = 10;
 
 // --- Decision-policy hard floors. Each signal must clear its floor every
@@ -232,6 +236,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   const framesProcessedShared = useSyncedValue<number>(0);
   const smoothedDetQuad = useSyncedValue<Quad | null>(null);
   const smoothMissCount = useSyncedValue<number>(0);
+  const cardAbsentFrames = useSyncedValue<number>(0);
   // The most recently captured card, in detection space (matches `activeQuad`). Blocks re-fires until
   // that card leaves the frame or moves away — a timer let a held card re-fire every ~1.6 s, and each
   // capture costs a 5–20 s OCR call.
@@ -599,9 +604,12 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           } else {
             smoothedDetQuad.setBlocking(null);
           }
-          if (misses >= CARD_REMOVED_MISS_FRAMES) {
-            lastCapture.setBlocking(null);
-          }
+        }
+
+        const absent = detectedQuad || clippedQuadCount > 0 ? 0 : cardAbsentFrames.getDirty() + 1;
+        cardAbsentFrames.setBlocking(absent);
+        if (absent >= CARD_REMOVED_MISS_FRAMES) {
+          lastCapture.setBlocking(null);
         }
 
         if (!activeQuad) {
