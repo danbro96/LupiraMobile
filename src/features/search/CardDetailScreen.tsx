@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { FlashList, type ListRenderItem } from '@shopify/flash-list';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
@@ -33,6 +34,17 @@ export function CardDetailScreen() {
 
   const card = cardQuery.data;
   const printings = printingsQuery.data ?? [];
+
+  const renderPrinting = useCallback<ListRenderItem<CardPrintingDto>>(
+    ({ item }) => (
+      <PrintingTile
+        printing={item}
+        styles={styles}
+        onPress={() => navigation.navigate('PrintingDetail', { oracleId: params.oracleId, printingId: item.id })}
+      />
+    ),
+    [styles, navigation, params.oracleId],
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -87,25 +99,16 @@ export function CardDetailScreen() {
               </Text>
             ) : null}
 
-            <ScrollView
+            {/* Basic lands have hundreds of printings; recycle tiles instead of mounting every image. */}
+            <FlashList
               horizontal
+              data={printings}
+              keyExtractor={p => p.id}
+              renderItem={renderPrinting}
+              ItemSeparatorComponent={PrintingGap}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.printingsRow}
-            >
-              {printings.map((p) => (
-                <PrintingTile
-                  key={p.id}
-                  printing={p}
-                  styles={styles}
-                  onPress={() =>
-                    navigation.navigate('PrintingDetail', {
-                      oracleId: card.oracleId,
-                      printingId: p.id,
-                    })
-                  }
-                />
-              ))}
-            </ScrollView>
+            />
           </>
         ) : null}
       </ScrollView>
@@ -113,7 +116,9 @@ export function CardDetailScreen() {
   );
 }
 
-function PrintingTile({
+const PrintingGap = () => <View style={{ width: 10 }} />;
+
+const PrintingTile = memo(function PrintingTile({
   printing,
   styles,
   onPress,
@@ -138,7 +143,7 @@ function PrintingTile({
       </Text>
     </Pressable>
   );
-}
+});
 
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
@@ -159,7 +164,7 @@ const makeStyles = (c: Palette) =>
     },
     printingsTitle: { fontWeight: '700' },
     printingsCount: { color: c.textSubtle },
-    printingsRow: { gap: 10, paddingVertical: spacing.xs },
+    printingsRow: { paddingVertical: spacing.xs },
     printingTile: { width: 96, gap: spacing.xs, alignItems: 'center' },
     printingThumb: { width: 96, height: 96, borderRadius: radii.md, backgroundColor: c.surface },
     printingSet: { fontWeight: '700' },

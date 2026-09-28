@@ -1,5 +1,6 @@
-import React, { useLayoutEffect, useMemo, useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import React, { memo, useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { FlashList, type ListRenderItem } from '@shopify/flash-list';
 import { ActivityIndicator, Button as PaperButton, Dialog, Portal, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -85,27 +86,32 @@ export function CollectionDetailScreen() {
     });
   }, [navigation, detail.data?.name, remove, confirm, styles, c]);
 
+  const onRemove = useCallback(
+    async (card: CardInstanceDto) => {
+      const ok = await confirm({
+        title: 'Remove card?',
+        message: `Drop ${card.printing.name} from this collection?`,
+        confirmLabel: 'Remove',
+        destructive: true,
+      });
+      if (ok) removeCard.mutate(card.instanceId);
+    },
+    [confirm, removeCard],
+  );
+
+  const renderItem = useCallback<ListRenderItem<CardInstanceDto>>(
+    ({ item }) => <CardRow card={item} styles={styles} palette={c} onRemove={onRemove} />,
+    [styles, c, onRemove],
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <FlatList
+      {/* Collections are unbounded (one GET returns every card), so rows are recycled. */}
+      <FlashList
         data={detail.data?.cards ?? []}
         keyExtractor={card => card.instanceId}
-        renderItem={({ item }) => (
-          <CardRow
-            card={item}
-            styles={styles}
-            palette={c}
-            onRemove={async () => {
-              const ok = await confirm({
-                title: 'Remove card?',
-                message: `Drop ${item.printing.name} from this collection?`,
-                confirmLabel: 'Remove',
-                destructive: true,
-              });
-              if (ok) removeCard.mutate(item.instanceId);
-            }}
-          />
-        )}
+        renderItem={renderItem}
+        ItemSeparatorComponent={Separator}
         ListEmptyComponent={
           detail.isLoading ? (
             <ActivityIndicator style={styles.center} />
@@ -133,7 +139,9 @@ export function CollectionDetailScreen() {
   );
 }
 
-function CardRow({
+const Separator = () => <View style={{ height: spacing.sm }} />;
+
+const CardRow = memo(function CardRow({
   card,
   styles,
   palette,
@@ -142,7 +150,7 @@ function CardRow({
   card: CardInstanceDto;
   styles: ReturnType<typeof makeStyles>;
   palette: Palette;
-  onRemove: () => void;
+  onRemove: (card: CardInstanceDto) => void;
 }) {
   const thumb = card.printing.images?.artCrop ?? card.printing.images?.normal ?? null;
   return (
@@ -159,12 +167,12 @@ function CardRow({
           {card.isFoil ? ' · Foil' : ''}
         </Text>
       </View>
-      <Pressable onPress={onRemove} style={styles.removeButton} hitSlop={HIT_SLOP}>
+      <Pressable onPress={() => onRemove(card)} style={styles.removeButton} hitSlop={HIT_SLOP}>
         <MaterialIcons name={ICONS.cancel} size={22} color={palette.danger} />
       </Pressable>
     </View>
   );
-}
+});
 
 function RenameDialog({
   open,
@@ -232,7 +240,7 @@ const dialogStyles = StyleSheet.create({
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    list: { padding: spacing.lg, gap: spacing.sm },
+    list: { padding: spacing.lg },
     row: {
       ...cardSurface(c),
       flexDirection: 'row',
