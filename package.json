@@ -67,6 +67,7 @@
   "private": true,
   "allowScripts": {
     "@sentry/cli": false,
-    "esbuild": false
+    "esbuild": false,
+    "fsevents": false
   }
 }
