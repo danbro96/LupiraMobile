@@ -26,10 +26,10 @@ export const SCAN_MIN_FRAMES_BOUNDS = { min: 2, max: 16 } as const;
  * Trigger-policy constants used by the worklet.
  *
  * - HYSTERESIS_BAND: the score enters the band at `captureThreshold` and only leaves below `captureThreshold - band`
- * - COOLDOWN_MS: after a capture, reject re-fires whose centroid is within `0.4 × shortEdge` for this long
+ * - COOLDOWN_CENTROID_FRACTION: after a capture, a card whose centroid is within this × shortEdge of the captured
+ *   one is treated as the same card and cannot re-fire until it leaves the frame
  */
 export const SCAN_HYSTERESIS_BAND = 0.12;
-export const SCAN_COOLDOWN_MS = 1500;
 export const SCAN_COOLDOWN_CENTROID_FRACTION = 0.4;
 
 export type ScanWeights = {

@@ -241,7 +241,7 @@ function reasonLabel(reason: DecisionReason): string {
     case 'blocked-floor':
       return `${reason.floor} ${fmtSignal(reason.value)} below floor ${fmtSignal(reason.threshold)}`;
     case 'cooldown':
-      return `Cooldown — ${(reason.msRemaining / 1000).toFixed(1)} s remaining`;
+      return 'Captured card still in view — waiting for it to leave';
     case 'below-band':
       return `Score ${reason.composite.toFixed(2)} below threshold ${reason.thresholdHigh.toFixed(2)}`;
     case 'progressing':

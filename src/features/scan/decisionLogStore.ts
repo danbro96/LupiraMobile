@@ -20,7 +20,7 @@ export type DecisionReason =
       value: number;
       threshold: number;
     }
-  | { kind: 'cooldown'; msRemaining: number }
+  | { kind: 'cooldown' }
   | { kind: 'progressing'; stableFrames: number; minStableFrames: number }
   | { kind: 'fired'; quadCentroid: { x: number; y: number } };
 
@@ -94,6 +94,10 @@ export function deriveDecisionReason(
   if (!m.hasQuad) {
     return { kind: 'no-quad', clipped: m.clippedQuadCount > 0 };
   }
+  // Ahead of the floors: once captured, "next card" is the actionable message whatever the signals do.
+  if (m.cooldownActive) {
+    return { kind: 'cooldown' };
+  }
   // Report the worst-failing hard floor (largest *relative* gap below it).
   const tooBright = m.brightness > HARD_FLOORS.brightnessMax;
   const brightnessThreshold = tooBright ? HARD_FLOORS.brightnessMax : HARD_FLOORS.brightnessMin;
@@ -110,9 +114,6 @@ export function deriveDecisionReason(
   }
   if (worst) {
     return { kind: 'blocked-floor', floor: worst.floor, value: worst.value, threshold: worst.threshold };
-  }
-  if (m.cooldownActive) {
-    return { kind: 'cooldown', msRemaining: m.cooldownRemainingMs };
   }
   if (!m.inHysteresis) {
     const thresholdLow = thresholdHigh - SCAN_HYSTERESIS_BAND;

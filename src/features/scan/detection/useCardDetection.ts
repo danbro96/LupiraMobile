@@ -20,7 +20,6 @@ import {
 } from 'react-native-fast-opencv';
 import {
   SCAN_COOLDOWN_CENTROID_FRACTION,
-  SCAN_COOLDOWN_MS,
   SCAN_HYSTERESIS_BAND,
 } from '../../../store/scan-settings-store';
 import { useSyncedValue } from './useSyncedValue';
@@ -58,14 +57,8 @@ export type DetectionMetrics = {
   hardFloorPass: boolean;
   /** True if the composite score has entered the hysteresis band. */
   inHysteresis: boolean;
-  /** True if a recent capture's content-cooldown is still suppressing fires. */
+  /** True while the last captured card is still in view; cleared once it leaves the frame or moves away. */
   cooldownActive: boolean;
-  /**
-   * Milliseconds remaining on the content-cooldown window. 0 when no cooldown
-   * is in effect. Lets the status pill show e.g. "Cooldown 0.8 s" without the
-   * JS thread needing to track its own timer.
-   */
-  cooldownRemainingMs: number;
   pixelFormat: string;
   orientation: string;
   isMirrored: boolean;
@@ -140,7 +133,6 @@ const INITIAL_METRICS: DetectionMetrics = {
   hardFloorPass: false,
   inHysteresis: false,
   cooldownActive: false,
-  cooldownRemainingMs: 0,
   pixelFormat: 'unknown',
   orientation: 'unknown',
   isMirrored: false,
@@ -191,6 +183,8 @@ const STABILITY_HISTORY = 8;
 const QUAD_SMOOTH_ALPHA = 0.4;
 /** How many missed-detection frames the smoothed quad survives before clearing. */
 const QUAD_SMOOTH_GRACE_FRAMES = 2;
+/** Consecutive missed frames (~0.3 s at 30 fps) that count as the captured card having left the frame. */
+const CARD_REMOVED_MISS_FRAMES = 10;
 
 // --- Decision-policy hard floors. Each signal must clear its floor every
 // frame; a single failure resets the stable counter regardless of composite.
@@ -238,10 +232,10 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   const framesProcessedShared = useSyncedValue<number>(0);
   const smoothedDetQuad = useSyncedValue<Quad | null>(null);
   const smoothMissCount = useSyncedValue<number>(0);
-  // Content-cooldown record from the most recent successful auto-capture.
-  // Stored in detection-space coordinates (matches `activeQuad`).
+  // The most recently captured card, in detection space (matches `activeQuad`). Blocks re-fires until
+  // that card leaves the frame or moves away — a timer let a held card re-fire every ~1.6 s, and each
+  // capture costs a 5–20 s OCR call.
   const lastCapture = useSyncedValue<{
-    at: number;
     centroidX: number;
     centroidY: number;
     shortEdge: number;
@@ -605,6 +599,9 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           } else {
             smoothedDetQuad.setBlocking(null);
           }
+          if (misses >= CARD_REMOVED_MISS_FRAMES) {
+            lastCapture.setBlocking(null);
+          }
         }
 
         if (!activeQuad) {
@@ -612,13 +609,9 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           history.setBlocking([]);
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
-          // Surface remaining cooldown so the pill can count down between cards.
-          const cdNoQuad = lastCapture.getDirty();
           metrics.setBlocking({
             ...pipelineMetrics(),
             brightness: brightnessRaw,
-            cooldownRemainingMs:
-              cdNoQuad && now - cdNoQuad.at < SCAN_COOLDOWN_MS ? SCAN_COOLDOWN_MS - (now - cdNoQuad.at) : 0,
           });
           return;
         }
@@ -667,13 +660,13 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         const centroidY = (activeQuad[0].y + activeQuad[2].y) / 2;
         const cooldown = lastCapture.getDirty();
         let cooldownActive = false;
-        let cooldownRemainingMs = 0;
-        if (cooldown && now - cooldown.at < SCAN_COOLDOWN_MS) {
-          cooldownRemainingMs = SCAN_COOLDOWN_MS - (now - cooldown.at);
+        if (cooldown) {
           const dx = centroidX - cooldown.centroidX;
           const dy = centroidY - cooldown.centroidY;
           if (Math.sqrt(dx * dx + dy * dy) < cooldown.shortEdge * SCAN_COOLDOWN_CENTROID_FRACTION) {
             cooldownActive = true;
+          } else {
+            lastCapture.setBlocking(null);
           }
         }
 
@@ -696,7 +689,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           hardFloorPass,
           inHysteresis: nowInBand,
           cooldownActive,
-          cooldownRemainingMs,
           historyDepth: prevHist.length,
         };
         metrics.setBlocking(frameMetrics);
@@ -709,7 +701,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         const nextStable = stableFrames.getDirty() + 1;
         stableFrames.setBlocking(nextStable);
         if (tune.autoCaptureEnabled && nextStable >= tune.minStableFrames) {
-          lastCapture.setBlocking({ at: now, centroidX, centroidY, shortEdge: shortEdgeDet });
+          lastCapture.setBlocking({ centroidX, centroidY, shortEdge: shortEdgeDet });
 
           // Warp the exact frame that passed the gates; `gray` lives until the outer finally's clearBuffers.
           let captureUri = '';

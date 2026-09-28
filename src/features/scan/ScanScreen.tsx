@@ -147,6 +147,61 @@ export function ScanScreen() {
   const cameraActiveRef = useRef(cameraActive);
   cameraActiveRef.current = cameraActive;
 
+  // Uploads run one at a time: the OCR backend processes one image at a time, so parallel scans only
+  // queue there and hit its 30 s timeout. Waiting here keeps every request inside the timeout.
+  const uploadChain = useRef<Promise<void>>(Promise.resolve());
+  const uploadsPending = useRef(0);
+
+  const upload = useCallback(
+    async (id: CaptureId, captureUri: string, queuedAt: number) => {
+      const uploadStartedAt = Date.now();
+      const queueMs = uploadStartedAt - queuedAt;
+      try {
+        const response = await scanCard(captureUri);
+        traceScan('result', `${response.confidence} · ${response.candidates[0]?.printing.name ?? 'no match'}`, {
+          captureId: id,
+          level: response.candidates.length === 0 ? 'warning' : 'info',
+          data: { queueMs, uploadMs: Date.now() - uploadStartedAt, ...summariseScanResponse(response) },
+        });
+        dispatch({ type: 'capture/recognised', id, response });
+
+        // Lower-confidence captures stay staged for tap-to-confirm review.
+        if (response.confidence === 'High' && response.candidates.length > 0) {
+          const top = response.candidates[0];
+          dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
+          addToSelection.mutate(
+            { candidate: top, allowDuplicate: false },
+            {
+              onSuccess: () => {
+                traceScan('add', `auto-added ${top.printing.name}`, { captureId: id });
+              },
+              onError: (err) => {
+                if (err instanceof ApiError && err.status === 409) {
+                  traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
+                  return;
+                }
+                traceScan('add', 'auto-add failed', {
+                  captureId: id,
+                  level: 'warning',
+                  data: describeError(err),
+                });
+              },
+            },
+          );
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        traceScan('upload', 'scan request failed', {
+          captureId: id,
+          level: 'error',
+          data: { queueMs, uploadMs: Date.now() - uploadStartedAt, ...describeError(err) },
+        });
+        dispatch({ type: 'capture/error', id, message: msg });
+      }
+    },
+    [addToSelection],
+  );
+
   const captureAndScan = useCallback(
     async (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => {
       const id: CaptureId = newCaptureId();
@@ -191,52 +246,15 @@ export function ScanScreen() {
       logCropFile(id, captureUri, diag.warpMs);
       dispatch({ type: 'capture/add', id, createdAt: Date.now(), uri: captureUri });
 
-      const uploadStartedAt = Date.now();
-      traceScan('upload', 'POST /scans', { captureId: id, level: 'debug' });
-      try {
-        const response = await scanCard(captureUri);
-        traceScan('result', `${response.confidence} · ${response.candidates[0]?.printing.name ?? 'no match'}`, {
-          captureId: id,
-          level: response.candidates.length === 0 ? 'warning' : 'info',
-          data: { uploadMs: Date.now() - uploadStartedAt, ...summariseScanResponse(response) },
-        });
-        dispatch({ type: 'capture/recognised', id, response });
-
-        // Lower-confidence captures stay staged for tap-to-confirm review.
-        if (response.confidence === 'High' && response.candidates.length > 0) {
-          const top = response.candidates[0];
-          dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
-          addToSelection.mutate(
-            { candidate: top, allowDuplicate: false },
-            {
-              onSuccess: () => {
-                traceScan('add', `auto-added ${top.printing.name}`, { captureId: id });
-              },
-              onError: (err) => {
-                if (err instanceof ApiError && err.status === 409) {
-                  traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
-                  return;
-                }
-                traceScan('add', 'auto-add failed', {
-                  captureId: id,
-                  level: 'warning',
-                  data: describeError(err),
-                });
-              },
-            },
-          );
-        }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        traceScan('upload', 'scan request failed', {
-          captureId: id,
-          level: 'error',
-          data: { uploadMs: Date.now() - uploadStartedAt, ...describeError(err) },
-        });
-        dispatch({ type: 'capture/error', id, message: msg });
-      }
+      const queuedAt = Date.now();
+      const ahead = uploadsPending.current++;
+      traceScan('upload', ahead > 0 ? `queued behind ${ahead}` : 'POST /scans', { captureId: id, level: 'debug' });
+      const run = uploadChain.current.then(() => upload(id, captureUri, queuedAt));
+      uploadChain.current = run;
+      await run;
+      uploadsPending.current--;
     },
-    [addToSelection, appendDecisionLog],
+    [appendDecisionLog, upload],
   );
 
   const onAutoCapture = useCallback(
