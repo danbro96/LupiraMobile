@@ -5,6 +5,7 @@ import { List, Text } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../store/auth-store';
+import { APP_VERSION } from '../../config';
 import type { RootStackParamList } from '../../navigation/types';
 import { Button } from '../../ui/components/Button';
 import { useConfirm } from '../../ui/components/ConfirmDialog';
@@ -55,6 +56,9 @@ export function SettingsScreen() {
         onPress={() => navigation.navigate('ScanSettings')}
       />
 
+      <List.Subheader>About</List.Subheader>
+      <Text variant="labelSmall" style={styles.version}>Lupira MTG v{APP_VERSION}</Text>
+
       <List.Subheader>Developer</List.Subheader>
       <List.Item
         title="Decision log"
@@ -86,6 +90,7 @@ const makeStyles = (c: Palette) =>
       marginBottom: spacing.lg,
     },
     email: { color: c.textMuted },
+    version: { color: c.textSubtle, paddingHorizontal: spacing.lg },
     role: { color: c.primary, marginTop: spacing.xs },
     action: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
     mono: { fontFamily: 'monospace' },

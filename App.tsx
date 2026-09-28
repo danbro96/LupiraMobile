@@ -13,9 +13,10 @@ import { ConfirmDialogHost } from './src/ui/components/ConfirmDialog';
 import { navDark, navLight, paperDark, paperLight } from './src/ui/theme';
 import { paperSettings } from './src/ui/theme/paperSettings';
 import * as Sentry from '@sentry/react-native';
+import { SENTRY_DSN } from './src/config';
 
 Sentry.init({
-  dsn: 'https://dcb0e67aeb971bbec6f13deca66bea4c@o4511341575733248.ingest.de.sentry.io/4511341579862096',
+  dsn: SENTRY_DSN,
 
   // Attaches IP address, cookies and user to every event.
   sendDefaultPii: true,
