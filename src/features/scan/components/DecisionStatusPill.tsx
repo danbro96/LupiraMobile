@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { darkColors as d } from '../../../ui/theme';
+import { HARD_FLOORS } from '../detection/useCardDetection';
 import {
   selectLatestDecision,
   useDecisionLog,
@@ -10,31 +11,60 @@ import {
 import { fmtSignal, reasonTint } from '../scanFormat';
 
 /**
- * Always-on single-line "why is auto-capture blocked / what is it doing" status, pinned just above the
- * capture gallery so it is visible without opening the debug HUD. Reads `useDecisionLog`'s `latest`
- * selector, which only updates when a new transition is appended (de-duplicated upstream), so the
- * re-render rate is cheap.
+ * Always-on single-line coaching ("Move closer", "Hold steady") pinned above the capture gallery; with
+ * `showDebug` it shows the raw gate values instead. Reads `useDecisionLog`'s `latest` selector, which only
+ * updates when a new transition is appended (de-duplicated upstream), so the re-render rate is cheap.
  */
-export function DecisionStatusPill() {
+export function DecisionStatusPill({ showDebug }: { showDebug: boolean }) {
   const latest = useDecisionLog(selectLatestDecision);
   if (!latest) {
     return null;
   }
 
   const tint = reasonTint(latest.reason, d);
-  const label = reasonLabel(latest.reason);
+  const label = showDebug ? debugLabel(latest.reason) : coachingLabel(latest.reason);
 
   return (
     <View style={[styles.outer, { borderColor: tint }]} pointerEvents="none">
       <View style={[styles.dot, { backgroundColor: tint }]} />
-      <Text style={styles.text} numberOfLines={1}>
+      <Text style={[styles.text, showDebug && styles.debugText]} numberOfLines={1}>
         {label}
       </Text>
     </View>
   );
 }
 
-function reasonLabel(reason: DecisionReason): string {
+function coachingLabel(reason: DecisionReason): string {
+  switch (reason.kind) {
+    case 'no-quad':
+      return reason.clipped ? 'Move the card back inside the frame' : 'Place a card inside the frame';
+    case 'blocked-floor':
+      return floorHint(reason);
+    case 'cooldown':
+      return 'Got it — next card';
+    case 'below-band':
+      return 'Line the card up with the frame';
+    case 'progressing':
+      return 'Hold still…';
+    case 'fired':
+      return 'Captured';
+  }
+}
+
+function floorHint(reason: Extract<DecisionReason, { kind: 'blocked-floor' }>): string {
+  switch (reason.floor) {
+    case 'coverage':
+      return 'Move closer';
+    case 'stability':
+      return 'Hold steady';
+    case 'sharpness':
+      return 'Hold steady — focusing';
+    case 'brightness':
+      return reason.value > HARD_FLOORS.brightnessMax ? 'Too bright — tilt away from glare' : 'Too dark — add light';
+  }
+}
+
+function debugLabel(reason: DecisionReason): string {
   switch (reason.kind) {
     case 'no-quad':
       return reason.clipped ? 'Card past guide edge — move back' : 'No card seen';
@@ -54,7 +84,8 @@ function reasonLabel(reason: DecisionReason): string {
 const styles = StyleSheet.create({
   outer: {
     position: 'absolute',
-    bottom: 132,
+    // Above ScanScreen's action bar (bottom 128, ~44 px tall).
+    bottom: 184,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
@@ -73,8 +104,8 @@ const styles = StyleSheet.create({
   },
   text: {
     color: d.text,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    fontFamily: 'monospace',
   },
+  debugText: { fontSize: 12, fontFamily: 'monospace' },
 });

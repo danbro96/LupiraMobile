@@ -7,9 +7,21 @@ export type SearchStackParamList = {
 };
 
 export type ScanStackParamList = {
-  Scan: undefined;
+  /** `manualMatch`: a capture resolved in PrintingPicker, handed back so its gallery tile shows as added. */
+  Scan: { manualMatch?: { captureId: string; printingId: string; instanceId: string } } | undefined;
   Selection: undefined;
   PickCollection: { selectionId: string };
+  PrintingPicker: {
+    query?: string;
+    oracleId?: string;
+    captureId?: string;
+    /** Selection entries the picked printing replaces (change printing) instead of adding a new card. */
+    replaceInstanceIds?: string[];
+    currentPrintingId?: string;
+    isFoil?: boolean;
+    condition?: string;
+    language?: string;
+  };
   CardDetail: { oracleId: string };
   PrintingDetail: { oracleId: string; printingId: string };
 };

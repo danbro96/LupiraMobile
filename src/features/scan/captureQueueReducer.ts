@@ -6,10 +6,10 @@ export type CaptureId = string;
  * State machine for one capture record:
  *
  *   uploading → recognised
- *             ↘ error
+ *             ↘ error → (retry) uploading
  *
- * `recognised` may carry an `addedPrintingId` if the auto-add policy fired (high-confidence match) — the gallery
- * tile renders a green check vs an amber "needs review" prompt off that. `dismiss` removes a record (swipe-away).
+ * `recognised` carries `added` once a match is in the selection (auto-add or user pick) — the gallery tile
+ * renders a green check vs an amber "needs review" prompt off that. `dismiss` removes a record.
  */
 export type CaptureState =
   | { kind: 'uploading'; uri: string }
@@ -17,10 +17,11 @@ export type CaptureState =
       kind: 'recognised';
       uri: string;
       response: ScanResponse;
-      /** Set when the high-confidence auto-add policy fired for this capture. */
-      addedPrintingId?: string;
+      added?: AddedMatch;
     }
   | { kind: 'error'; uri?: string; message: string };
+
+export type AddedMatch = { printingId: string; instanceId: string };
 
 export type CaptureRecord = {
   id: CaptureId;
@@ -36,12 +37,10 @@ export type CaptureAction =
       id: CaptureId;
       response: ScanResponse;
     }
-  | {
-      type: 'capture/auto-add';
-      id: CaptureId;
-      printingId: string;
-    }
+  | { type: 'capture/added'; id: CaptureId; added: AddedMatch }
+  | { type: 'capture/unadded'; id: CaptureId }
   | { type: 'capture/error'; id: CaptureId; message: string }
+  | { type: 'capture/retry'; id: CaptureId }
   | { type: 'capture/dismiss'; id: CaptureId };
 
 /**
@@ -75,14 +74,23 @@ export function captureQueueReducer(
         };
       });
 
-    case 'capture/auto-add':
+    case 'capture/added':
       return state.map((r) => {
         if (r.id !== action.id) return r;
         if (r.state.kind !== 'recognised') return r;
-        return {
-          ...r,
-          state: { ...r.state, addedPrintingId: action.printingId },
-        };
+        return { ...r, state: { ...r.state, added: action.added } };
+      });
+
+    case 'capture/unadded':
+      return state.map((r) => {
+        if (r.id !== action.id || r.state.kind !== 'recognised') return r;
+        return { ...r, state: { ...r.state, added: undefined } };
+      });
+
+    case 'capture/retry':
+      return state.map((r) => {
+        if (r.id !== action.id || r.state.kind !== 'error' || !r.state.uri) return r;
+        return { ...r, state: { kind: 'uploading', uri: r.state.uri } };
       });
 
     case 'capture/error':
@@ -107,4 +115,8 @@ export function captureQueueReducer(
 /** Sortable, unique-enough capture id without a crypto polyfill: `cap-<ms>-<rand>`. */
 export function newCaptureId(): CaptureId {
   return `cap-${Date.now()}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
+
+export function needsReview(r: CaptureRecord): boolean {
+  return r.state.kind === 'recognised' && r.state.added == null;
 }

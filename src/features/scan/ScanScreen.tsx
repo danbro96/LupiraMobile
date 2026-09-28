@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { ImpactFeedbackStyle } from 'expo-haptics';
 import { Camera, useCameraDevices, useCameraPermission } from 'react-native-vision-camera';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
+import { RouteProp, useIsFocused, useNavigation, useRoute } from '@react-navigation/native';
 import { File } from 'expo-file-system';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError } from '../../api/mutator';
-import { createSelectionCard } from '../../api/generated/selections/selections';
 import { scanCard } from '../../api/scan';
 import type { CardCandidateDto, ScanResponse } from '../../api/generated/models';
 import { ScanStackParamList } from '../../navigation/types';
@@ -32,12 +32,17 @@ import { DebugMetricsPanel } from './components/DebugMetricsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { GuideFrame } from './components/GuideFrame';
 import { CaptureGallery } from './components/CaptureGallery';
+import { CaptureReviewModal } from './components/CaptureReviewModal';
 import { DecisionStatusPill } from './components/DecisionStatusPill';
+import { ScanBanner, type ScanBannerState } from './components/ScanBanner';
 import {
   captureQueueReducer,
+  needsReview,
   newCaptureId,
   type CaptureId,
+  type CaptureRecord,
 } from './captureQueueReducer';
+import { addEntry, DEFAULT_ATTRIBUTES, removeEntries, replaceEntries } from './selectionEdits';
 import {
   buildLogEntry,
   deriveDecisionReason,
@@ -46,19 +51,20 @@ import {
   type DecisionReason,
 } from './decisionLogStore';
 import { breadcrumb } from '../../observability/breadcrumb';
-import { usePolledValue } from './detection/usePolledValue';
 import { traceScan } from './scanTraceStore';
 import { ICONS } from '../../ui/icons';
 import { darkColors, spacing, useColors, type Palette } from '../../ui/theme';
 import { Button } from '../../ui/components/Button';
 import { useConfirm } from '../../ui/components/ConfirmDialog';
 import { toastError } from '../../feedback/toast';
-import { hapticSuccess } from '../../feedback/haptics';
+import { hapticImpact, hapticSuccess } from '../../feedback/haptics';
 
 type Nav = NativeStackNavigationProp<ScanStackParamList, 'Scan'>;
+type Route = RouteProp<ScanStackParamList, 'Scan'>;
 
 export function ScanScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<Route>();
   const c = useColors();
   const themed = useMemo(() => makeStyles(c), [c]);
   const confirm = useConfirm();
@@ -122,24 +128,85 @@ export function ScanScreen() {
   const { ensure: ensureSelection, currentSelectionId } = useCurrentSelection();
   const selectionQuery = useCurrentSelectionQuery(currentSelectionId);
 
-  const addToSelection = useMutation({
-    mutationFn: async (input: { candidate: CardCandidateDto; allowDuplicate: boolean }) => {
-      const selectionId = await ensureSelection();
-      return createSelectionCard(selectionId, {
-        printingId: input.candidate.printing.id,
-        isFoil: false,
-        language: 'en',
-        condition: 'NM',
-        confidence: input.candidate.combinedScore,
-        allowDuplicate: input.allowDuplicate,
-      });
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['selection'] });
-    },
-  });
+  // `ensure` is re-created every render; a ref keeps the upload callbacks (and so the worklet's
+  // onAutoCapture) stable.
+  const ensureSelectionRef = useRef(ensureSelection);
+  ensureSelectionRef.current = ensureSelection;
+  const selectionCardsRef = useRef(selectionQuery.data?.cards);
+  selectionCardsRef.current = selectionQuery.data?.cards;
 
-  const [records, dispatch] = useReducer(captureQueueReducer, [] as ReturnType<typeof captureQueueReducer>);
+  const [records, dispatch] = useReducer(captureQueueReducer, [] as CaptureRecord[]);
+  const recordsRef = useRef(records);
+  recordsRef.current = records;
+
+  const [banner, setBanner] = useState<ScanBannerState | null>(null);
+  const showBanner = useCallback((b: Omit<ScanBannerState, 'nonce'>) => {
+    setBanner((prev) => ({ ...b, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
+  const hideBanner = useCallback(() => setBanner(null), []);
+  const [flashKey, setFlashKey] = useState(0);
+
+  const invalidateSelection = useCallback(
+    () => void queryClient.invalidateQueries({ queryKey: ['selection'] }),
+    [queryClient],
+  );
+
+  const addCandidate = useCallback(
+    async (id: CaptureId, candidate: CardCandidateDto, allowDuplicate: boolean) => {
+      const selectionId = await ensureSelectionRef.current();
+      const entry = await addEntry(selectionId, candidate.printing.id, DEFAULT_ATTRIBUTES, {
+        confidence: candidate.combinedScore,
+        allowDuplicate,
+      });
+      dispatch({ type: 'capture/added', id, added: { printingId: candidate.printing.id, instanceId: entry.instanceId } });
+      invalidateSelection();
+      return { selectionId, instanceId: entry.instanceId };
+    },
+    [invalidateSelection],
+  );
+
+  const undoAdd = useCallback(
+    async (id: CaptureId, selectionId: string, instanceId: string) => {
+      try {
+        await removeEntries(selectionId, [instanceId]);
+        dispatch({ type: 'capture/unadded', id });
+        invalidateSelection();
+      } catch (err: unknown) {
+        toastError((err as Error).message);
+      }
+    },
+    [invalidateSelection],
+  );
+
+  const autoAdd = useCallback(
+    async (id: CaptureId, top: CardCandidateDto) => {
+      try {
+        const { selectionId, instanceId } = await addCandidate(id, top, false);
+        hapticSuccess();
+        showBanner({
+          tone: 'success',
+          message: `${top.printing.name} added`,
+          action: { label: 'Undo', onPress: () => void undoAdd(id, selectionId, instanceId) },
+        });
+        traceScan('add', `auto-added ${top.printing.name}`, { captureId: id });
+      } catch (err: unknown) {
+        if (err instanceof ApiError && err.status === 409) {
+          traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
+          showBanner({
+            tone: 'info',
+            message: `${top.printing.name} is already in the selection`,
+            action: {
+              label: 'Add another',
+              onPress: () => void addCandidate(id, top, true).then(hapticSuccess, (e: Error) => toastError(e.message)),
+            },
+          });
+          return;
+        }
+        traceScan('add', 'auto-add failed', { captureId: id, level: 'warning', data: describeError(err) });
+      }
+    },
+    [addCandidate, showBanner, undoAdd],
+  );
 
   const appendDecisionLog = useDecisionLog((s) => s.append);
 
@@ -165,29 +232,10 @@ export function ScanScreen() {
         });
         dispatch({ type: 'capture/recognised', id, response });
 
-        // Lower-confidence captures stay staged for tap-to-confirm review.
+        // Lower-confidence captures stay staged for tap-to-confirm review. Awaited so selection writes
+        // stay serial with the upload chain (concurrent first adds would each create a selection).
         if (response.confidence === 'High' && response.candidates.length > 0) {
-          const top = response.candidates[0];
-          dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
-          addToSelection.mutate(
-            { candidate: top, allowDuplicate: false },
-            {
-              onSuccess: () => {
-                traceScan('add', `auto-added ${top.printing.name}`, { captureId: id });
-              },
-              onError: (err) => {
-                if (err instanceof ApiError && err.status === 409) {
-                  traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
-                  return;
-                }
-                traceScan('add', 'auto-add failed', {
-                  captureId: id,
-                  level: 'warning',
-                  data: describeError(err),
-                });
-              },
-            },
-          );
+          await autoAdd(id, response.candidates[0]);
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -199,7 +247,20 @@ export function ScanScreen() {
         dispatch({ type: 'capture/error', id, message: msg });
       }
     },
-    [addToSelection],
+    [autoAdd],
+  );
+
+  const enqueueUpload = useCallback(
+    async (id: CaptureId, captureUri: string) => {
+      const queuedAt = Date.now();
+      const ahead = uploadsPending.current++;
+      traceScan('upload', ahead > 0 ? `queued behind ${ahead}` : 'POST /scans', { captureId: id, level: 'debug' });
+      const run = uploadChain.current.then(() => upload(id, captureUri, queuedAt));
+      uploadChain.current = run;
+      await run;
+      uploadsPending.current--;
+    },
+    [upload],
   );
 
   const captureAndScan = useCallback(
@@ -245,16 +306,12 @@ export function ScanScreen() {
 
       logCropFile(id, captureUri, diag.warpMs);
       dispatch({ type: 'capture/add', id, createdAt: Date.now(), uri: captureUri });
+      setFlashKey((k) => k + 1);
+      hapticImpact(ImpactFeedbackStyle.Light);
 
-      const queuedAt = Date.now();
-      const ahead = uploadsPending.current++;
-      traceScan('upload', ahead > 0 ? `queued behind ${ahead}` : 'POST /scans', { captureId: id, level: 'debug' });
-      const run = uploadChain.current.then(() => upload(id, captureUri, queuedAt));
-      uploadChain.current = run;
-      await run;
-      uploadsPending.current--;
+      await enqueueUpload(id, captureUri);
     },
-    [appendDecisionLog, upload],
+    [appendDecisionLog, enqueueUpload],
   );
 
   const onAutoCapture = useCallback(
@@ -342,29 +399,111 @@ export function ScanScreen() {
     return () => clearInterval(id);
   }, [detection.metrics, detection.stableFrames, settings.captureThreshold, settings.minStableFrames, appendDecisionLog]);
 
-  const onAddFromReview = useCallback(
-    async (id: CaptureId, candidate: CardCandidateDto) => {
-      const add = async (allowDuplicate: boolean) => {
-        await addToSelection.mutateAsync({ candidate, allowDuplicate });
-        hapticSuccess();
-        dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
-      };
+  const [reviewing, setReviewing] = useState<{ id: CaptureId; queue: boolean } | null>(null);
+  const [pickPending, setPickPending] = useState(false);
+  const reviewingRecord = reviewing ? records.find((r) => r.id === reviewing.id) ?? null : null;
+  const pendingReview = records.filter(needsReview);
+  const remainingInQueue = reviewing?.queue ? pendingReview.filter((r) => r.id !== reviewing.id).length : 0;
+
+  const startReviewQueue = () => {
+    const first = [...pendingReview].sort((a, b) => a.createdAt - b.createdAt)[0];
+    if (first) setReviewing({ id: first.id, queue: true });
+  };
+
+  const finishReview = useCallback((doneId: CaptureId) => {
+    setReviewing((current) => {
+      if (!current?.queue) return null;
+      const next = recordsRef.current
+        .filter((r) => r.id !== doneId && needsReview(r))
+        .sort((a, b) => a.createdAt - b.createdAt)[0];
+      return next ? { id: next.id, queue: true } : null;
+    });
+  }, []);
+
+  const onPick = useCallback(
+    async (record: CaptureRecord, candidate: CardCandidateDto) => {
+      if (record.state.kind !== 'recognised') return;
+      const previous = record.state.added;
+      setPickPending(true);
       try {
-        await add(false);
+        if (previous) {
+          // The cache can lag a just-auto-added entry, so fall back to defaults rather than skipping the swap.
+          const attrs = selectionCardsRef.current?.find((e) => e.instanceId === previous.instanceId) ?? DEFAULT_ATTRIBUTES;
+          const selectionId = await ensureSelectionRef.current();
+          const [instanceId] = await replaceEntries(selectionId, [previous.instanceId], candidate.printing.id, attrs);
+          dispatch({ type: 'capture/added', id: record.id, added: { printingId: candidate.printing.id, instanceId } });
+          invalidateSelection();
+        } else {
+          try {
+            await addCandidate(record.id, candidate, false);
+          } catch (err: unknown) {
+            if (!(err instanceof ApiError && err.status === 409)) throw err;
+            const again = await confirm({
+              title: 'Already in selection',
+              message: `${candidate.printing.name} is already in your selection. Add another copy?`,
+              confirmLabel: 'Add another',
+            });
+            if (!again) return;
+            await addCandidate(record.id, candidate, true);
+          }
+        }
+        hapticSuccess();
+        finishReview(record.id);
       } catch (err: unknown) {
-        if (!(err instanceof ApiError && err.status === 409)) {
+        toastError((err as Error).message);
+      } finally {
+        setPickPending(false);
+      }
+    },
+    [addCandidate, confirm, finishReview, invalidateSelection],
+  );
+
+  const onDiscard = useCallback(
+    async (record: CaptureRecord) => {
+      const added = record.state.kind === 'recognised' ? record.state.added : undefined;
+      if (added) {
+        try {
+          await removeEntries(await ensureSelectionRef.current(), [added.instanceId]);
+          invalidateSelection();
+        } catch (err: unknown) {
           toastError((err as Error).message);
           return;
         }
-        const again = await confirm({
-          title: 'Already in selection',
-          message: 'This printing is already in your current selection. Add another copy?',
-          confirmLabel: 'Add another',
-        });
-        if (again) await add(true).catch(() => undefined);
       }
+      finishReview(record.id);
+      dispatch({ type: 'capture/dismiss', id: record.id });
     },
-    [addToSelection, confirm],
+    [finishReview, invalidateSelection],
+  );
+
+  const onSearchManually = (record: CaptureRecord) => {
+    if (record.state.kind !== 'recognised') return;
+    const { response } = record.state;
+    const query = response.debug.zones.name.trim() || response.candidates[0]?.printing.name || '';
+    setReviewing(null);
+    navigation.navigate('PrintingPicker', { query, captureId: record.id });
+  };
+
+  const manualMatch = route.params?.manualMatch;
+  useEffect(() => {
+    if (!manualMatch) return;
+    dispatch({
+      type: 'capture/added',
+      id: manualMatch.captureId,
+      added: { printingId: manualMatch.printingId, instanceId: manualMatch.instanceId },
+    });
+    navigation.setParams({ manualMatch: undefined });
+  }, [manualMatch, navigation]);
+
+  const onRetry = useCallback(
+    (id: CaptureId) => {
+      const record = recordsRef.current.find((r) => r.id === id);
+      if (record?.state.kind !== 'error' || !record.state.uri) return;
+      traceScan('upload', 'retry', { captureId: id });
+      dispatch({ type: 'capture/retry', id });
+      void enqueueUpload(id, record.state.uri);
+    },
+    [enqueueUpload],
   );
   const onDismissTile = useCallback((id: CaptureId) => {
     dispatch({ type: 'capture/dismiss', id });
@@ -419,7 +558,7 @@ export function ScanScreen() {
 
       {containerSize.width > 0 ? (
         <>
-          <GuideFrame containerWidth={containerSize.width} containerHeight={containerSize.height} />
+          <GuideFrame containerWidth={containerSize.width} containerHeight={containerSize.height} flashKey={flashKey} />
           <DetectionOverlay
             quad={detection.quad}
             metrics={detection.metrics}
@@ -447,8 +586,6 @@ export function ScanScreen() {
         </ErrorBoundary>
       ) : null}
 
-      <FrameTheCardHint metrics={detection.metrics} hasRecords={records.length > 0} />
-
       {showDebug ? (
         <View style={styles.lensBadge} pointerEvents="none">
           <Text style={styles.lensBadgeText}>
@@ -459,44 +596,46 @@ export function ScanScreen() {
         </View>
       ) : null}
 
-      <View style={styles.cameraOverlay} pointerEvents="box-none">
+      <ScanBanner banner={banner} onHide={hideBanner} />
+
+      <DecisionStatusPill showDebug={showDebug} />
+
+      <View style={styles.actionBar} pointerEvents="box-none">
+        {pendingReview.length > 0 ? (
+          <Pressable
+            onPress={startReviewQueue}
+            style={[styles.actionPill, styles.reviewPill]}
+            accessibilityLabel={`Review ${pendingReview.length} uncertain scans`}
+          >
+            <MaterialIcons name={ICONS.help} size={18} color={darkColors.bg} />
+            <Text style={styles.reviewPillText}>{pendingReview.length} to review</Text>
+          </Pressable>
+        ) : null}
         {selectionCount > 0 ? (
-          <Pressable style={styles.selectionBadge} onPress={goToSelection}>
-            <MaterialIcons name={ICONS.layers} size={14} color={darkColors.onPrimary} />
-            <Text style={styles.selectionBadgeText}>{selectionCount}</Text>
+          <Pressable
+            onPress={goToSelection}
+            style={[styles.actionPill, styles.selectionPill]}
+            accessibilityLabel={`Open selection, ${selectionCount} cards`}
+          >
+            <MaterialIcons name={ICONS.layers} size={18} color={darkColors.onPrimary} />
+            <Text style={styles.selectionPillText}>Selection · {selectionCount}</Text>
+            <MaterialIcons name={ICONS.chevronRight} size={18} color={darkColors.onPrimary} />
           </Pressable>
         ) : null}
       </View>
 
-      <DecisionStatusPill />
+      <CaptureGallery records={records} onOpen={(id) => setReviewing({ id, queue: false })} onRetry={onRetry} onDismiss={onDismissTile} />
 
-      <CaptureGallery records={records} onAdd={onAddFromReview} onDismiss={onDismissTile} />
-
-      <View style={styles.doneBar} pointerEvents="box-none">
-        <Pressable
-          onPress={goToSelection}
-          style={[
-            styles.doneButton,
-            selectionCount === 0 && styles.doneButtonDisabled,
-          ]}
-          disabled={selectionCount === 0}
-          accessibilityLabel="Review scanned selection"
-        >
-          <MaterialIcons
-            name={ICONS.layers}
-            size={18}
-            color={selectionCount === 0 ? HUD_MUTED : darkColors.onPrimary}
-          />
-          <Text
-            style={[
-              styles.doneButtonText,
-              selectionCount === 0 && styles.doneButtonTextDisabled,
-            ]}
-          >
-            {selectionCount === 0 ? 'Aim at a card — capturing automatically' : `Review ${selectionCount}`}
-          </Text>
-        </Pressable>
-      </View>
+      <CaptureReviewModal
+        record={reviewingRecord}
+        remaining={remainingInQueue}
+        showScores={showDebug}
+        pending={pickPending}
+        onPick={(candidate) => reviewingRecord && void onPick(reviewingRecord, candidate)}
+        onSearch={() => reviewingRecord && onSearchManually(reviewingRecord)}
+        onDiscard={() => reviewingRecord && void onDiscard(reviewingRecord)}
+        onClose={() => setReviewing(null)}
+      />
     </View>
   );
 }
@@ -554,27 +693,6 @@ function describeError(err: unknown): Record<string, unknown> {
   return { error: err instanceof Error ? err.message : String(err) };
 }
 
-function FrameTheCardHint({
-  metrics,
-  hasRecords,
-}: {
-  metrics: ReturnType<typeof useCardDetection>['metrics'];
-  hasRecords: boolean;
-}) {
-  const noCardInView = usePolledValue(() => {
-    const m = metrics.getDirty();
-    return !m.hasQuad && m.frameSize.width > 0;
-  }, 250);
-  if (!noCardInView || hasRecords) return null;
-
-  return (
-    <View style={styles.frameHintWrap} pointerEvents="none">
-      <MaterialIcons name={ICONS.scan} size={56} color="rgba(255,255,255,0.45)" />
-      <Text style={styles.frameHintText}>Position a card in view</Text>
-    </View>
-  );
-}
-
 const makeStyles = (c: Palette) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.bg },
@@ -582,13 +700,10 @@ const makeStyles = (c: Palette) =>
     permissionBody: { color: c.textMuted },
   });
 
-const HUD_MUTED = 'rgba(255,255,255,0.6)';
-
 // Camera HUD: always dark regardless of scheme.
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  cameraOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   lensBadge: {
     position: 'absolute',
     top: 12,
@@ -604,58 +719,26 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     lineHeight: 14,
   },
-  selectionBadge: {
+  // Just above CaptureGallery (bottom 16 + tile + caption).
+  actionBar: {
     position: 'absolute',
-    top: 12,
-    right: 16,
+    bottom: 128,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  actionPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: darkColors.primary,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  selectionBadgeText: { color: darkColors.onPrimary, fontWeight: '700', fontSize: 13 },
-  frameHintWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  frameHintText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
-    fontWeight: '500',
-    textShadowColor: 'rgba(0,0,0,0.7)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  doneBar: {
-    position: 'absolute',
-    bottom: 116,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  doneButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: darkColors.primary,
     borderRadius: 999,
     paddingVertical: 12,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
   },
-  doneButtonDisabled: {
-    backgroundColor: 'rgba(8,12,22,0.7)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  doneButtonText: { color: darkColors.onPrimary, fontSize: 14, fontWeight: '700' },
-  doneButtonTextDisabled: { color: HUD_MUTED, fontWeight: '500' },
+  reviewPill: { backgroundColor: darkColors.warning },
+  reviewPillText: { color: darkColors.bg, fontSize: 14, fontWeight: '700' },
+  selectionPill: { backgroundColor: darkColors.primary },
+  selectionPillText: { color: darkColors.onPrimary, fontSize: 14, fontWeight: '700' },
 });

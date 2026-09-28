@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import Svg, { Line, Rect } from 'react-native-svg';
 import { GUIDE_SHORT_FRACTION, MTG_ASPECT } from '../detection/useCardDetection';
 
@@ -9,6 +9,8 @@ const ACCENT_DIM = 'rgba(255,255,255,0.25)';
 type Props = {
   containerWidth: number;
   containerHeight: number;
+  /** Bumped on every capture; each change flashes the guide as a shutter cue. */
+  flashKey: number;
 };
 
 /**
@@ -17,7 +19,14 @@ type Props = {
  * no noise from desk, hand or shadows outside the card. Companion to `GUIDE_SHORT_FRACTION` in
  * useCardDetection.ts.
  */
-export function GuideFrame({ containerWidth, containerHeight }: Props) {
+export function GuideFrame({ containerWidth, containerHeight, flashKey }: Props) {
+  const flash = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (flashKey === 0) return;
+    flash.setValue(1);
+    Animated.timing(flash, { toValue: 0, duration: 450, useNativeDriver: true }).start();
+  }, [flashKey, flash]);
+
   if (containerWidth === 0 || containerHeight === 0) return null;
 
   // Display container is portrait (taller than wide). Pick the largest
@@ -62,6 +71,9 @@ export function GuideFrame({ containerWidth, containerHeight }: Props) {
         <Line x1={x + guideWidth - cornerLen} y1={y + guideHeight} x2={x + guideWidth} y2={y + guideHeight} stroke={ACCENT} strokeWidth={3} />
         <Line x1={x + guideWidth} y1={y + guideHeight - cornerLen} x2={x + guideWidth} y2={y + guideHeight} stroke={ACCENT} strokeWidth={3} />
       </Svg>
+      <Animated.View
+        style={[styles.flash, { left: x, top: y, width: guideWidth, height: guideHeight, opacity: flash }]}
+      />
     </View>
   );
 }
@@ -71,5 +83,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+  },
+  flash: {
+    position: 'absolute',
+    borderWidth: 4,
+    borderColor: '#fff',
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
 });

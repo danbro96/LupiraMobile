@@ -1,125 +1,53 @@
-import React, { useMemo, useState } from 'react';
-import {
-  Image,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import React, { useMemo } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import type { CardCandidateDto } from '../../../api/generated/models';
-import type {
-  CaptureId,
-  CaptureRecord,
-  CaptureState,
-} from '../captureQueueReducer';
+import { needsReview, type CaptureId, type CaptureRecord, type CaptureState } from '../captureQueueReducer';
 import { ICONS } from '../../../ui/icons';
-import { darkColors as d, HIT_SLOP } from '../../../ui/theme';
-import { CandidateRow } from './CandidateRow';
+import { darkColors as d } from '../../../ui/theme';
 
 type Props = {
   records: CaptureRecord[];
-  /** Adds the chosen candidate to the current selection. */
-  onAdd: (id: CaptureId, candidate: CardCandidateDto) => void;
-  /** Removes a record from the queue (swipe-away / explicit dismiss). */
+  /** Opens the review modal for a recognised capture. */
+  onOpen: (id: CaptureId) => void;
+  onRetry: (id: CaptureId) => void;
   onDismiss: (id: CaptureId) => void;
 };
 
+export const GALLERY_TILE_SIZE = 80;
+
 /**
- * Bottom-edge horizontal gallery of capture tiles, pinned over the live camera with
- * `pointerEvents="box-none"` on the outer container so the rest of the camera surface stays interactive
- * (tap-to-focus, etc.). Each tile's look is derived from its record's `state.kind`.
- *
- * Tapping a "staged" (medium/low confidence) tile opens an inline modal with the full candidate list so the user
- * can pick the correct match without leaving the camera. Dismissing leaves the tile in place to come back to.
+ * Bottom-edge strip of capture tiles over the live camera. `pointerEvents="box-none"` keeps the rest of the
+ * camera surface interactive (tap-to-focus). Tap: review (recognised) or retry (failed); long-press: discard.
  */
-export function CaptureGallery({ records, onAdd, onDismiss }: Props) {
-  const [reviewing, setReviewing] = useState<CaptureId | null>(null);
-  const reviewingRecord = useMemo(
-    () => records.find((r) => r.id === reviewing) ?? null,
-    [records, reviewing],
-  );
+export function CaptureGallery({ records, onOpen, onRetry, onDismiss }: Props) {
+  // Newest at the right edge, where the eye lands after a capture.
+  const ordered = useMemo(() => [...records].sort((a, b) => a.createdAt - b.createdAt), [records]);
 
-  // Newest captures at the right edge. The camera UI is most useful when the
-  // user can immediately see the most recent thumbnail.
-  const ordered = useMemo(
-    () => [...records].sort((a, b) => a.createdAt - b.createdAt),
-    [records],
-  );
-
-  if (records.length === 0 && reviewing == null) {
-    return null;
-  }
+  if (records.length === 0) return null;
 
   return (
-    <>
-      <View style={styles.outer} pointerEvents="box-none">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.strip}
-        >
-          {ordered.map((r) => (
-            <Tile
-              key={r.id}
-              record={r}
-              onPress={() => {
-                if (r.state.kind === 'recognised' && r.state.addedPrintingId == null) {
-                  setReviewing(r.id);
-                } else if (r.state.kind === 'error') {
-                  onDismiss(r.id);
-                }
-              }}
-              onLongPress={() => onDismiss(r.id)}
-            />
-          ))}
-        </ScrollView>
-      </View>
-
-      <Modal
-        visible={reviewingRecord != null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setReviewing(null)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setReviewing(null)}>
-          <Pressable style={styles.modalCard} onPress={() => undefined}>
-            {reviewingRecord && reviewingRecord.state.kind === 'recognised' ? (
-              <ReviewModalBody
-                state={reviewingRecord.state}
-                onAdd={(candidate) => {
-                  onAdd(reviewingRecord.id, candidate);
-                  setReviewing(null);
-                }}
-                onDismiss={() => {
-                  onDismiss(reviewingRecord.id);
-                  setReviewing(null);
-                }}
-                onClose={() => setReviewing(null)}
-              />
-            ) : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
+    <View style={styles.outer} pointerEvents="box-none">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+        {ordered.map((r) => (
+          <Tile
+            key={r.id}
+            record={r}
+            onPress={() => {
+              if (r.state.kind === 'recognised') onOpen(r.id);
+              else if (r.state.kind === 'error') (r.state.uri ? onRetry : onDismiss)(r.id);
+            }}
+            onLongPress={() => onDismiss(r.id)}
+          />
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
-function Tile({
-  record,
-  onPress,
-  onLongPress,
-}: {
-  record: CaptureRecord;
-  onPress: () => void;
-  onLongPress: () => void;
-}) {
+function Tile({ record, onPress, onLongPress }: { record: CaptureRecord; onPress: () => void; onLongPress: () => void }) {
   const { state } = record;
-
-  const thumbUri = thumbnailUriFor(state);
-  const overlay = overlayFor(state);
+  const thumbUri = state.uri ?? null;
   const caption = captionFor(state);
 
   return (
@@ -128,90 +56,24 @@ function Tile({
       onLongPress={onLongPress}
       delayLongPress={350}
       style={styles.tile}
+      accessibilityLabel={`${caption}. ${accessibilityHintFor(state)}`}
     >
-      <View style={styles.tileImageWrap}>
+      <View style={[styles.tileImageWrap, needsReview(record) && styles.tileReview, state.kind === 'error' && styles.tileError]}>
         {thumbUri ? (
           <Image source={{ uri: thumbUri }} style={styles.tileImage} resizeMode="cover" />
         ) : (
           <View style={[styles.tileImage, styles.tileImagePlaceholder]} />
         )}
-        {overlay}
+        <Overlay state={state} />
       </View>
-      {caption ? (
-        <Text style={styles.tileCaption} numberOfLines={1}>
-          {caption}
-        </Text>
-      ) : null}
+      <Text style={styles.tileCaption} numberOfLines={1}>
+        {caption}
+      </Text>
     </Pressable>
   );
 }
 
-function ReviewModalBody({
-  state,
-  onAdd,
-  onDismiss,
-  onClose,
-}: {
-  state: Extract<CaptureState, { kind: 'recognised' }>;
-  onAdd: (candidate: CardCandidateDto) => void;
-  onDismiss: () => void;
-  onClose: () => void;
-}) {
-  const { response } = state;
-  return (
-    <View style={styles.modalInner}>
-      <View style={styles.modalHeader}>
-        <Image source={{ uri: state.uri }} style={styles.modalThumb} />
-        <View style={styles.modalHeaderText}>
-          <Text style={styles.modalTitle}>Pick the correct match</Text>
-          <Text style={styles.modalSubtitle}>
-            Confidence: {response.confidence.toUpperCase()} · {response.candidates.length} candidate{response.candidates.length === 1 ? '' : 's'}
-          </Text>
-        </View>
-        <Pressable onPress={onClose} hitSlop={HIT_SLOP} style={styles.modalClose}>
-          <MaterialIcons name={ICONS.close} size={22} color={d.textMuted} />
-        </Pressable>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.modalScroll}>
-        {response.candidates.length === 0 ? (
-          <Text style={styles.modalEmpty}>
-            No matches in the local catalogue. Re-scan with better lighting.
-          </Text>
-        ) : (
-          response.candidates.map((c, idx) => (
-            <CandidateRow
-              key={c.printing.id}
-              candidate={c}
-              isTop={idx === 0}
-              onAdd={() => onAdd(c)}
-              addPending={false}
-            />
-          ))
-        )}
-      </ScrollView>
-
-      <View style={styles.modalActions}>
-        <Pressable onPress={onDismiss} style={[styles.modalAction, styles.modalDismiss]}>
-          <MaterialIcons name={ICONS.delete} size={16} color={d.danger} />
-          <Text style={styles.modalDismissText}>Discard scan</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-function thumbnailUriFor(state: CaptureState): string | null {
-  switch (state.kind) {
-    case 'uploading':
-    case 'recognised':
-      return state.uri;
-    case 'error':
-      return state.uri ?? null;
-  }
-}
-
-function overlayFor(state: CaptureState): React.ReactNode {
+function Overlay({ state }: { state: CaptureState }) {
   switch (state.kind) {
     case 'uploading':
       return (
@@ -220,45 +82,54 @@ function overlayFor(state: CaptureState): React.ReactNode {
         </View>
       );
     case 'recognised':
-      if (state.addedPrintingId != null) {
-        return (
-          <View style={[styles.overlayBadge, styles.overlayBadgeSuccess]}>
-            <MaterialIcons name={ICONS.check} size={12} color={d.bg} />
-          </View>
-        );
-      }
-      return (
+      return state.added != null ? (
+        <View style={[styles.overlayBadge, styles.overlayBadgeSuccess]}>
+          <MaterialIcons name={ICONS.check} size={14} color={d.bg} />
+        </View>
+      ) : (
         <View style={[styles.overlayBadge, styles.overlayBadgeWarning]}>
-          <MaterialIcons name={ICONS.help} size={12} color={d.bg} />
+          <MaterialIcons name={ICONS.help} size={14} color={d.bg} />
         </View>
       );
     case 'error':
       return (
-        <View style={[styles.overlayBadge, styles.overlayBadgeError]}>
-          <MaterialIcons name={ICONS.alert} size={12} color={d.bg} />
+        <View style={styles.overlayCenter}>
+          <MaterialIcons name={state.uri ? ICONS.refresh : ICONS.alert} size={26} color="#fff" />
         </View>
       );
   }
 }
 
-function captionFor(state: CaptureState): string | null {
+function captionFor(state: CaptureState): string {
   switch (state.kind) {
     case 'uploading':
       return 'Recognising…';
-    case 'recognised':
-      if (state.response.candidates.length === 0) return 'No match';
-      return state.response.candidates[0].printing.name;
+    case 'recognised': {
+      if (state.added != null) {
+        return state.response.candidates.find((c) => c.printing.id === state.added?.printingId)?.printing.name ?? 'Added';
+      }
+      return state.response.candidates.length === 0 ? 'No match' : 'Tap to confirm';
+    }
     case 'error':
-      return 'Failed';
+      return state.uri ? 'Tap to retry' : 'Failed';
   }
 }
 
-const TILE_SIZE = 72;
+function accessibilityHintFor(state: CaptureState): string {
+  switch (state.kind) {
+    case 'uploading':
+      return 'Long-press to discard.';
+    case 'recognised':
+      return state.added != null ? 'Tap to change match.' : 'Tap to choose the match.';
+    case 'error':
+      return state.uri ? 'Tap to retry, long-press to discard.' : 'Tap to discard.';
+  }
+}
 
 const styles = StyleSheet.create({
   outer: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 16,
     left: 0,
     right: 0,
   },
@@ -269,18 +140,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   tile: {
-    width: TILE_SIZE,
+    width: GALLERY_TILE_SIZE,
     alignItems: 'center',
   },
   tileImageWrap: {
-    width: TILE_SIZE,
-    height: TILE_SIZE,
+    width: GALLERY_TILE_SIZE,
+    height: GALLERY_TILE_SIZE,
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.18)',
   },
+  tileReview: { borderWidth: 2.5, borderColor: d.warning },
+  tileError: { borderWidth: 2.5, borderColor: d.danger },
   tileImage: {
     width: '100%',
     height: '100%',
@@ -291,10 +164,10 @@ const styles = StyleSheet.create({
   tileCaption: {
     marginTop: 4,
     color: '#fff',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
-    maxWidth: TILE_SIZE,
+    maxWidth: GALLERY_TILE_SIZE,
     textShadowColor: 'rgba(0,0,0,0.85)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
@@ -313,80 +186,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overlayBadgeSuccess: { backgroundColor: d.success },
   overlayBadgeWarning: { backgroundColor: d.warning },
-  overlayBadgeError: { backgroundColor: d.danger },
-
-  // Review modal: opens over the camera, so it stays dark too.
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: d.bg,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '80%',
-  },
-  modalInner: {
-    paddingTop: 12,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: d.divider,
-  },
-  modalThumb: {
-    width: 56,
-    height: 78,
-    borderRadius: 6,
-    backgroundColor: d.surface,
-  },
-  modalHeaderText: { flex: 1 },
-  modalTitle: { color: d.text, fontSize: 16, fontWeight: '700' },
-  modalSubtitle: { color: d.textMuted, fontSize: 12, marginTop: 2 },
-  modalClose: { padding: 4 },
-  modalScroll: {
-    padding: 16,
-    gap: 8,
-  },
-  modalEmpty: {
-    color: d.textSubtle,
-    fontSize: 14,
-    textAlign: 'center',
-    padding: 24,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    padding: 12,
-    paddingBottom: 24,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: d.divider,
-  },
-  modalAction: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  modalDismiss: {
-    borderWidth: 1,
-    borderColor: d.danger,
-  },
-  modalDismissText: { color: d.danger, fontSize: 14, fontWeight: '600' },
 });
