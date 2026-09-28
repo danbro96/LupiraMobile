@@ -18,10 +18,10 @@ import {
   SCAN_THRESHOLD_BOUNDS,
   useScanSettings,
 } from '../../store/scan-settings-store';
-import type { ScanStackParamList } from '../../navigation/types';
+import type { RootStackParamList } from '../../navigation/types';
 import { Icon } from '../../components/Icon';
 
-type Nav = NativeStackNavigationProp<ScanStackParamList, 'ScanSettings'>;
+type Nav = NativeStackNavigationProp<RootStackParamList, 'ScanSettings'>;
 
 export function ScanSettingsScreen() {
   const settings = useScanSettings();

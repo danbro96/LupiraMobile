@@ -11,7 +11,8 @@ App: **Lupira MTG** · package `com.lupira.mtg` · scheme `lupiramtg` · EAS pro
 | Cards | Search the Scryfall-backed catalog; card + printing detail. |
 | Scan | On-device card detection (VisionCamera + fast-opencv), crop, upload to `/scans`; pick matches into a selection, file into a collection. |
 | Collections | List/detail of the user's collections. |
-| Me | Profile (`/me` claims projection), sign-out. |
+
+Settings (gear in every tab header, pushed over the tabs): account + sign-out, scan tuning, decision log, API endpoint.
 
 ## Auth
 
@@ -66,8 +67,8 @@ LupiraMtgMobile/
     ├── api/                 generated client, mutator, scan upload hook
     ├── auth/                OIDC config + token exchange/refresh
     ├── components/          shared UI (Icon, theme)
-    ├── features/            collections · me · scan · search
-    ├── navigation/          AuthGate, tabs, stacks
+    ├── features/            collections · me (login) · scan · search · settings
+    ├── navigation/          RootStack (auth gate + Settings), tabs, per-tab stacks
     ├── observability/       Sentry breadcrumbs
     ├── query/               react-query client
     ├── store/               Zustand (auth, scan settings, selection)

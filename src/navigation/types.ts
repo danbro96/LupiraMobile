@@ -8,8 +8,6 @@ export type SearchStackParamList = {
 
 export type ScanStackParamList = {
   Scan: undefined;
-  ScanSettings: undefined;
-  ScanDebugLog: undefined;
   Selection: undefined;
   PickCollection: { selectionId: string };
   CardDetail: { oracleId: string };
@@ -27,7 +25,14 @@ export type MtgTabParamList = {
   SearchTab: undefined;
   ScanTab: undefined;
   CollectionsTab: undefined;
-  ProfileTab: undefined;
+};
+
+export type RootStackParamList = {
+  Login: undefined;
+  Tabs: undefined;
+  Settings: undefined;
+  ScanSettings: undefined;
+  ScanDebugLog: undefined;
 };
 
 // Backwards-compat alias used by the existing SearchScreen / CardDetailScreen imports.

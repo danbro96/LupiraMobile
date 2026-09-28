@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -44,11 +43,7 @@ export function CollectionsListScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Collections</Text>
-      </View>
-
+    <View style={styles.container}>
       <View style={styles.createRow}>
         <TextInput
           value={newName}
@@ -94,7 +89,7 @@ export function CollectionsListScreen() {
         refreshing={collections.isFetching && !collections.isLoading}
         onRefresh={() => collections.refetch()}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -112,9 +107,7 @@ function Row({ collection, onPress }: { collection: CollectionDto; onPress: () =
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0e1117' },
-  header: { padding: 16 },
-  title: { color: '#f5f5f5', fontSize: 28, fontWeight: '700' },
-  createRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  createRow: { flexDirection: 'row', gap: 8, padding: 16 },
   input: {
     flex: 1,
     backgroundColor: '#1a1f29',

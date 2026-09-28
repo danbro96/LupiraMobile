@@ -10,7 +10,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Camera,
   type CameraRef,
@@ -389,7 +388,6 @@ export function ScanScreen() {
 
   const selectionCount = selectionQuery.data?.cards.length ?? 0;
   const goToSelection = () => navigation.navigate('Selection');
-  const goToSettings = () => navigation.navigate('ScanSettings');
 
   const onCameraLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -400,7 +398,7 @@ export function ScanScreen() {
 
   if (!hasPermission) {
     return (
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.container}>
         <View style={styles.permissionWrap}>
           <Text style={styles.permissionTitle}>Camera access required</Text>
           <Text style={styles.permissionBody}>
@@ -410,15 +408,15 @@ export function ScanScreen() {
             <Text style={styles.primaryButtonText}>Grant access</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (!device) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <ActivityIndicator style={styles.center} />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -478,9 +476,6 @@ export function ScanScreen() {
       </View>
 
       <View style={styles.cameraOverlay} pointerEvents="box-none">
-        <Pressable style={styles.gearButton} onPress={goToSettings} accessibilityLabel="Scan settings" hitSlop={8}>
-          <Icon name="settings-outline" size={20} color="white" />
-        </Pressable>
         {selectionCount > 0 ? (
           <Pressable style={styles.selectionBadge} onPress={goToSelection}>
             <Icon name="layers" size={14} color="white" />
@@ -557,7 +552,7 @@ const styles = StyleSheet.create({
   cameraOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   lensBadge: {
     position: 'absolute',
-    top: 100,
+    top: 12,
     left: 12,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -570,20 +565,9 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     lineHeight: 14,
   },
-  gearButton: {
-    position: 'absolute',
-    top: 48,
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(8,12,22,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   selectionBadge: {
     position: 'absolute',
-    top: 48,
+    top: 12,
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',

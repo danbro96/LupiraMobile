@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { keepPreviousData } from '@tanstack/react-query';
 import { useListCards } from '../../api/generated/cards/cards';
 import type { CardDto } from '../../api/generated/models';
@@ -43,9 +42,8 @@ export function SearchScreen() {
   }, [data, isFetching]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Cards</Text>
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -91,7 +89,7 @@ export function SearchScreen() {
       {isFetching && data?.results.length ? (
         <ActivityIndicator style={styles.bottomSpinner} />
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -136,7 +134,6 @@ function useDebounced<T>(value: T, delayMs: number): T {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0e1117' },
   header: { padding: 16, gap: 8, borderBottomWidth: 1, borderBottomColor: '#1a1f29' },
-  title: { color: '#f5f5f5', fontSize: 28, fontWeight: '700' },
   input: {
     backgroundColor: '#1a1f29',
     color: '#f5f5f5',

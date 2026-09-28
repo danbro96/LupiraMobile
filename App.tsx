@@ -4,7 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './src/query/queryClient';
-import { AuthGate } from './src/navigation/AuthGate';
+import { RootStack } from './src/navigation/RootStack';
 import { useAuth } from './src/store/auth-store';
 import * as Sentry from '@sentry/react-native';
 
@@ -39,7 +39,7 @@ export default Sentry.wrap(function App() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <NavigationContainer>
-          <AuthGate />
+          <RootStack />
         </NavigationContainer>
       </QueryClientProvider>
       <StatusBar style="light" />

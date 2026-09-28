@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { MtgStack } from './MtgStack';
 import { ScanStack } from './ScanStack';
 import { CollectionsStack } from './CollectionsStack';
-import { ProfileScreen } from '../features/me/ProfileScreen';
 import { MtgTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MtgTabParamList>();
@@ -46,16 +45,6 @@ export function MtgTabs() {
           title: 'Collections',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'folder' : 'folder-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{
-          title: 'Me',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
           ),
         }}
       />
