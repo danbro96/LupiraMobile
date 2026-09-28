@@ -79,6 +79,8 @@ export type DetectionMetrics = {
   planesCount: number;
   contourCount: number;
   candidateQuadCount: number;
+  /** Card-shaped contours rejected because a corner touches the guide edge (card overflows the guide). */
+  clippedQuadCount: number;
   historyDepth: number;
   edgePixelCount: number;
   largeContourCount: number;
@@ -89,6 +91,23 @@ export type DetectionMetrics = {
   lastBufferBytes: number;
   lastError: string;
   lastStep: string;
+};
+
+/**
+ * Worklet-side snapshot taken at the instant auto-capture fired. The shared `metrics` value is overwritten
+ * with `detection-disabled` on the next frame, so JS must not read it back for the fire record.
+ */
+export type CaptureDiagnostics = {
+  metrics: DetectionMetrics;
+  stableFrames: number;
+  sharpnessRaw: number;
+  /** Quad corners in Y-plane buffer pixels — the exact source of the warp. */
+  bufferQuad: Quad;
+  bufferSize: FrameSize;
+  roi: { x: number; y: number; width: number; height: number };
+  warpMs: number;
+  /** Empty unless warp/encode threw; `captureUri` is then empty too. */
+  error: string;
 };
 
 export type CardDetectionParams = {
@@ -106,7 +125,7 @@ export type CardDetectionParams = {
    * `photoOutput.capturePhoto`, no JS-side cropToQuad. It may be the empty string if the worklet's warp/encode
    * failed (rare); treat that as a silent miss and let the next stable frame try again.
    */
-  onAutoCapture: (captureUri: string, quad: Quad, frameSize: FrameSize) => void;
+  onAutoCapture: (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => void;
 };
 
 export type CardDetectionState = {
@@ -150,6 +169,7 @@ const INITIAL_METRICS: DetectionMetrics = {
   planesCount: 0,
   contourCount: 0,
   candidateQuadCount: 0,
+  clippedQuadCount: 0,
   historyDepth: 0,
   edgePixelCount: 0,
   largeContourCount: 0,
@@ -167,6 +187,11 @@ const MTG_LONG = 3.5;
 const ASPECT_TOLERANCE = 0.3;
 const MIN_AREA_FRACTION = 0.05;
 const FILL_RATIO_MIN = 0.7;
+/**
+ * Detection-space px. Canny finds no gradient on the ROI border, so a card overflowing the guide yields a
+ * contour clipped to the border — its warp would cut off the card's edge.
+ */
+const ROI_EDGE_MARGIN = 3;
 /**
  * Fraction of the buffer's *short* axis that the centred detection-ROI takes.
  * The companion display-side GuideFrame uses the same value so the on-screen
@@ -296,8 +321,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
   const onAutoCaptureRef = useRef(params.onAutoCapture);
   onAutoCaptureRef.current = params.onAutoCapture;
 
-  const triggerAutoCapture = (captureUri: string, q: Quad, size: FrameSize) => {
-    onAutoCaptureRef.current(captureUri, q, size);
+  const triggerAutoCapture = (captureUri: string, q: Quad, size: FrameSize, diag: CaptureDiagnostics) => {
+    onAutoCaptureRef.current(captureUri, q, size, diag);
   };
 
   // Constants captured into the worklet closure. Top-level imports are
@@ -366,11 +391,14 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         let scalePlane = 1;
         let roiX = 0;
         let roiY = 0;
+        let roiWidth = 0;
+        let roiHeight = 0;
 
         let detectedQuad: Quad | null = null;
         let bestArea = 0;
         let contourCountForMetrics = 0;
         let candidateQuadCount = 0;
+        let clippedQuadCount = 0;
         let edgePixelCount = 0;
         let largeContourCount = 0;
         let bestApproxVertexCount = 0;
@@ -443,6 +471,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           }
           roiX = Math.round((yWidth - roiW) / 2);
           roiY = Math.round((yHeight - roiH) / 2);
+          roiWidth = roiW;
+          roiHeight = roiH;
 
           lastStep = 'cropROI';
           const grayRoi = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_8UC1);
@@ -554,6 +584,22 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
               { x: cx + halfW * cosA - halfH * sinA, y: cy + halfW * sinA + halfH * cosA },
               { x: cx + (-halfW) * cosA - halfH * sinA, y: cy + (-halfW) * sinA + halfH * cosA },
             ];
+            let clipped = false;
+            for (let k = 0; k < 4; k += 1) {
+              const p = corners[k];
+              if (
+                p.x < ROI_EDGE_MARGIN ||
+                p.y < ROI_EDGE_MARGIN ||
+                p.x > detWPlane - 1 - ROI_EDGE_MARGIN ||
+                p.y > detHPlane - 1 - ROI_EDGE_MARGIN
+              ) {
+                clipped = true;
+              }
+            }
+            if (clipped) {
+              clippedQuadCount += 1;
+              continue;
+            }
             const ordered = orderQuadCorners(corners);
 
             candidateQuadCount += 1;
@@ -653,6 +699,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             planesCount: framePlanesCount,
             contourCount: contourCountForMetrics,
             candidateQuadCount,
+            clippedQuadCount,
             historyDepth: 0,
             edgePixelCount,
             framesProcessed: framesProcessedNow,
@@ -743,7 +790,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         ];
 
         quad.setBlocking(frameQuad);
-        metrics.setBlocking({
+        const frameMetrics: DetectionMetrics = {
           score: composite,
           stability,
           sharpness,
@@ -764,6 +811,7 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           planesCount: framePlanesCount,
           contourCount: contourCountForMetrics,
           candidateQuadCount,
+          clippedQuadCount,
           historyDepth: prevHist.length,
           edgePixelCount,
           framesProcessed: framesProcessedNow,
@@ -773,7 +821,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           largeContourCount,
           bestApproxVertexCount,
           bestApproxAspect,
-        });
+        };
+        metrics.setBlocking(frameMetrics);
 
         // Trigger logic. All gates must pass to increment the stable counter:
         // (1) hard floors, (2) inside the hysteresis band, (3) not in a
@@ -803,21 +852,20 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           // The URI is what goes to JS — no second photoOutput round-trip,
           // no temporal gap, what the worklet approved IS what gets uploaded.
           let captureUri = '';
+          let captureError = '';
+          const warpStartedAt = Date.now();
+          // Detection-space → Y-plane buffer coords (the gray Mat the warp reads).
+          const bufferQuad: Quad = [
+            { x: activeQuad[0].x * scalePlane + roiX, y: activeQuad[0].y * scalePlane + roiY },
+            { x: activeQuad[1].x * scalePlane + roiX, y: activeQuad[1].y * scalePlane + roiY },
+            { x: activeQuad[2].x * scalePlane + roiX, y: activeQuad[2].y * scalePlane + roiY },
+            { x: activeQuad[3].x * scalePlane + roiX, y: activeQuad[3].y * scalePlane + roiY },
+          ];
           try {
-            // Map activeQuad (detection-space) → buffer-space (gray Mat coords).
-            const bp0x = activeQuad[0].x * scalePlane + roiX;
-            const bp0y = activeQuad[0].y * scalePlane + roiY;
-            const bp1x = activeQuad[1].x * scalePlane + roiX;
-            const bp1y = activeQuad[1].y * scalePlane + roiY;
-            const bp2x = activeQuad[2].x * scalePlane + roiX;
-            const bp2y = activeQuad[2].y * scalePlane + roiY;
-            const bp3x = activeQuad[3].x * scalePlane + roiX;
-            const bp3y = activeQuad[3].y * scalePlane + roiY;
-
-            const srcPt0 = OpenCV.createObject(ObjectType.Point2f, bp0x, bp0y);
-            const srcPt1 = OpenCV.createObject(ObjectType.Point2f, bp1x, bp1y);
-            const srcPt2 = OpenCV.createObject(ObjectType.Point2f, bp2x, bp2y);
-            const srcPt3 = OpenCV.createObject(ObjectType.Point2f, bp3x, bp3y);
+            const srcPt0 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[0].x, bufferQuad[0].y);
+            const srcPt1 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[1].x, bufferQuad[1].y);
+            const srcPt2 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[2].x, bufferQuad[2].y);
+            const srcPt3 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[3].x, bufferQuad[3].y);
             const srcPts = OpenCV.createObject(ObjectType.Point2fVector, [srcPt0, srcPt1, srcPt2, srcPt3]);
 
             const W = MTG_OUTPUT_WIDTH;
@@ -853,14 +901,22 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             // empty URI as a silent miss and the worklet keeps running on
             // the next stable-frame attempt.
             const raw = e instanceof Error ? e.message : String(e);
-            pipelineError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
-            lastStep = 'warpAndSave:failed';
+            captureError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
           }
 
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
           tunables.setBlocking({ ...tune, enabled: false });
-          runOnJS(triggerAutoCapture)(captureUri, frameQuad, { width: frameW, height: frameH });
+          runOnJS(triggerAutoCapture)(captureUri, frameQuad, { width: frameW, height: frameH }, {
+            metrics: frameMetrics,
+            stableFrames: nextStable,
+            sharpnessRaw,
+            bufferQuad,
+            bufferSize: { width: yWidth, height: yHeight },
+            roi: { x: roiX, y: roiY, width: roiWidth, height: roiHeight },
+            warpMs: Date.now() - warpStartedAt,
+            error: captureError,
+          });
         }
       } finally {
         // Single cleanup site. `clearBuffers` now runs *after* the trigger
@@ -987,11 +1043,10 @@ function coverageScore(quad: Quad, w: number, h: number): number {
   const area = Math.abs(
     a.x * b.y - b.x * a.y + (b.x * c.y - c.x * b.y) + (c.x * d.y - d.x * c.y) + (d.x * a.y - a.x * d.y),
   ) / 2;
+  // No upper penalty: filling the guide is the intended framing; overflow is rejected via ROI_EDGE_MARGIN.
   const fraction = area / (w * h);
   if (fraction <= 0.1) return 0;
-  if (fraction >= 0.9) return 0;
   if (fraction < 0.35) return (fraction - 0.1) / 0.25;
-  if (fraction > 0.65) return 1 - (fraction - 0.65) / 0.25;
   return 1;
 }
 

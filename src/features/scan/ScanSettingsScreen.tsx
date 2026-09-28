@@ -172,8 +172,8 @@ export function ScanSettingsScreen() {
           )}
         />
         <List.Item
-          title="Decision log"
-          description="Replay why auto-capture fired (or didn't) — last 200 transitions."
+          title="Scan debug log"
+          description="Pipeline trace (camera → crop → upload → match) and auto-capture decisions."
           descriptionNumberOfLines={2}
           onPress={() => navigation.navigate('ScanDebugLog')}
         />

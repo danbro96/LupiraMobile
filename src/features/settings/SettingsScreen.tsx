@@ -61,8 +61,8 @@ export function SettingsScreen() {
 
       <List.Subheader>Developer</List.Subheader>
       <List.Item
-        title="Decision log"
-        description="Why auto-capture fired (or didn't) — last 200 transitions."
+        title="Scan debug log"
+        description="Pipeline trace (camera → crop → upload → match) and auto-capture decisions."
         descriptionNumberOfLines={3}
         onPress={() => navigation.navigate('ScanDebugLog')}
       />

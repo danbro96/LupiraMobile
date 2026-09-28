@@ -35,7 +35,9 @@ export function DecisionStatusPill() {
 function renderReason(reason: DecisionReason): { tint: string; label: string } {
   switch (reason.kind) {
     case 'no-quad':
-      return { tint: d.textSubtle, label: 'No card seen' };
+      return reason.clipped
+        ? { tint: d.warning, label: 'Card past guide edge — move back' }
+        : { tint: d.textSubtle, label: 'No card seen' };
     case 'blocked-floor':
       return {
         tint: d.warning,

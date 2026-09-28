@@ -19,6 +19,7 @@ import {
 import { CommonResolutions } from 'react-native-vision-camera';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system/legacy';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError } from '../../api/mutator';
 import {
@@ -26,11 +27,12 @@ import {
   createSelectionCard,
 } from '../../api/generated/selections/selections';
 import { scanCard } from '../../api/scan';
-import type { CardCandidateDto } from '../../api/generated/models';
+import type { CardCandidateDto, ScanResponse } from '../../api/generated/models';
 import { ScanStackParamList } from '../../navigation/types';
 import { useCurrentSelection } from './useCurrentSelection';
 import { useScanSettings } from '../../store/scan-settings-store';
 import {
+  type CaptureDiagnostics,
   type FrameSize,
   type Quad,
   useCardDetection,
@@ -54,6 +56,7 @@ import {
   type DecisionReason,
 } from './decisionLogStore';
 import { breadcrumb } from '../../observability/breadcrumb';
+import { traceScan } from './scanTraceStore';
 import { ICONS } from '../../ui/icons';
 import { darkColors, spacing, useColors, type Palette } from '../../ui/theme';
 import { Button } from '../../ui/components/Button';
@@ -104,6 +107,18 @@ export function ScanScreen() {
     if (anyAF) return anyAF.device;
     return deviceCandidates[0]?.device;
   }, [deviceCandidates]);
+  useEffect(() => {
+    if (!device) return;
+    traceScan('camera', 'device selected', {
+      data: {
+        id: device.id,
+        type: device.type,
+        virtual: device.isVirtualDevice,
+        focusMetering: device.supportsFocusMetering,
+        backCandidates: deviceCandidates.map((d) => `${d.device.id}:${d.device.type}${d.hasAF ? '+AF' : ''}`),
+      },
+    });
+  }, [device, deviceCandidates]);
 
   const cameraRef = useRef<CameraRef | null>(null);
   // High-quality, AF-aware photo output. The combination of UHD_4_3 +
@@ -164,32 +179,60 @@ export function ScanScreen() {
   const appendDecisionLog = useDecisionLog((s) => s.append);
 
   // Forward refs to detection.pause/resume — captureAndScan is defined before
-  // the detection hook is initialised, so we wire these up after. The
-  // metrics-ref is the same shape: we need the latest worklet metrics
-  // snapshot at the moment auto-capture fires for the 'fired' log entry.
+  // the detection hook is initialised, so we wire these up after.
   const resumeDetectionRef = useRef<(() => void) | null>(null);
   const pauseDetectionRef = useRef<(() => void) | null>(null);
-  const detectionMetricsRefForLog = useRef<
-    | ReturnType<typeof useCardDetection>['metrics']
-    | null
-  >(null);
   // AppState/isFocused snapshots, accessible from the captureAndScan closure
   // without re-creating the callback on every transition.
   const isFocusedRef = useRef(isFocused);
   isFocusedRef.current = isFocused;
   const appStateRef = useRef(appState);
   appStateRef.current = appState;
+  const cameraActiveRef = useRef(false);
+  cameraActiveRef.current = isFocused && appState === 'active';
   // Single concurrent capture lock. fast-opencv's global object store cannot
   // tolerate two cropToQuad calls in flight, and the worklet must be paused
   // while either runs.
   const capturingRef = useRef(false);
 
   const captureAndScan = useCallback(
-    async (captureUri: string, quad: Quad, frameSize: FrameSize) => {
-      // Empty URI = worklet's warp/save step failed silently. Don't surface
-      // a tile, just let the next stable-frame run try again.
+    async (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => {
+      const id: CaptureId = newCaptureId();
+      const m = diag.metrics;
+      const cx = (quad[0].x + quad[2].x) / 2;
+      const cy = (quad[0].y + quad[2].y) / 2;
+      appendDecisionLog(buildLogEntry(m, { kind: 'fired', quadCentroid: { x: cx, y: cy } }));
+      const s = useScanSettings.getState();
+      traceScan('fire', 'auto-capture fired', {
+        captureId: id,
+        data: {
+          score: m.score,
+          stability: m.stability,
+          sharpness: m.sharpness,
+          sharpnessRaw: diag.sharpnessRaw,
+          coverage: m.coverage,
+          brightness: m.brightness,
+          stableFrames: diag.stableFrames,
+          fps: m.detectionFps,
+          frame: `${frameSize.width}x${frameSize.height}`,
+          buffer: `${diag.bufferSize.width}x${diag.bufferSize.height}`,
+          roi: diag.roi,
+          bufferQuad: diag.bufferQuad.map((p) => [Math.round(p.x), Math.round(p.y)]),
+          orientation: m.orientation,
+          mirrored: m.isMirrored,
+          threshold: s.captureThreshold,
+          minStableFrames: s.minStableFrames,
+          weights: [s.weightStability, s.weightSharpness, s.weightCoverage, s.weightBrightness],
+        },
+      });
+
+      // Empty URI = worklet's warp/save step failed. Don't surface a tile, let the next stable frame retry.
       if (!captureUri) {
-        breadcrumb('capture', 'capture_no_uri', {}, 'warning');
+        traceScan('crop', 'warp/encode failed', {
+          captureId: id,
+          level: 'error',
+          data: { error: diag.error, warpMs: diag.warpMs },
+        });
         resumeDetectionRef.current?.();
         return;
       }
@@ -197,31 +240,12 @@ export function ScanScreen() {
         // Two triggers fired before the previous upload kicked off — drop.
         // The worklet's content cooldown will keep ignoring this card for a
         // moment longer.
-        breadcrumb('capture', 'capture_dropped_busy');
+        traceScan('fire', 'dropped: previous capture still starting', { captureId: id, level: 'warning' });
         return;
       }
 
       capturingRef.current = true;
-      const id: CaptureId = newCaptureId();
-      // Append a 'fired' decision log entry at the exact moment the
-      // worklet's auto-capture handed off to JS.
-      const m = detectionMetricsRefForLog.current?.getDirty();
-      const cx = (quad[0].x + quad[2].x) / 2;
-      const cy = (quad[0].y + quad[2].y) / 2;
-      const firedReason: DecisionReason = {
-        kind: 'fired',
-        quadCentroid: { x: cx, y: cy },
-      };
-      if (m) {
-        appendDecisionLog(buildLogEntry(m, firedReason));
-      }
-
-      breadcrumb('capture', 'capture_start_worklet_frame', {
-        id,
-        captureUri,
-        frameW: frameSize.width,
-        frameH: frameSize.height,
-      });
+      void logCropFile(id, captureUri, diag.warpMs);
 
       // The worklet has already produced the canonical card-crop JPEG and
       // handed us the URI. No photoOutput round-trip, no JS-side cropToQuad
@@ -245,11 +269,18 @@ export function ScanScreen() {
       resumeDetectionRef.current?.();
 
       // Fire-and-forget the upload.
+      const uploadStartedAt = Date.now();
+      traceScan('upload', 'POST /scans', { captureId: id, level: 'debug' });
       try {
         const response = await scanCard({
           uri: captureUri,
           mimeType: 'image/jpeg',
           fileName: 'scan.jpg',
+        });
+        traceScan('result', `${response.confidence} · ${response.candidates[0]?.printing.name ?? 'no match'}`, {
+          captureId: id,
+          level: response.candidates.length === 0 ? 'warning' : 'info',
+          data: { uploadMs: Date.now() - uploadStartedAt, ...summariseScanResponse(response) },
         });
         dispatch({ type: 'capture/recognised', id, response });
 
@@ -263,34 +294,41 @@ export function ScanScreen() {
           addToSelection.mutate(
             { candidate: top, allowDuplicate: false },
             {
+              onSuccess: () => {
+                traceScan('add', `auto-added ${top.printing.name}`, { captureId: id });
+              },
               onError: (err) => {
                 if (err instanceof ApiError && err.status === 409) {
                   // Already in the selection — fine, leave the green check
                   // on the tile so the user knows it was matched.
+                  traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
                   return;
                 }
-                breadcrumb(
-                  'upload',
-                  'auto_add_failed',
-                  { id, error: err instanceof Error ? err.message : String(err) },
-                  'warning',
-                );
+                traceScan('add', 'auto-add failed', {
+                  captureId: id,
+                  level: 'warning',
+                  data: describeError(err),
+                });
               },
             },
           );
         }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        breadcrumb('upload', 'scan_failed', { id, error: msg }, 'error');
+        traceScan('upload', 'scan request failed', {
+          captureId: id,
+          level: 'error',
+          data: { uploadMs: Date.now() - uploadStartedAt, ...describeError(err) },
+        });
         dispatch({ type: 'capture/error', id, message: msg });
       }
     },
-    [addToSelection],
+    [addToSelection, appendDecisionLog],
   );
 
   const onAutoCapture = useCallback(
-    (captureUri: string, quad: Quad, frameSize: FrameSize) => {
-      void captureAndScan(captureUri, quad, frameSize);
+    (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => {
+      void captureAndScan(captureUri, quad, frameSize, diag);
     },
     [captureAndScan],
   );
@@ -308,50 +346,78 @@ export function ScanScreen() {
   });
   resumeDetectionRef.current = detection.resume;
   pauseDetectionRef.current = detection.pause;
-  detectionMetricsRefForLog.current = detection.metrics;
 
-  // Bridge worklet-thread state into Sentry breadcrumbs at low frequency.
+  const cameraActive = isFocused && appState === 'active';
+  useEffect(() => {
+    traceScan('camera', cameraActive ? 'camera active' : 'camera inactive', {
+      level: 'debug',
+      data: { focused: isFocused, appState },
+    });
+  }, [cameraActive, isFocused, appState]);
+
+  // Sample worklet-thread state into the logs at low frequency.
   const lastSampledStep = useRef<string>('');
   const lastSampledError = useRef<string>('');
+  const lastSampledFormat = useRef<string>('');
   // Last decision reason we appended to the log. Used to de-duplicate — a
   // long blocked-sharpness stretch should be one entry, not 60 redundant
   // copies that hide the moment the situation changed.
   const lastSampledReason = useRef<DecisionReason | undefined>(undefined);
+  const stall = useRef({ frames: -1, since: 0, reported: false });
   useEffect(() => {
     const id = setInterval(() => {
       const m = detection.metrics.getDirty();
       if (m.lastStep && m.lastStep !== lastSampledStep.current) {
         lastSampledStep.current = m.lastStep;
-        breadcrumb('frame_processor', `step=${m.lastStep}`, {
-          framesProcessed: m.framesProcessed,
-          contourCount: m.contourCount,
-          edgePixelCount: m.edgePixelCount,
-          frameW: m.frameSize.width,
-          frameH: m.frameSize.height,
-          pixelFormat: m.pixelFormat,
+        // Anything other than a clean pass means frames are being skipped before contour search.
+        const abnormal = m.lastStep !== 'done' && m.lastStep !== 'detection-disabled';
+        traceScan('worklet', `step=${m.lastStep}`, {
+          level: abnormal ? 'warning' : 'debug',
+          data: { framesProcessed: m.framesProcessed, contourCount: m.contourCount, edgePixelCount: m.edgePixelCount },
         });
       }
       if (m.lastError && m.lastError !== lastSampledError.current) {
         lastSampledError.current = m.lastError;
-        breadcrumb(
-          'frame_processor',
-          'worklet_error',
-          { error: m.lastError, lastStep: m.lastStep, framesProcessed: m.framesProcessed },
-          'error',
-        );
+        traceScan('worklet', 'pipeline error', {
+          level: 'error',
+          data: { error: m.lastError, lastStep: m.lastStep, framesProcessed: m.framesProcessed },
+        });
+      }
+      const format = `${m.frameSize.width}x${m.frameSize.height} ${m.pixelFormat} ${m.orientation}${m.isMirrored ? ' mirrored' : ''} planes=${m.planesCount} bpr=${m.bytesPerRow}`;
+      if (m.frameSize.width > 0 && format !== lastSampledFormat.current) {
+        lastSampledFormat.current = format;
+        traceScan('camera', `frame format ${format}`);
+      }
+
+      // Frames stopped arriving while the camera should be streaming: frame output detached or worklet hung.
+      const now = Date.now();
+      if (m.framesProcessed !== stall.current.frames || !cameraActiveRef.current) {
+        stall.current = { frames: m.framesProcessed, since: now, reported: false };
+      } else if (!stall.current.reported && now - stall.current.since > 3000) {
+        stall.current.reported = true;
+        traceScan('worklet', 'no frames processed for 3 s while camera active', {
+          level: 'warning',
+          data: { framesProcessed: m.framesProcessed, lastStep: m.lastStep },
+        });
       }
 
       // Decision-log: derive a structured reason from the current metrics
       // and append on transitions only. `fired` events are appended
       // separately from captureAndScan so they're never lost between ticks.
-      const reason = deriveDecisionReason(m, settings.captureThreshold);
+      const reason = deriveDecisionReason(
+        m,
+        settings.captureThreshold,
+        detection.stableFrames.getDirty(),
+        settings.minStableFrames,
+      );
       if (!reasonsEqual(lastSampledReason.current, reason)) {
         lastSampledReason.current = reason;
         appendDecisionLog(buildLogEntry(m, reason));
+        if (__DEV__) console.log('[scan:decision]', reason);
       }
     }, 500);
     return () => clearInterval(id);
-  }, [detection.metrics, settings.captureThreshold, appendDecisionLog]);
+  }, [detection.metrics, detection.stableFrames, settings.captureThreshold, settings.minStableFrames, appendDecisionLog]);
 
   // Tile add (manual review) — used by the gallery's modal.
   const onAddFromReview = useCallback(
@@ -433,9 +499,14 @@ export function ScanScreen() {
         device={device}
         // Camera is active whenever the tab is focused and the app is in the
         // foreground. No more capture-result modal that needs to gate this.
-        isActive={isFocused && appState === 'active'}
+        isActive={cameraActive}
         outputs={[photoOutput, detection.frameOutput]}
         enableNativeTapToFocusGesture
+        onStarted={() => traceScan('camera', 'session started')}
+        onStopped={() => traceScan('camera', 'session stopped', { level: 'debug' })}
+        onError={(e) => traceScan('camera', 'session error', { level: 'error', data: { error: e.message } })}
+        onInterruptionStarted={(reason) => traceScan('camera', 'interrupted', { level: 'warning', data: { reason } })}
+        onInterruptionEnded={() => traceScan('camera', 'interruption ended')}
       />
 
       {containerSize.width > 0 ? (
@@ -522,6 +593,58 @@ export function ScanScreen() {
       </View>
     </View>
   );
+}
+
+async function logCropFile(captureId: string, uri: string, warpMs: number) {
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    traceScan('crop', 'crop saved', {
+      captureId,
+      level: info.exists ? 'debug' : 'error',
+      data: { uri, exists: info.exists, bytes: info.exists ? info.size : 0, warpMs },
+    });
+  } catch (e: unknown) {
+    traceScan('crop', 'crop stat failed', { captureId, level: 'warning', data: describeError(e) });
+  }
+}
+
+function summariseScanResponse(r: ScanResponse): Record<string, unknown> {
+  const d = r.debug;
+  return {
+    scanId: r.scanId,
+    confidence: r.confidence,
+    candidateCount: r.candidates.length,
+    top: r.candidates.slice(0, 3).map((c) => ({
+      name: c.printing.name,
+      set: `${c.printing.setCode} #${c.printing.collectorNumber}`,
+      combined: c.combinedScore,
+      ocr: c.ocrAggregateScore,
+      nameScore: c.nameScore,
+      hamming: c.hammingDistance,
+      byPHash: c.matchedByPHash,
+      byName: c.matchedByName,
+    })),
+    ocrName: `${d.zones.name} (${d.zones.nameConfidence.toFixed(2)})`,
+    ocrTypeLine: `${d.zones.typeLine} (${d.zones.typeLineConfidence.toFixed(2)})`,
+    ocrBottom: `${d.zones.bottomMetadata} (${d.zones.bottomMetadataConfidence.toFixed(2)})`,
+    setSymbol: d.setSymbol ? `${d.setSymbol.setCode} hd=${d.setSymbol.hammingDistance} s=${d.setSymbol.score.toFixed(2)}` : null,
+    pHash: d.imagePHash,
+    cropped: d.isCropped,
+    cropConfidence: d.cropConfidence,
+    cropRotated: d.cropRotated,
+    rotationRetried: d.rotationRetried,
+    croppedSize: `${d.croppedWidth}x${d.croppedHeight}`,
+    ocrRegions: d.ocrRegionCount,
+    pHashCandidates: d.pHashCandidateCount,
+    ocrCandidates: d.ocrCandidateCount,
+    ocrMs: d.ocrLatencyMs,
+    pHashMs: d.pHashLatencyMs,
+  };
+}
+
+function describeError(err: unknown): Record<string, unknown> {
+  if (err instanceof ApiError) return { status: err.status, error: err.message.slice(0, 500) };
+  return { error: err instanceof Error ? err.message : String(err) };
 }
 
 function FrameTheCardHint({

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, Share, StyleSheet, View } from 'react-native';
-import { Button, Text } from 'react-native-paper';
+import { FlatList, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Button, SegmentedButtons, Text } from 'react-native-paper';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { toast, toastError } from '../../feedback/toast';
@@ -11,46 +12,72 @@ import {
   type DecisionReason,
   useDecisionLog,
 } from './decisionLogStore';
+import { type ScanTraceEvent, useScanTrace } from './scanTraceStore';
+import { useScanSettings } from '../../store/scan-settings-store';
+
+type Tab = 'pipeline' | 'decisions';
 
 /**
- * Decision-log viewer over the in-memory ring buffer from `useDecisionLog`: newest first, one row per state
- * transition, tap to expand the full signal dump. Share pipes the entries through React Native's Share so the
- * JSON can be pasted straight into a debugging conversation.
+ * Scan debug viewer over two in-memory ring buffers: the capture pipeline trace (`useScanTrace`: camera,
+ * worklet, fire → crop → upload → result) and the auto-capture decision log (`useDecisionLog`). Newest first,
+ * tap a row to expand. Share exports both plus the current tuning as one JSON blob.
  *
- * Memory only, lost on restart — intentional: this is for diagnosing *the current session*. Sentry breadcrumbs
- * cover cross-session forensics for `fired` and `worklet_error`.
+ * Memory only, lost on restart — intentional: this is for diagnosing *the current session*. Every trace event
+ * is also a Sentry breadcrumb for cross-session forensics.
  */
 export function ScanDebugLogScreen() {
   const entries = useDecisionLog((s) => s.entries);
-  const clear = useDecisionLog((s) => s.clear);
+  const clearDecisions = useDecisionLog((s) => s.clear);
+  const events = useScanTrace((s) => s.events);
+  const clearTrace = useScanTrace((s) => s.clear);
+  const [tab, setTab] = useState<Tab>('pipeline');
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
-  const empty = entries.length === 0;
+  const empty = entries.length === 0 && events.length === 0;
 
   const onShare = async () => {
     if (empty) {
-      toast('Nothing to share — the decision log is empty.');
+      toast('Nothing to share — the logs are empty.');
       return;
     }
+    const settings = Object.fromEntries(
+      Object.entries(useScanSettings.getState()).filter(([k, v]) => typeof v !== 'function' && k !== 'loaded'),
+    );
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      platform: `${Platform.OS} ${Platform.Version}`,
+      settings,
+      pipeline: events,
+      decisions: entries,
+    };
     try {
-      await Share.share({ message: JSON.stringify(entries, null, 2) });
+      await Share.share({ message: JSON.stringify(payload, null, 2) });
     } catch (e: unknown) {
       toastError(`Share failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
-  // Render newest-first without mutating the underlying array.
-  const reversed = useMemo(() => [...entries].reverse(), [entries]);
+  const onClear = () => {
+    clearDecisions();
+    clearTrace();
+  };
+
+  // Render newest-first without mutating the underlying arrays.
+  const reversedEntries = useMemo(() => [...entries].reverse(), [entries]);
+  const reversedEvents = useMemo(() => [...events].reverse(), [events]);
+  const tabEmpty = tab === 'pipeline' ? events.length === 0 : entries.length === 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <View style={styles.toolbar}>
-        <Text variant="bodySmall" style={styles.toolbarText}>{entries.length} entries</Text>
+        <Text variant="bodySmall" style={styles.toolbarText}>
+          {events.length} events · {entries.length} decisions
+        </Text>
         <View style={styles.toolbarActions}>
           <Button
             icon={ICONS.delete}
             compact
-            onPress={clear}
+            onPress={onClear}
             disabled={empty}
             textColor={c.danger}
           >
@@ -61,18 +88,37 @@ export function ScanDebugLogScreen() {
           </Button>
         </View>
       </View>
+      <SegmentedButtons
+        style={styles.tabs}
+        value={tab}
+        onValueChange={(v) => setTab(v as Tab)}
+        buttons={[
+          { value: 'pipeline', label: 'Pipeline' },
+          { value: 'decisions', label: 'Decisions' },
+        ]}
+      />
 
-      {empty ? (
+      {tabEmpty ? (
         <View style={styles.empty}>
           <MaterialIcons name={ICONS.log} size={36} color={c.textDisabled} />
-          <Text variant="titleMedium">No decisions logged yet</Text>
+          <Text variant="titleMedium">Nothing logged yet</Text>
           <Text variant="bodySmall" style={styles.emptyBody}>
-            Open the Scan tab and aim at a card. Every state transition (blocked, progressing, fired, etc.) is recorded here.
+            {tab === 'pipeline'
+              ? 'Open the Scan tab and scan a card. Camera, worklet, crop, upload and recognition events are recorded here.'
+              : 'Open the Scan tab and aim at a card. Every state transition (blocked, progressing, fired, etc.) is recorded here.'}
           </Text>
         </View>
+      ) : tab === 'pipeline' ? (
+        <FlatList
+          data={reversedEvents}
+          keyExtractor={(item) => String(item.seq)}
+          renderItem={({ item }) => <TraceRow event={item} c={c} styles={styles} />}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator
+        />
       ) : (
         <FlatList
-          data={reversed}
+          data={reversedEntries}
           keyExtractor={(item) => `${item.ts}-${item.framesProcessed}`}
           renderItem={({ item }) => <Row entry={item} c={c} styles={styles} />}
           contentContainerStyle={styles.list}
@@ -83,16 +129,53 @@ export function ScanDebugLogScreen() {
   );
 }
 
+function TraceRow({ event, c, styles }: { event: ScanTraceEvent; c: Palette; styles: Styles }) {
+  const [expanded, setExpanded] = useState(false);
+  const tint =
+    event.level === 'error' ? c.danger : event.level === 'warning' ? c.warning : event.level === 'debug' ? c.textSubtle : c.success;
+  const cropUri = typeof event.data?.uri === 'string' ? event.data.uri : undefined;
+
+  return (
+    <Pressable onPress={() => setExpanded((v) => !v)} style={styles.row}>
+      <View style={[styles.rowChip, { backgroundColor: tint + '22', borderColor: tint }]}>
+        <Text style={[styles.rowChipText, { color: tint }]}>{event.kind}</Text>
+      </View>
+      <View style={styles.rowMain}>
+        <Text variant="bodyMedium" numberOfLines={expanded ? undefined : 1}>
+          {event.message}
+        </Text>
+        <Text style={styles.rowMeta}>
+          {formatTime(event.ts)}{event.captureId ? ` · ${event.captureId}` : ''}
+        </Text>
+        {expanded ? (
+          <View style={styles.rowExpanded}>
+            {cropUri ? <Image source={{ uri: cropUri }} style={styles.cropThumb} contentFit="contain" /> : null}
+            {event.data ? (
+              <Text style={styles.dataLineValue} selectable>
+                {JSON.stringify(event.data, null, 2)}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
+function formatTime(ts: number): string {
+  const time = new Date(ts);
+  const hh = time.getHours().toString().padStart(2, '0');
+  const mm = time.getMinutes().toString().padStart(2, '0');
+  const ss = time.getSeconds().toString().padStart(2, '0');
+  const ms = time.getMilliseconds().toString().padStart(3, '0');
+  return `${hh}:${mm}:${ss}.${ms}`;
+}
+
 type Styles = ReturnType<typeof makeStyles>;
 
 function Row({ entry, c, styles }: { entry: DecisionLogEntry; c: Palette; styles: Styles }) {
   const [expanded, setExpanded] = useState(false);
   const { tint, label } = renderReason(entry.reason, c);
-  const time = new Date(entry.ts);
-  const hh = time.getHours().toString().padStart(2, '0');
-  const mm = time.getMinutes().toString().padStart(2, '0');
-  const ss = time.getSeconds().toString().padStart(2, '0');
-  const ms = time.getMilliseconds().toString().padStart(3, '0');
 
   return (
     <Pressable onPress={() => setExpanded((v) => !v)} style={styles.row}>
@@ -104,7 +187,7 @@ function Row({ entry, c, styles }: { entry: DecisionLogEntry; c: Palette; styles
           {label}
         </Text>
         <Text style={styles.rowMeta}>
-          {hh}:{mm}:{ss}.{ms} · score {entry.composite.toFixed(2)} · fps {entry.detectionFps.toFixed(1)}
+          {formatTime(entry.ts)} · score {entry.composite.toFixed(2)} · fps {entry.detectionFps.toFixed(1)}
         </Text>
         {expanded ? (
           <View style={styles.rowExpanded}>
@@ -120,6 +203,19 @@ function Row({ entry, c, styles }: { entry: DecisionLogEntry; c: Palette; styles
             <DataLine styles={styles} label="floors" value={entry.hardFloorPass ? 'pass' : 'FAIL'} />
             <DataLine styles={styles} label="cooldown" value={entry.cooldownActive ? 'BLOCK' : 'clear'} />
             <DataLine styles={styles} label="frames#" value={String(entry.framesProcessed)} />
+            <DataLine styles={styles} label="edges" value={String(entry.edgePixelCount)} />
+            <DataLine
+              styles={styles}
+              label="contours"
+              value={`${entry.contourCount} (large ${entry.largeContourCount}, quads ${entry.candidateQuadCount}, clipped ${entry.clippedQuadCount})`}
+            />
+            <DataLine
+              styles={styles}
+              label="largest"
+              value={`fill ${entry.largestContourFillPct}% · aspect ${entry.largestContourAspect.toFixed(2)}`}
+            />
+            <DataLine styles={styles} label="step" value={entry.lastStep} />
+            {entry.lastError ? <DataLine styles={styles} label="error" value={entry.lastError} /> : null}
           </View>
         ) : null}
       </View>
@@ -139,7 +235,9 @@ function DataLine({ label, value, styles }: { label: string; value: string; styl
 function renderReason(reason: DecisionReason, c: Palette): { tint: string; label: string } {
   switch (reason.kind) {
     case 'no-quad':
-      return { tint: c.textSubtle, label: 'No card seen' };
+      return reason.clipped
+        ? { tint: c.warning, label: 'Card-shaped contour clipped by guide edge' }
+        : { tint: c.textSubtle, label: 'No card seen' };
     case 'blocked-floor':
       return {
         tint: c.warning,
@@ -156,7 +254,10 @@ function renderReason(reason: DecisionReason, c: Palette): { tint: string; label
         label: `Score ${reason.composite.toFixed(2)} below threshold ${reason.thresholdHigh.toFixed(2)}`,
       };
     case 'progressing':
-      return { tint: c.success, label: 'In band — counting stable frames' };
+      return {
+        tint: c.success,
+        label: `In band — stable ${reason.stableFrames}/${reason.minStableFrames}`,
+      };
     case 'fired':
       return {
         tint: c.success,
@@ -184,6 +285,8 @@ const makeStyles = (c: Palette) =>
     },
     toolbarText: { color: c.textMuted, fontFamily: 'monospace' },
     toolbarActions: { flexDirection: 'row', gap: spacing.xs },
+    tabs: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
+    cropThumb: { width: 120, height: 168, borderRadius: radii.sm, marginBottom: spacing.sm },
 
     list: { padding: spacing.md, gap: 6 },
     row: {

@@ -1,31 +1,15 @@
 import { useMutation } from '@tanstack/react-query';
+import { File } from 'expo-file-system';
 import { Sentry } from '../observability/breadcrumb';
 import { createScan as rawPostScans } from './generated/scans/scans';
 import type { ScanResponse } from './generated/models';
 
-/**
- * Convenience input shape for callers — same as the old `mtgApi.scanCard`
- * argument so `ScanScreen` can keep its mental model. The hook builds the
- * multipart FormData itself, mirroring React Native's `{uri, type, name}`
- * blob descriptor that the generated `usePostScans` doesn't know about.
- */
+/** Local JPEG to upload; `mimeType`/`fileName` are recorded on the span only — the `File` carries its own. */
 export type ScanInput = {
   uri: string;
   mimeType?: string;
   fileName?: string;
 };
-
-function buildScanFormData(input: ScanInput): FormData {
-  const form = new FormData();
-  // RN FormData accepts a `{uri, type, name}` descriptor that the bridge
-  // turns into a multipart file part. TS doesn't model that — cast.
-  form.append('image', {
-    uri: input.uri,
-    type: input.mimeType ?? 'image/jpeg',
-    name: input.fileName ?? 'scan.jpg',
-  } as unknown as Blob);
-  return form;
-}
 
 /**
  * `POST /scans` instrumented with a Sentry span — preserves the only network
@@ -56,6 +40,7 @@ export function scanCard(input: ScanInput): Promise<ScanResponse> {
         'mime.type': input.mimeType ?? 'image/jpeg',
       },
     },
-    () => rawPostScans({ image: buildScanFormData(input) as unknown as Blob }),
+    // The generated client builds the multipart body itself; expo/fetch encodes a `File` part natively.
+    () => rawPostScans({ image: new File(input.uri) }),
   );
 }

@@ -9,7 +9,7 @@ import { SCAN_HYSTERESIS } from '../../store/scan-settings-store';
  * consumers can colour-code, sort or filter without re-parsing.
  */
 export type DecisionReason =
-  | { kind: 'no-quad' }
+  | { kind: 'no-quad'; clipped: boolean }
   | { kind: 'below-band'; composite: number; thresholdLow: number; thresholdHigh: number }
   | {
       kind: 'blocked-floor';
@@ -35,6 +35,16 @@ export type DecisionLogEntry = {
   cooldownActive: boolean;
   detectionFps: number;
   framesProcessed: number;
+  /** Detector internals — explain `no-quad` (edges found but no contour passed the fill/aspect gates). */
+  edgePixelCount: number;
+  contourCount: number;
+  largeContourCount: number;
+  candidateQuadCount: number;
+  clippedQuadCount: number;
+  largestContourFillPct: number;
+  largestContourAspect: number;
+  lastStep: string;
+  lastError: string;
 };
 
 const MAX_LOG_ENTRIES = 200;
@@ -80,9 +90,11 @@ export const selectLatestDecision = (s: LogState) => s.latest;
 export function deriveDecisionReason(
   m: DetectionMetrics,
   thresholdHigh: number,
+  stableFrames: number,
+  minStableFrames: number,
 ): DecisionReason {
   if (!m.hasQuad) {
-    return { kind: 'no-quad' };
+    return { kind: 'no-quad', clipped: m.clippedQuadCount > 0 };
   }
   // Identify the worst-failing hard floor (largest *relative* gap below).
   const failures: { floor: 'coverage' | 'stability' | 'sharpness' | 'brightness'; value: number; threshold: number; gap: number }[] = [];
@@ -143,7 +155,7 @@ export function deriveDecisionReason(
     return { kind: 'below-band', composite: m.score, thresholdHigh, thresholdLow };
   }
   // In the band, hard floors clear, no cooldown — actively progressing.
-  return { kind: 'progressing', stableFrames: 0, minStableFrames: 0 };
+  return { kind: 'progressing', stableFrames, minStableFrames };
 }
 
 /**
@@ -168,6 +180,15 @@ export function buildLogEntry(
     cooldownActive: m.cooldownActive,
     detectionFps: m.detectionFps,
     framesProcessed: m.framesProcessed,
+    edgePixelCount: m.edgePixelCount,
+    contourCount: m.contourCount,
+    largeContourCount: m.largeContourCount,
+    candidateQuadCount: m.candidateQuadCount,
+    clippedQuadCount: m.clippedQuadCount,
+    largestContourFillPct: m.bestApproxVertexCount,
+    largestContourAspect: m.bestApproxAspect,
+    lastStep: m.lastStep,
+    lastError: m.lastError,
   };
 }
 
@@ -181,6 +202,9 @@ export function reasonsEqual(a: DecisionReason | undefined, b: DecisionReason): 
   if (a.kind !== b.kind) return false;
   if (a.kind === 'blocked-floor' && b.kind === 'blocked-floor') {
     return a.floor === b.floor;
+  }
+  if (a.kind === 'no-quad' && b.kind === 'no-quad') {
+    return a.clipped === b.clipped;
   }
   // For other kinds, kind alone is enough — the small numeric drift from
   // frame to frame doesn't constitute a meaningfully new state.

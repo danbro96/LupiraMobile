@@ -33,7 +33,7 @@ export function RootStack() {
           <Stack.Screen name="Tabs" component={MtgTabs} options={{ headerShown: false }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
           <Stack.Screen name="ScanSettings" component={ScanSettingsScreen} options={{ title: 'Scan tuning' }} />
-          <Stack.Screen name="ScanDebugLog" component={ScanDebugLogScreen} options={{ title: 'Decision log' }} />
+          <Stack.Screen name="ScanDebugLog" component={ScanDebugLogScreen} options={{ title: 'Scan debug log' }} />
         </>
       ) : (
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />

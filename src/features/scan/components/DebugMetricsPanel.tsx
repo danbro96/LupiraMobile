@@ -95,6 +95,7 @@ export function DebugMetricsPanel({
         <Row label="fill %" value={String(m.bestApproxVertexCount)} />
         <Row label="best asp" value={m.bestApproxAspect ? m.bestApproxAspect.toFixed(2) : '—'} />
         <Row label="candidates" value={String(m.candidateQuadCount)} />
+        <Row label="clipped" value={String(m.clippedQuadCount)} />
         <Row label="hist" value={String(m.historyDepth)} />
         <Row label="det fps" value={m.detectionFps.toFixed(1)} />
       </Section>
