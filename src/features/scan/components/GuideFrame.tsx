@@ -1,11 +1,10 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Line, Rect } from 'react-native-svg';
-import { GUIDE_SHORT_FRACTION } from '../detection/useCardDetection';
+import { GUIDE_SHORT_FRACTION, MTG_ASPECT } from '../detection/useCardDetection';
 
 const ACCENT = 'rgba(255,255,255,0.7)';
 const ACCENT_DIM = 'rgba(255,255,255,0.25)';
-const MTG_ASPECT_PORTRAIT = 2.5 / 3.5;
 
 type Props = {
   containerWidth: number;
@@ -26,10 +25,10 @@ export function GuideFrame({ containerWidth, containerHeight }: Props) {
   // either axis — same logic the worklet uses on the buffer side, just on
   // a portrait container instead of a landscape buffer.
   let guideHeight = containerHeight * GUIDE_SHORT_FRACTION;
-  let guideWidth = guideHeight * MTG_ASPECT_PORTRAIT;
+  let guideWidth = guideHeight * MTG_ASPECT;
   if (guideWidth > containerWidth * GUIDE_SHORT_FRACTION) {
     guideWidth = containerWidth * GUIDE_SHORT_FRACTION;
-    guideHeight = guideWidth / MTG_ASPECT_PORTRAIT;
+    guideHeight = guideWidth / MTG_ASPECT;
   }
   const x = (containerWidth - guideWidth) / 2;
   const y = (containerHeight - guideHeight) / 2;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   type CameraFrameOutput,
@@ -21,25 +21,19 @@ import {
 import {
   SCAN_COOLDOWN_CENTROID_FRACTION,
   SCAN_COOLDOWN_MS,
-  SCAN_HYSTERESIS,
+  SCAN_HYSTERESIS_BAND,
 } from '../../../store/scan-settings-store';
 import { useSyncedValue } from './useSyncedValue';
 
 /**
- * Output dimensions for the worklet-emitted card crop, matching what cropToQuad produced so the backend
- * pipeline (pHash + OCR + canonicalisation to ~750 px) sees the shape it always has. The source is the
- * worklet's Y-plane (1280×720 typical), so 1200×1680 is mild upsampling — fine, since the backend
- * re-canonicalises anyway.
+ * Output dimensions for the worklet-emitted card crop. The source is the worklet's Y-plane (1280×720
+ * typical), so 1200×1680 is mild upsampling — fine, since the backend re-canonicalises to ~750 px anyway.
  */
 const MTG_OUTPUT_WIDTH = 1200;
 const MTG_OUTPUT_HEIGHT = 1680;
 /** JPEG quality used by `saveMatToFile` inside the worklet (0..1 → 0..100). */
 const MTG_OUTPUT_JPEG_QUALITY = 0.92;
-/**
- * Cache directory captured at module load. expo-file-system exposes
- * `cacheDirectory` as a static string, so it's safe to inline into the
- * worklet's closure — no JS-thread bridge needed at capture time.
- */
+/** Static string, so it can be captured into the worklet closure. */
 const CACHE_DIR_PREFIX = (FileSystem.cacheDirectory ?? '').replace(/\/$/, '');
 
 export type Point = { x: number; y: number };
@@ -84,9 +78,9 @@ export type DetectionMetrics = {
   historyDepth: number;
   edgePixelCount: number;
   largeContourCount: number;
-  /** Re-purposed: fill ratio of the largest contour as a 0-100 percentage. */
-  bestApproxVertexCount: number;
-  bestApproxAspect: number;
+  /** Fill ratio of the largest contour as a 0-100 percentage. */
+  largestContourFillPct: number;
+  largestContourAspect: number;
   framesProcessed: number;
   lastBufferBytes: number;
   lastError: string;
@@ -95,7 +89,7 @@ export type DetectionMetrics = {
 
 /**
  * Worklet-side snapshot taken at the instant auto-capture fired. The shared `metrics` value is overwritten
- * with `detection-disabled` on the next frame, so JS must not read it back for the fire record.
+ * by the next frame, so JS must not read it back for the fire record.
  */
 export type CaptureDiagnostics = {
   metrics: DetectionMetrics;
@@ -120,10 +114,8 @@ export type CardDetectionParams = {
   weightCoverage: number;
   weightBrightness: number;
   /**
-   * Invoked on the JS thread once the worklet has approved a frame AND JPEG-encoded the perspective-corrected
-   * crop. `captureUri` is a `file://` URI for that JPEG in cache, uploadable directly — no
-   * `photoOutput.capturePhoto`, no JS-side cropToQuad. It may be the empty string if the worklet's warp/encode
-   * failed (rare); treat that as a silent miss and let the next stable frame try again.
+   * Invoked on the JS thread once the worklet has approved a frame and JPEG-encoded the perspective-corrected
+   * crop to a `file://` cache URI. Empty if warp/encode failed; treat that as a silent miss.
    */
   onAutoCapture: (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => void;
 };
@@ -133,19 +125,6 @@ export type CardDetectionState = {
   metrics: Synchronizable<DetectionMetrics>;
   stableFrames: Synchronizable<number>;
   frameOutput: CameraFrameOutput;
-  /**
-   * Re-enable detection after the worklet has self-disabled for an auto-capture
-   * that subsequently failed (e.g. camera was mid-rebind after an AppState
-   * transition and `capturePhoto` threw "Not bound to a valid Camera").
-   */
-  resume: () => void;
-  /**
-   * Pause the worklet pipeline from JS. Required around `capturePhoto` +
-   * `cropToQuad` because both the worklet and `cropToQuad` call
-   * `OpenCV.clearBuffers()` on the same global object store; if the worklet
-   * keeps running it wipes objects mid-warp.
-   */
-  pause: () => void;
 };
 
 const INITIAL_METRICS: DetectionMetrics = {
@@ -173,15 +152,16 @@ const INITIAL_METRICS: DetectionMetrics = {
   historyDepth: 0,
   edgePixelCount: 0,
   largeContourCount: 0,
-  bestApproxVertexCount: 0,
-  bestApproxAspect: 0,
+  largestContourFillPct: 0,
+  largestContourAspect: 0,
   framesProcessed: 0,
   lastBufferBytes: 0,
   lastError: '',
   lastStep: '',
 };
 
-const MTG_ASPECT = 2.5 / 3.5;
+/** Portrait short/long ratio of an MTG card. */
+export const MTG_ASPECT = 2.5 / 3.5;
 const MTG_SHORT = 2.5;
 const MTG_LONG = 3.5;
 const ASPECT_TOLERANCE = 0.3;
@@ -198,7 +178,6 @@ const ROI_EDGE_MARGIN = 3;
  * guide rectangle aligns with where the worklet actually looks.
  */
 export const GUIDE_SHORT_FRACTION = 0.55;
-const APPROX_EPSILON_FRACTIONS = [0.02, 0.03, 0.04, 0.05, 0.06] as const;
 // Width (long axis) of the downscaled buffer that runs through Canny +
 // findContours. Lower is faster — work scales with pixel count.
 const DETECT_WIDTH = 360;
@@ -225,12 +204,6 @@ export const HARD_FLOORS = {
   brightnessMin: 30,
   brightnessMax: 235,
 } as const;
-
-const HARD_FLOOR_COVERAGE = HARD_FLOORS.coverage;
-const HARD_FLOOR_STABILITY = HARD_FLOORS.stability;
-const HARD_FLOOR_SHARPNESS = HARD_FLOORS.sharpness;
-const HARD_FLOOR_BRIGHTNESS_MIN = HARD_FLOORS.brightnessMin;
-const HARD_FLOOR_BRIGHTNESS_MAX = HARD_FLOORS.brightnessMax;
 
 /**
  * Sharpness normalisation divisor for the mean-absolute-Laplacian metric (YUV-Y small Mat, 3×3 kernel). On
@@ -274,49 +247,33 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     shortEdge: number;
   } | null>(null);
 
-  const tunables = useSyncedValue<{
-    enabled: boolean;
-    autoCaptureEnabled: boolean;
-    /** HIGH threshold of the hysteresis band. LOW is derived as HIGH - 0.12. */
-    thresholdHigh: number;
-    minStableFrames: number;
-    wStability: number;
-    wSharpness: number;
-    wCoverage: number;
-    wBrightness: number;
-  }>({
-    enabled: params.enabled,
-    autoCaptureEnabled: params.autoCaptureEnabled,
-    thresholdHigh: params.threshold,
-    minStableFrames: params.minStableFrames,
-    wStability: params.weightStability,
-    wSharpness: params.weightSharpness,
-    wCoverage: params.weightCoverage,
-    wBrightness: params.weightBrightness,
-  });
-
-  useEffect(() => {
-    tunables.setBlocking({
+  const tuning = useMemo(
+    () => ({
       enabled: params.enabled,
       autoCaptureEnabled: params.autoCaptureEnabled,
+      /** Upper edge of the hysteresis band; the lower edge is this minus `SCAN_HYSTERESIS_BAND`. */
       thresholdHigh: params.threshold,
       minStableFrames: params.minStableFrames,
       wStability: params.weightStability,
       wSharpness: params.weightSharpness,
       wCoverage: params.weightCoverage,
       wBrightness: params.weightBrightness,
-    });
-  }, [
-    tunables,
-    params.enabled,
-    params.autoCaptureEnabled,
-    params.threshold,
-    params.minStableFrames,
-    params.weightStability,
-    params.weightSharpness,
-    params.weightCoverage,
-    params.weightBrightness,
-  ]);
+    }),
+    [
+      params.enabled,
+      params.autoCaptureEnabled,
+      params.threshold,
+      params.minStableFrames,
+      params.weightStability,
+      params.weightSharpness,
+      params.weightCoverage,
+      params.weightBrightness,
+    ],
+  );
+  const tunables = useSyncedValue(tuning);
+  useEffect(() => {
+    tunables.setBlocking(tuning);
+  }, [tunables, tuning]);
 
   const onAutoCaptureRef = useRef(params.onAutoCapture);
   onAutoCaptureRef.current = params.onAutoCapture;
@@ -325,27 +282,26 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     onAutoCaptureRef.current(captureUri, q, size, diag);
   };
 
-  // Constants captured into the worklet closure. Top-level imports are
-  // inlined cleanly by react-native-worklets, but for clarity we pull the
-  // numbers we use into named locals here.
-  const BAND_LOW_OFFSET = SCAN_HYSTERESIS.HIGH - SCAN_HYSTERESIS.LOW; // 0.12
-  const COOLDOWN_MS = SCAN_COOLDOWN_MS;
-  const COOLDOWN_FRACTION = SCAN_COOLDOWN_CENTROID_FRACTION;
-
   const frameOutput = useFrameOutput({
     pixelFormat: 'yuv',
     dropFramesWhileBusy: true,
     onFrame: (frame: Frame) => {
       'worklet';
-      // Hoisted out of the try block so the outer finally can read them
-      // even after early returns. `gray` is the Y-plane Mat the trigger
-      // branch warps for capture; `opencvDirty` guards `clearBuffers()` so
-      // we don't no-op-call it when bufferToMat never ran.
+      // Hoisted so the outer finally sees them after early returns; `gray` must outlive the capture warp.
       let gray: any = null;
       let opencvDirty = false;
 
+      const resetTracking = () => {
+        stableFrames.setBlocking(0);
+        inBand.setBlocking(false);
+        smoothedDetQuad.setBlocking(null);
+        smoothMissCount.setBlocking(0);
+        history.setBlocking([]);
+      };
+
       try {
         const tune = tunables.getDirty();
+        const planes = frame.isPlanar ? frame.getPlanes() : [];
         if (!tune.enabled) {
           quad.setBlocking(null);
           metrics.setBlocking({
@@ -355,15 +311,11 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             orientation: frame.orientation,
             isMirrored: frame.isMirrored,
             bytesPerRow: frame.bytesPerRow,
-            planesCount: frame.isPlanar ? frame.getPlanes().length : 0,
+            planesCount: planes.length,
             framesProcessed: framesProcessedShared.getDirty(),
             lastStep: 'detection-disabled',
           });
-          stableFrames.setBlocking(0);
-          inBand.setBlocking(false);
-          smoothedDetQuad.setBlocking(null);
-          smoothMissCount.setBlocking(0);
-          history.setBlocking([]);
+          resetTracking();
           return;
         }
 
@@ -378,11 +330,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
         const frameW = frame.width;
         const frameH = frame.height;
-        const framePixelFormat = frame.pixelFormat;
-        const frameOrientation = frame.orientation;
-        const frameIsMirrored = frame.isMirrored;
-        const frameBytesPerRow = frame.bytesPerRow;
-        const framePlanesCount = frame.isPlanar ? frame.getPlanes().length : 0;
 
         let yWidth = 0;
         let yHeight = 0;
@@ -401,26 +348,44 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         let clippedQuadCount = 0;
         let edgePixelCount = 0;
         let largeContourCount = 0;
-        let bestApproxVertexCount = 0;
-        let bestApproxAspect = 0;
+        let largestContourFillPct = 0;
+        let largestContourAspect = 0;
         let bestSeenArea = 0;
         let lastStep = 'enter';
         let lastBufferBytes = 0;
-        // Per-frame quality metrics computed during the OpenCV pass; defaulted
-        // to 0 / out-of-band so the no-detection path still emits sensible
-        // metric values for the JS-side debug overlay.
         let sharpnessRaw = 0;
         let brightnessRaw = 0;
         const framesProcessedNow = framesProcessedShared.getDirty() + 1;
         framesProcessedShared.setBlocking(framesProcessedNow);
 
         let pipelineError = '';
+        const pipelineMetrics = (): DetectionMetrics => ({
+          ...INITIAL_METRICS,
+          frameSize: { width: frameW, height: frameH },
+          detectionFps: newEma,
+          pixelFormat: frame.pixelFormat,
+          orientation: frame.orientation,
+          isMirrored: frame.isMirrored,
+          bytesPerRow: frame.bytesPerRow,
+          planesCount: planes.length,
+          contourCount: contourCountForMetrics,
+          candidateQuadCount,
+          clippedQuadCount,
+          edgePixelCount,
+          largeContourCount,
+          largestContourFillPct,
+          largestContourAspect,
+          framesProcessed: framesProcessedNow,
+          lastBufferBytes,
+          lastError: pipelineError,
+          lastStep,
+        });
+
         try {
           if (!frame.isPlanar) {
             lastStep = 'skip:not-planar';
             return;
           }
-          const planes = frame.getPlanes();
           if (planes.length === 0) {
             lastStep = 'skip:no-planes';
             return;
@@ -489,17 +454,12 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           lastStep = 'resize';
           OpenCV.invoke('resize', grayRoi, small, sizeSmall, 0, 0, InterpolationFlags.INTER_AREA);
 
-          // --- Quality signals computed on the small Mat (cheap; ~1 ms total).
-          // Brightness: mean luminance of the ROI. Used both as a hard floor
-          // (the captured frame must be inside [30, 235]) and a soft penalty.
           lastStep = 'mean.brightness';
           const brightnessScalar = OpenCV.invoke('mean', small);
           const brightnessJs = OpenCV.toJSValue(brightnessScalar);
           brightnessRaw = brightnessJs.a;
 
-          // Sharpness: mean of |Laplacian| on the small Mat. Higher = sharper.
-          // Using mean(|L|) instead of var(L) avoids needing a separate
-          // squaring step.
+          // mean(|Laplacian|) rather than var(L): no separate squaring step.
           lastStep = 'Laplacian';
           const lapl = OpenCV.createObject(ObjectType.Mat, 0, 0, DataTypes.CV_16SC1);
           OpenCV.invoke('Laplacian', small, lapl, DataTypes.CV_16S, 3, 1, 0, BorderTypes.BORDER_DEFAULT);
@@ -564,8 +524,8 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
             if (area > bestSeenArea) {
               bestSeenArea = area;
-              bestApproxVertexCount = Math.round(fillRatio * 100);
-              bestApproxAspect = aspect;
+              largestContourFillPct = Math.round(fillRatio * 100);
+              largestContourAspect = aspect;
             }
 
             if (fillRatio < FILL_RATIO_MIN) continue;
@@ -611,28 +571,9 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
 
           lastStep = 'done';
         } catch (e: unknown) {
-          const raw = e instanceof Error ? e.message : String(e);
-          pipelineError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+          pipelineError = truncatedErrorMessage(e);
           quad.setBlocking(null);
-          metrics.setBlocking({
-            ...INITIAL_METRICS,
-            frameSize: { width: frameW, height: frameH },
-            detectionFps: newEma,
-            pixelFormat: framePixelFormat,
-            orientation: frameOrientation,
-            isMirrored: frameIsMirrored,
-            bytesPerRow: frameBytesPerRow,
-            planesCount: framePlanesCount,
-            framesProcessed: framesProcessedNow,
-            lastBufferBytes,
-            lastError: pipelineError,
-            lastStep,
-            edgePixelCount,
-            contourCount: contourCountForMetrics,
-            largeContourCount,
-            bestApproxVertexCount,
-            bestApproxAspect,
-          });
+          metrics.setBlocking(pipelineMetrics());
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
           return;
@@ -671,89 +612,48 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           history.setBlocking([]);
           stableFrames.setBlocking(0);
           inBand.setBlocking(false);
-          // Even with no quad, surface remaining cooldown so the JS pill can
-          // show "Cooldown 0.8 s" while the user is between cards.
+          // Surface remaining cooldown so the pill can count down between cards.
           const cdNoQuad = lastCapture.getDirty();
-          const cooldownRemainingMsNoQuad =
-            cdNoQuad && now - cdNoQuad.at < COOLDOWN_MS
-              ? COOLDOWN_MS - (now - cdNoQuad.at)
-              : 0;
           metrics.setBlocking({
-            score: 0,
-            stability: 0,
-            sharpness: 0,
-            coverage: 0,
-            brightnessFit: 0,
+            ...pipelineMetrics(),
             brightness: brightnessRaw,
-            detectionFps: newEma,
-            frameSize: { width: frameW, height: frameH },
-            hasQuad: false,
-            hardFloorPass: false,
-            inHysteresis: false,
-            cooldownActive: false,
-            cooldownRemainingMs: cooldownRemainingMsNoQuad,
-            pixelFormat: framePixelFormat,
-            orientation: frameOrientation,
-            isMirrored: frameIsMirrored,
-            bytesPerRow: frameBytesPerRow,
-            planesCount: framePlanesCount,
-            contourCount: contourCountForMetrics,
-            candidateQuadCount,
-            clippedQuadCount,
-            historyDepth: 0,
-            edgePixelCount,
-            framesProcessed: framesProcessedNow,
-            lastBufferBytes,
-            lastError: pipelineError,
-            lastStep,
-            largeContourCount,
-            bestApproxVertexCount,
-            bestApproxAspect,
+            cooldownRemainingMs:
+              cdNoQuad && now - cdNoQuad.at < SCAN_COOLDOWN_MS ? SCAN_COOLDOWN_MS - (now - cdNoQuad.at) : 0,
           });
           return;
         }
 
-        // Append to short history for stability scoring.
         const prevHist = history.getDirty().slice();
         prevHist.push(activeQuad);
         if (prevHist.length > STABILITY_HISTORY) prevHist.shift();
         history.setBlocking(prevHist);
 
-        // ----- Decision-policy signals (all in [0..1] unless noted). -----
-        // Stability normalised to the quad's short edge: a big card needs the
-        // same *relative* steadiness as a small one.
         const shortEdgeDet = quadShortEdge(activeQuad);
         const stabilityCeiling = Math.max(STABILITY_CEILING_MIN, shortEdgeDet * STABILITY_CEILING_FRACTION);
         const stability = stabilityScoreNormalised(activeQuad, prevHist, stabilityCeiling);
 
         const coverage = coverageScore(activeQuad, detWPlane, detHPlane);
 
-        // Sharpness: normalise mean-abs-Laplacian to 0..1.
         const sharpness =
           sharpnessRaw <= 0 ? 0 : Math.min(1, sharpnessRaw / SHARPNESS_NORM_DIVISOR);
 
-        // Brightness fit: 1.0 inside [80, 200], linear ramp to 0 toward the
-        // hard-floor edges. Also feeds the brightness hard floor below.
         const brightnessFit = brightnessFitScore(brightnessRaw);
 
-        // Composite soft score, weights configurable.
         const composite =
           tune.wStability * stability +
           tune.wSharpness * sharpness +
           tune.wCoverage * coverage +
           tune.wBrightness * brightnessFit;
 
-        // Hard-floor pass: every signal must clear its individual minimum.
         const hardFloorPass =
-          coverage >= HARD_FLOOR_COVERAGE &&
-          stability >= HARD_FLOOR_STABILITY &&
-          sharpness >= HARD_FLOOR_SHARPNESS &&
-          brightnessRaw >= HARD_FLOOR_BRIGHTNESS_MIN &&
-          brightnessRaw <= HARD_FLOOR_BRIGHTNESS_MAX;
+          coverage >= HARD_FLOORS.coverage &&
+          stability >= HARD_FLOORS.stability &&
+          sharpness >= HARD_FLOORS.sharpness &&
+          brightnessRaw >= HARD_FLOORS.brightnessMin &&
+          brightnessRaw <= HARD_FLOORS.brightnessMax;
 
-        // Hysteresis band update.
         const thresholdHigh = tune.thresholdHigh;
-        const thresholdLow = thresholdHigh - BAND_LOW_OFFSET;
+        const thresholdLow = thresholdHigh - SCAN_HYSTERESIS_BAND;
         const wasInBand = inBand.getDirty();
         let nowInBand = wasInBand;
         if (!wasInBand && composite >= thresholdHigh) {
@@ -763,70 +663,44 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         }
         inBand.setBlocking(nowInBand);
 
-        // Content-cooldown evaluation.
+        const centroidX = (activeQuad[0].x + activeQuad[2].x) / 2;
+        const centroidY = (activeQuad[0].y + activeQuad[2].y) / 2;
         const cooldown = lastCapture.getDirty();
         let cooldownActive = false;
         let cooldownRemainingMs = 0;
-        if (cooldown && now - cooldown.at < COOLDOWN_MS) {
-          cooldownRemainingMs = COOLDOWN_MS - (now - cooldown.at);
-          const cx = (activeQuad[0].x + activeQuad[2].x) / 2;
-          const cy = (activeQuad[0].y + activeQuad[2].y) / 2;
-          const dx = cx - cooldown.centroidX;
-          const dy = cy - cooldown.centroidY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < cooldown.shortEdge * COOLDOWN_FRACTION) {
+        if (cooldown && now - cooldown.at < SCAN_COOLDOWN_MS) {
+          cooldownRemainingMs = SCAN_COOLDOWN_MS - (now - cooldown.at);
+          const dx = centroidX - cooldown.centroidX;
+          const dy = centroidY - cooldown.centroidY;
+          if (Math.sqrt(dx * dx + dy * dy) < cooldown.shortEdge * SCAN_COOLDOWN_CENTROID_FRACTION) {
             cooldownActive = true;
           }
         }
 
-        // Project detection-space coords back into frame-space.
+        // Detection space → Y-plane buffer (the Mat the capture warp reads) → frame space.
+        const bufferQuad = activeQuad.map((p) => ({ x: p.x * scalePlane + roiX, y: p.y * scalePlane + roiY })) as Quad;
         const sx = frameW / yWidth;
         const sy = frameH / yHeight;
-        const frameQuad: Quad = [
-          { x: (activeQuad[0].x * scalePlane + roiX) * sx, y: (activeQuad[0].y * scalePlane + roiY) * sy },
-          { x: (activeQuad[1].x * scalePlane + roiX) * sx, y: (activeQuad[1].y * scalePlane + roiY) * sy },
-          { x: (activeQuad[2].x * scalePlane + roiX) * sx, y: (activeQuad[2].y * scalePlane + roiY) * sy },
-          { x: (activeQuad[3].x * scalePlane + roiX) * sx, y: (activeQuad[3].y * scalePlane + roiY) * sy },
-        ];
+        const frameQuad = bufferQuad.map((p) => ({ x: p.x * sx, y: p.y * sy })) as Quad;
 
         quad.setBlocking(frameQuad);
         const frameMetrics: DetectionMetrics = {
+          ...pipelineMetrics(),
           score: composite,
           stability,
           sharpness,
           coverage,
           brightnessFit,
           brightness: brightnessRaw,
-          detectionFps: newEma,
-          frameSize: { width: frameW, height: frameH },
           hasQuad: true,
           hardFloorPass,
           inHysteresis: nowInBand,
           cooldownActive,
           cooldownRemainingMs,
-          pixelFormat: framePixelFormat,
-          orientation: frameOrientation,
-          isMirrored: frameIsMirrored,
-          bytesPerRow: frameBytesPerRow,
-          planesCount: framePlanesCount,
-          contourCount: contourCountForMetrics,
-          candidateQuadCount,
-          clippedQuadCount,
           historyDepth: prevHist.length,
-          edgePixelCount,
-          framesProcessed: framesProcessedNow,
-          lastBufferBytes,
-          lastError: pipelineError,
-          lastStep,
-          largeContourCount,
-          bestApproxVertexCount,
-          bestApproxAspect,
         };
         metrics.setBlocking(frameMetrics);
 
-        // Trigger logic. All gates must pass to increment the stable counter:
-        // (1) hard floors, (2) inside the hysteresis band, (3) not in a
-        // content cooldown. Any single gate failure resets the counter.
         if (!hardFloorPass || !nowInBand || cooldownActive) {
           stableFrames.setBlocking(0);
           return;
@@ -835,32 +709,12 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
         const nextStable = stableFrames.getDirty() + 1;
         stableFrames.setBlocking(nextStable);
         if (tune.autoCaptureEnabled && nextStable >= tune.minStableFrames) {
-          // Record the cooldown anchor BEFORE handing off to JS, in
-          // detection-space coords (matches `activeQuad`).
-          const captureCx = (activeQuad[0].x + activeQuad[2].x) / 2;
-          const captureCy = (activeQuad[0].y + activeQuad[2].y) / 2;
-          lastCapture.setBlocking({
-            at: now,
-            centroidX: captureCx,
-            centroidY: captureCy,
-            shortEdge: shortEdgeDet,
-          });
+          lastCapture.setBlocking({ at: now, centroidX, centroidY, shortEdge: shortEdgeDet });
 
-          // The Y-plane gray Mat is still alive (clearBuffers runs in the
-          // outer finally below). Warp the detected quad straight to the
-          // canonical MTG_OUTPUT rect and JPEG-encode it to a cache file.
-          // The URI is what goes to JS — no second photoOutput round-trip,
-          // no temporal gap, what the worklet approved IS what gets uploaded.
+          // Warp the exact frame that passed the gates; `gray` lives until the outer finally's clearBuffers.
           let captureUri = '';
           let captureError = '';
           const warpStartedAt = Date.now();
-          // Detection-space → Y-plane buffer coords (the gray Mat the warp reads).
-          const bufferQuad: Quad = [
-            { x: activeQuad[0].x * scalePlane + roiX, y: activeQuad[0].y * scalePlane + roiY },
-            { x: activeQuad[1].x * scalePlane + roiX, y: activeQuad[1].y * scalePlane + roiY },
-            { x: activeQuad[2].x * scalePlane + roiX, y: activeQuad[2].y * scalePlane + roiY },
-            { x: activeQuad[3].x * scalePlane + roiX, y: activeQuad[3].y * scalePlane + roiY },
-          ];
           try {
             const srcPt0 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[0].x, bufferQuad[0].y);
             const srcPt1 = OpenCV.createObject(ObjectType.Point2f, bufferQuad[1].x, bufferQuad[1].y);
@@ -897,16 +751,10 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
             OpenCV.saveMatToFile(warped, diskPath, 'jpeg', MTG_OUTPUT_JPEG_QUALITY);
             captureUri = cacheUri;
           } catch (e: unknown) {
-            // Warp/save failed — fall through with empty URI. JS treats
-            // empty URI as a silent miss and the worklet keeps running on
-            // the next stable-frame attempt.
-            const raw = e instanceof Error ? e.message : String(e);
-            captureError = raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+            captureError = truncatedErrorMessage(e);
           }
 
-          stableFrames.setBlocking(0);
-          inBand.setBlocking(false);
-          tunables.setBlocking({ ...tune, enabled: false });
+          resetTracking();
           runOnJS(triggerAutoCapture)(captureUri, frameQuad, { width: frameW, height: frameH }, {
             metrics: frameMetrics,
             stableFrames: nextStable,
@@ -919,9 +767,6 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
           });
         }
       } finally {
-        // Single cleanup site. `clearBuffers` now runs *after* the trigger
-        // branch's warp-and-save so `gray` is alive when the warp needs it,
-        // and *before* the frame is disposed so we never leak OpenCV objects.
         if (opencvDirty) {
           OpenCV.clearBuffers();
         }
@@ -930,31 +775,18 @@ export function useCardDetection(params: CardDetectionParams): CardDetectionStat
     },
   });
 
-  const resume = () => {
-    const cur = tunables.getDirty();
-    if (!cur.enabled) {
-      tunables.setBlocking({ ...cur, enabled: true });
-      stableFrames.setBlocking(0);
-      inBand.setBlocking(false);
-      smoothedDetQuad.setBlocking(null);
-      smoothMissCount.setBlocking(0);
-      history.setBlocking([]);
-    }
-  };
-
-  const pause = () => {
-    const cur = tunables.getDirty();
-    if (cur.enabled) {
-      tunables.setBlocking({ ...cur, enabled: false });
-    }
-  };
-
-  return { quad, metrics, stableFrames, frameOutput, resume, pause };
+  return { quad, metrics, stableFrames, frameOutput };
 }
 
 // --- Pure helpers (worklet-safe). Each is fully self-contained; cross-helper
 // calls are forbidden because react-native-worklets does not reliably capture
 // sibling helpers into the worklet runtime closure.
+
+function truncatedErrorMessage(e: unknown): string {
+  'worklet';
+  const raw = e instanceof Error ? e.message : String(e);
+  return raw.length > 200 ? `${raw.slice(0, 200)}…` : raw;
+}
 
 function orderQuadCorners(q: Quad): Quad {
   'worklet';
@@ -1050,15 +882,11 @@ function coverageScore(quad: Quad, w: number, h: number): number {
   return 1;
 }
 
-/**
- * Brightness fit in [0..1]. Peaks at 1.0 inside [80, 200] and ramps linearly
- * to 0 at the hard-floor edges (30 / 235). Outside the hard-floor band the
- * value is 0 — the brightness hard-floor gate also rejects the frame.
- */
+/** Brightness fit in [0..1]: 1.0 inside [80, 200], ramping linearly to 0 at the hard-floor edges. */
 function brightnessFitScore(meanLum: number): number {
   'worklet';
-  const HARD_MIN = 30;
-  const HARD_MAX = 235;
+  const HARD_MIN = HARD_FLOORS.brightnessMin;
+  const HARD_MAX = HARD_FLOORS.brightnessMax;
   const SOFT_MIN = 80;
   const SOFT_MAX = 200;
   if (meanLum <= HARD_MIN || meanLum >= HARD_MAX) return 0;
@@ -1069,9 +897,3 @@ function brightnessFitScore(meanLum: number): number {
   // meanLum > SOFT_MAX
   return 1 - (meanLum - SOFT_MAX) / (HARD_MAX - SOFT_MAX);
 }
-
-// `APPROX_EPSILON_FRACTIONS` is currently unused by the simplified detector
-// (we picked minAreaRect corners instead of approxPolyDP). Kept exported via
-// closure so code-search still finds the constant if we re-introduce that
-// path later. Unused-references suppressed by the void below.
-void APPROX_EPSILON_FRACTIONS;

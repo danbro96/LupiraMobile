@@ -5,8 +5,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { CardCandidateDto } from '../../../api/generated/models';
 import { ICONS } from '../../../ui/icons';
 import { darkColors as d } from '../../../ui/theme';
-
-const fmt = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '—');
+import { fmtScore as fmt } from '../scanFormat';
 
 type Props = {
   candidate: CardCandidateDto;

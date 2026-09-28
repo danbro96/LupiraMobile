@@ -208,19 +208,11 @@ function thumbnailUriFor(state: CaptureState): string | null {
       return state.uri;
     case 'error':
       return state.uri ?? null;
-    case 'capturing':
-      return null;
   }
 }
 
 function overlayFor(state: CaptureState): React.ReactNode {
   switch (state.kind) {
-    case 'capturing':
-      return (
-        <View style={styles.overlayCenter}>
-          <ActivityIndicator size="small" color="#fff" />
-        </View>
-      );
     case 'uploading':
       return (
         <View style={styles.overlayCenter}>
@@ -251,8 +243,6 @@ function overlayFor(state: CaptureState): React.ReactNode {
 
 function captionFor(state: CaptureState): string | null {
   switch (state.kind) {
-    case 'capturing':
-      return 'Capturing…';
     case 'uploading':
       return 'Recognising…';
     case 'recognised':

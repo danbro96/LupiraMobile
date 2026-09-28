@@ -5,20 +5,17 @@ export type CaptureId = string;
 /**
  * State machine for one capture record:
  *
- *   capturing → uploading → recognised
- *                        ↘ error
+ *   uploading → recognised
+ *             ↘ error
  *
  * `recognised` may carry an `addedPrintingId` if the auto-add policy fired (high-confidence match) — the gallery
  * tile renders a green check vs an amber "needs review" prompt off that. `dismiss` removes a record (swipe-away).
  */
 export type CaptureState =
-  | { kind: 'capturing' }
-  | { kind: 'uploading'; uri: string; sourceWidth: number; sourceHeight: number }
+  | { kind: 'uploading'; uri: string }
   | {
       kind: 'recognised';
       uri: string;
-      sourceWidth: number;
-      sourceHeight: number;
       response: ScanResponse;
       /** Set when the high-confidence auto-add policy fired for this capture. */
       addedPrintingId?: string;
@@ -33,14 +30,7 @@ export type CaptureRecord = {
 };
 
 export type CaptureAction =
-  | { type: 'capture/start'; id: CaptureId; createdAt: number }
-  | {
-      type: 'capture/uploading';
-      id: CaptureId;
-      uri: string;
-      sourceWidth: number;
-      sourceHeight: number;
-    }
+  | { type: 'capture/add'; id: CaptureId; createdAt: number; uri: string }
   | {
       type: 'capture/recognised';
       id: CaptureId;
@@ -52,8 +42,7 @@ export type CaptureAction =
       printingId: string;
     }
   | { type: 'capture/error'; id: CaptureId; message: string }
-  | { type: 'capture/dismiss'; id: CaptureId }
-  | { type: 'capture/clear-all' };
+  | { type: 'capture/dismiss'; id: CaptureId };
 
 /**
  * Pure reducer for the scan capture queue; each action mutates a single record, looked up by id. Purity is
@@ -66,26 +55,11 @@ export function captureQueueReducer(
   action: CaptureAction,
 ): CaptureRecord[] {
   switch (action.type) {
-    case 'capture/start':
+    case 'capture/add':
       return [
         ...state,
-        { id: action.id, createdAt: action.createdAt, state: { kind: 'capturing' } },
+        { id: action.id, createdAt: action.createdAt, state: { kind: 'uploading', uri: action.uri } },
       ];
-
-    case 'capture/uploading':
-      return state.map((r) =>
-        r.id === action.id
-          ? {
-              ...r,
-              state: {
-                kind: 'uploading',
-                uri: action.uri,
-                sourceWidth: action.sourceWidth,
-                sourceHeight: action.sourceHeight,
-              },
-            }
-          : r,
-      );
 
     case 'capture/recognised':
       return state.map((r) => {
@@ -97,13 +71,7 @@ export function captureQueueReducer(
         }
         return {
           ...r,
-          state: {
-            kind: 'recognised',
-            uri: r.state.uri,
-            sourceWidth: r.state.sourceWidth,
-            sourceHeight: r.state.sourceHeight,
-            response: action.response,
-          },
+          state: { kind: 'recognised', uri: r.state.uri, response: action.response },
         };
       });
 
@@ -130,20 +98,13 @@ export function captureQueueReducer(
     case 'capture/dismiss':
       return state.filter((r) => r.id !== action.id);
 
-    case 'capture/clear-all':
-      return [];
-
     default:
       // Exhaustiveness check at compile time.
       return state;
   }
 }
 
-/**
- * Generate a sortable, unique capture id without depending on a crypto polyfill.
- * Format: `cap-<ms>-<rand>`. Collision-resistant for the gallery's use case
- * (single device, captures spaced by at least the focusTo/cropToQuad cycle).
- */
+/** Sortable, unique-enough capture id without a crypto polyfill: `cap-<ms>-<rand>`. */
 export function newCaptureId(): CaptureId {
   return `cap-${Date.now()}-${Math.floor(Math.random() * 1e6).toString(36)}`;
 }

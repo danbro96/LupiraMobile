@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Circle, Polygon } from 'react-native-svg';
 import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics, FrameSize, Quad } from '../detection/useCardDetection';
 import { darkColors } from '../../../ui/theme';
+import { usePolledValue } from '../detection/usePolledValue';
 
 const ACCENT = darkColors.primary;
 // Threshold met / countdown running: green, matching the status pill's "progressing" state.
@@ -24,9 +25,8 @@ type Props = {
 };
 
 /**
- * Reads worklet shared values via a JS-thread tick and renders the detected
- * quad and a corner-ring countdown indicator. Resampling at ~30fps keeps the
- * overlay smooth without forcing a re-render every camera frame.
+ * Renders the detected quad and a corner-ring countdown indicator. Checked every animation frame but
+ * re-rendered only when the worklet has processed a new frame.
  */
 export function DetectionOverlay({
   quad,
@@ -37,17 +37,7 @@ export function DetectionOverlay({
   threshold,
   minStableFrames,
 }: Props) {
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick((n) => (n + 1) & 0xffff);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  usePolledValue(() => metrics.getDirty().framesProcessed);
 
   const m = metrics.getDirty();
   const q = quad.getDirty();

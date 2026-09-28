@@ -13,6 +13,7 @@ import {
   useDecisionLog,
 } from './decisionLogStore';
 import { type ScanTraceEvent, useScanTrace } from './scanTraceStore';
+import { fmtSignal, reasonTint } from './scanFormat';
 import { useScanSettings } from '../../store/scan-settings-store';
 
 type Tab = 'pipeline' | 'decisions';
@@ -175,7 +176,8 @@ type Styles = ReturnType<typeof makeStyles>;
 
 function Row({ entry, c, styles }: { entry: DecisionLogEntry; c: Palette; styles: Styles }) {
   const [expanded, setExpanded] = useState(false);
-  const { tint, label } = renderReason(entry.reason, c);
+  const tint = reasonTint(entry.reason, c);
+  const label = reasonLabel(entry.reason);
 
   return (
     <Pressable onPress={() => setExpanded((v) => !v)} style={styles.row}>
@@ -232,43 +234,21 @@ function DataLine({ label, value, styles }: { label: string; value: string; styl
   );
 }
 
-function renderReason(reason: DecisionReason, c: Palette): { tint: string; label: string } {
+function reasonLabel(reason: DecisionReason): string {
   switch (reason.kind) {
     case 'no-quad':
-      return reason.clipped
-        ? { tint: c.warning, label: 'Card-shaped contour clipped by guide edge' }
-        : { tint: c.textSubtle, label: 'No card seen' };
+      return reason.clipped ? 'Card-shaped contour clipped by guide edge' : 'No card seen';
     case 'blocked-floor':
-      return {
-        tint: c.warning,
-        label: `${reason.floor} ${fmt(reason.value)} below floor ${fmt(reason.threshold)}`,
-      };
+      return `${reason.floor} ${fmtSignal(reason.value)} below floor ${fmtSignal(reason.threshold)}`;
     case 'cooldown':
-      return {
-        tint: c.warning,
-        label: `Cooldown — ${(reason.msRemaining / 1000).toFixed(1)} s remaining`,
-      };
+      return `Cooldown — ${(reason.msRemaining / 1000).toFixed(1)} s remaining`;
     case 'below-band':
-      return {
-        tint: c.text,
-        label: `Score ${reason.composite.toFixed(2)} below threshold ${reason.thresholdHigh.toFixed(2)}`,
-      };
+      return `Score ${reason.composite.toFixed(2)} below threshold ${reason.thresholdHigh.toFixed(2)}`;
     case 'progressing':
-      return {
-        tint: c.success,
-        label: `In band — stable ${reason.stableFrames}/${reason.minStableFrames}`,
-      };
+      return `In band — stable ${reason.stableFrames}/${reason.minStableFrames}`;
     case 'fired':
-      return {
-        tint: c.success,
-        label: `Fired @ centroid ${reason.quadCentroid.x.toFixed(0)}, ${reason.quadCentroid.y.toFixed(0)}`,
-      };
+      return `Fired @ centroid ${reason.quadCentroid.x.toFixed(0)}, ${reason.quadCentroid.y.toFixed(0)}`;
   }
-}
-
-function fmt(n: number): string {
-  if (Math.abs(n) >= 10) return Math.round(n).toString();
-  return n.toFixed(2);
 }
 
 const makeStyles = (c: Palette) =>

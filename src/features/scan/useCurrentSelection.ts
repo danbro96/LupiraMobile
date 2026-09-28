@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useSelection } from '../../store/selection-store';
 import {
   getSelection,
@@ -38,9 +39,13 @@ export function useCurrentSelection() {
     return id;
   }
 
-  async function reset(): Promise<void> {
-    await setCurrent(null);
-  }
+  return { currentSelectionId, ensure };
+}
 
-  return { currentSelectionId, ensure, reset };
+export function useCurrentSelectionQuery(currentSelectionId: string | null) {
+  return useQuery({
+    queryKey: ['selection', currentSelectionId],
+    queryFn: () => getSelection(currentSelectionId!),
+    enabled: !!currentSelectionId,
+  });
 }

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import type { Synchronizable } from 'react-native-worklets';
 import type { DetectionMetrics } from '../detection/useCardDetection';
 import { darkColors as d } from '../../../ui/theme';
+import { usePolledValue } from '../detection/usePolledValue';
+import { fmtScore as fmt } from '../scanFormat';
 
 type Props = {
   metrics: Synchronizable<DetectionMetrics>;
@@ -14,14 +16,9 @@ type Props = {
   weightSharpness: number;
   weightCoverage: number;
   autoCaptureEnabled: boolean;
-  capturing: boolean;
-  uploadStatus: 'idle' | 'pending' | 'success' | 'error';
 };
 
-/**
- * Live HUD over the camera preview. Pulls worklet shared values via a 4Hz
- * rAF tick — fast enough to feel live, slow enough not to thrash the bridge.
- */
+/** Live HUD over the camera preview, sampled at 4 Hz — live enough without thrashing the bridge. */
 export function DebugMetricsPanel({
   metrics,
   stableFrames,
@@ -31,17 +28,8 @@ export function DebugMetricsPanel({
   weightSharpness,
   weightCoverage,
   autoCaptureEnabled,
-  capturing,
-  uploadStatus,
 }: Props) {
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => (n + 1) & 0xffff), 250);
-    return () => clearInterval(id);
-  }, []);
-
-  const m = metrics.getDirty();
+  const m = usePolledValue(() => metrics.getDirty(), 250);
   const stable = stableFrames.getDirty();
   const meets = m.score >= threshold;
 
@@ -92,8 +80,8 @@ export function DebugMetricsPanel({
         <Row label="edges px" value={String(m.edgePixelCount)} />
         <Row label="contours" value={String(m.contourCount)} />
         <Row label="big" value={String(m.largeContourCount)} />
-        <Row label="fill %" value={String(m.bestApproxVertexCount)} />
-        <Row label="best asp" value={m.bestApproxAspect ? m.bestApproxAspect.toFixed(2) : '—'} />
+        <Row label="fill %" value={String(m.largestContourFillPct)} />
+        <Row label="best asp" value={m.largestContourAspect ? m.largestContourAspect.toFixed(2) : '—'} />
         <Row label="candidates" value={String(m.candidateQuadCount)} />
         <Row label="clipped" value={String(m.clippedQuadCount)} />
         <Row label="hist" value={String(m.historyDepth)} />
@@ -124,27 +112,6 @@ export function DebugMetricsPanel({
         <Row label="mirrored" value={m.isMirrored ? 'yes' : 'no'} />
         <Row label="bpr" value={String(m.bytesPerRow)} />
         <Row label="planes" value={String(m.planesCount)} />
-      </Section>
-
-      <Section title="State">
-        <Row
-          label="capture"
-          value={capturing ? 'shooting' : 'idle'}
-          accent={capturing ? d.warning : d.text}
-        />
-        <Row
-          label="upload"
-          value={uploadStatus}
-          accent={
-            uploadStatus === 'success'
-              ? d.success
-              : uploadStatus === 'error'
-                ? d.danger
-                : uploadStatus === 'pending'
-                  ? d.warning
-                  : d.text
-          }
-        />
       </Section>
     </ScrollView>
   );
@@ -181,11 +148,6 @@ function Row({
       </Text>
     </View>
   );
-}
-
-function fmt(n: number): string {
-  if (!Number.isFinite(n)) return '—';
-  return n.toFixed(2);
 }
 
 const styles = StyleSheet.create({

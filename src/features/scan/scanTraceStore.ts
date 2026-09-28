@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { breadcrumb, type BreadcrumbCategory } from '../../observability/breadcrumb';
+import { appendCapped } from './appendCapped';
 
 /**
  * Pipeline stage of a trace event. `camera`/`worklet` are session-level; the rest belong to one capture and
@@ -69,11 +70,7 @@ export function traceScan(
     captureId: opts.captureId,
     data: opts.data,
   };
-  useScanTrace.setState((s) => ({
-    events: s.events.length >= MAX_TRACE_EVENTS
-      ? [...s.events.slice(s.events.length - MAX_TRACE_EVENTS + 1), event]
-      : [...s.events, event],
-  }));
+  useScanTrace.setState((s) => ({ events: appendCapped(s.events, event, MAX_TRACE_EVENTS) }));
   breadcrumb(BREADCRUMB_CATEGORY[kind], message, { captureId: opts.captureId, ...opts.data }, level);
   // console.log only: warn/error would pop LogBox over the camera on every failed scan.
   if (__DEV__) {

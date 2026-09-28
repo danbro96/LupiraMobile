@@ -9,27 +9,17 @@ import {
 } from 'react-native';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import {
-  Camera,
-  type CameraRef,
-  useCameraDevices,
-  useCameraPermission,
-  usePhotoOutput,
-} from 'react-native-vision-camera';
-import { CommonResolutions } from 'react-native-vision-camera';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Camera, useCameraDevices, useCameraPermission } from 'react-native-vision-camera';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
-import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ApiError } from '../../api/mutator';
-import {
-  getSelection,
-  createSelectionCard,
-} from '../../api/generated/selections/selections';
+import { createSelectionCard } from '../../api/generated/selections/selections';
 import { scanCard } from '../../api/scan';
 import type { CardCandidateDto, ScanResponse } from '../../api/generated/models';
 import { ScanStackParamList } from '../../navigation/types';
-import { useCurrentSelection } from './useCurrentSelection';
+import { useCurrentSelection, useCurrentSelectionQuery } from './useCurrentSelection';
 import { useScanSettings } from '../../store/scan-settings-store';
 import {
   type CaptureDiagnostics,
@@ -56,6 +46,7 @@ import {
   type DecisionReason,
 } from './decisionLogStore';
 import { breadcrumb } from '../../observability/breadcrumb';
+import { usePolledValue } from './detection/usePolledValue';
 import { traceScan } from './scanTraceStore';
 import { ICONS } from '../../ui/icons';
 import { darkColors, spacing, useColors, type Palette } from '../../ui/theme';
@@ -82,12 +73,9 @@ export function ScanScreen() {
   }, []);
   const { hasPermission, requestPermission } = useCameraPermission();
 
-  // Lens choice: enumerate every back camera and explicitly pick a
-  // single-physical wide-angle that exposes focus metering. The simpler
-  // `useCameraDevice('back', { physicalDevices: ['wide-angle'] })` returned a
-  // logical multicam on Galaxy S23 that reported supportsFocusMetering:false,
-  // and our focusTo before capture silently threw — leading to perpetually
-  // soft stills. See the perf-trim/focus-lock build history for details.
+  // Explicitly pick a single-physical wide-angle with focus metering: the simpler
+  // `useCameraDevice('back', { physicalDevices: ['wide-angle'] })` returned a logical
+  // multicam on Galaxy S23 that reported supportsFocusMetering:false.
   const allDevices = useCameraDevices();
   const deviceCandidates = useMemo(
     () =>
@@ -120,18 +108,6 @@ export function ScanScreen() {
     });
   }, [device, deviceCandidates]);
 
-  const cameraRef = useRef<CameraRef | null>(null);
-  // High-quality, AF-aware photo output. The combination of UHD_4_3 +
-  // qualityPrioritization='quality' + the explicit focusTo call below is what
-  // gives us sharp stills on Android — `qualityPrioritization` alone isn't
-  // enough on CameraX.
-  const photoOutput = usePhotoOutput({
-    targetResolution: CommonResolutions.UHD_4_3,
-    qualityPrioritization: 'quality',
-    quality: 0.92,
-    containerFormat: 'jpeg',
-  });
-
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
     width: 0,
     height: 0,
@@ -144,12 +120,7 @@ export function ScanScreen() {
   }, [settings]);
 
   const { ensure: ensureSelection, currentSelectionId } = useCurrentSelection();
-
-  const selectionQuery = useQuery({
-    queryKey: ['selection', currentSelectionId],
-    queryFn: () => getSelection(currentSelectionId!),
-    enabled: !!currentSelectionId,
-  });
+  const selectionQuery = useCurrentSelectionQuery(currentSelectionId);
 
   const addToSelection = useMutation({
     mutationFn: async (input: { candidate: CardCandidateDto; allowDuplicate: boolean }) => {
@@ -168,40 +139,21 @@ export function ScanScreen() {
     },
   });
 
-  // Capture queue. Each in-flight scan is a record in this list; the gallery
-  // renders the list directly. Concurrency safety lives entirely in the
-  // reducer — the orchestration code below is fire-and-forget per record.
   const [records, dispatch] = useReducer(captureQueueReducer, [] as ReturnType<typeof captureQueueReducer>);
 
-  // Decision-log store handle. We pull `append` once into a ref-style local
-  // because zustand's hook returns a fresh function reference per render,
-  // and `captureAndScan` shouldn't capture stale ones.
   const appendDecisionLog = useDecisionLog((s) => s.append);
 
-  // Forward refs to detection.pause/resume — captureAndScan is defined before
-  // the detection hook is initialised, so we wire these up after.
-  const resumeDetectionRef = useRef<(() => void) | null>(null);
-  const pauseDetectionRef = useRef<(() => void) | null>(null);
-  // AppState/isFocused snapshots, accessible from the captureAndScan closure
-  // without re-creating the callback on every transition.
-  const isFocusedRef = useRef(isFocused);
-  isFocusedRef.current = isFocused;
-  const appStateRef = useRef(appState);
-  appStateRef.current = appState;
-  const cameraActiveRef = useRef(false);
-  cameraActiveRef.current = isFocused && appState === 'active';
-  // Single concurrent capture lock. fast-opencv's global object store cannot
-  // tolerate two cropToQuad calls in flight, and the worklet must be paused
-  // while either runs.
-  const capturingRef = useRef(false);
+  const cameraActive = isFocused && appState === 'active';
+  const cameraActiveRef = useRef(cameraActive);
+  cameraActiveRef.current = cameraActive;
 
   const captureAndScan = useCallback(
     async (captureUri: string, quad: Quad, frameSize: FrameSize, diag: CaptureDiagnostics) => {
       const id: CaptureId = newCaptureId();
       const m = diag.metrics;
-      const cx = (quad[0].x + quad[2].x) / 2;
-      const cy = (quad[0].y + quad[2].y) / 2;
-      appendDecisionLog(buildLogEntry(m, { kind: 'fired', quadCentroid: { x: cx, y: cy } }));
+      appendDecisionLog(
+        buildLogEntry(m, { kind: 'fired', quadCentroid: { x: (quad[0].x + quad[2].x) / 2, y: (quad[0].y + quad[2].y) / 2 } }),
+      );
       const s = useScanSettings.getState();
       traceScan('fire', 'auto-capture fired', {
         captureId: id,
@@ -233,50 +185,16 @@ export function ScanScreen() {
           level: 'error',
           data: { error: diag.error, warpMs: diag.warpMs },
         });
-        resumeDetectionRef.current?.();
-        return;
-      }
-      if (capturingRef.current) {
-        // Two triggers fired before the previous upload kicked off — drop.
-        // The worklet's content cooldown will keep ignoring this card for a
-        // moment longer.
-        traceScan('fire', 'dropped: previous capture still starting', { captureId: id, level: 'warning' });
         return;
       }
 
-      capturingRef.current = true;
-      void logCropFile(id, captureUri, diag.warpMs);
+      logCropFile(id, captureUri, diag.warpMs);
+      dispatch({ type: 'capture/add', id, createdAt: Date.now(), uri: captureUri });
 
-      // The worklet has already produced the canonical card-crop JPEG and
-      // handed us the URI. No photoOutput round-trip, no JS-side cropToQuad
-      // — what the worklet approved IS what's about to be uploaded. Zero
-      // temporal gap between detection and "shutter."
-      dispatch({ type: 'capture/start', id, createdAt: Date.now() });
-      dispatch({
-        type: 'capture/uploading',
-        id,
-        uri: captureUri,
-        // Source dims of the *capture* are the worklet's frame dims (not the
-        // canonical output dims) — that's what the gallery tile's "src" chip
-        // tries to convey.
-        sourceWidth: frameSize.width,
-        sourceHeight: frameSize.height,
-      });
-
-      // Reopen the worklet immediately so the user can sweep to the next
-      // card while this upload is in flight.
-      capturingRef.current = false;
-      resumeDetectionRef.current?.();
-
-      // Fire-and-forget the upload.
       const uploadStartedAt = Date.now();
       traceScan('upload', 'POST /scans', { captureId: id, level: 'debug' });
       try {
-        const response = await scanCard({
-          uri: captureUri,
-          mimeType: 'image/jpeg',
-          fileName: 'scan.jpg',
-        });
+        const response = await scanCard(captureUri);
         traceScan('result', `${response.confidence} · ${response.candidates[0]?.printing.name ?? 'no match'}`, {
           captureId: id,
           level: response.candidates.length === 0 ? 'warning' : 'info',
@@ -284,10 +202,7 @@ export function ScanScreen() {
         });
         dispatch({ type: 'capture/recognised', id, response });
 
-        // Hybrid auto-add: only when the backend reports high confidence.
         // Lower-confidence captures stay staged for tap-to-confirm review.
-        // Enum is PascalCase per the OpenAPI spec
-        // (`new JsonStringEnumConverter()` keeps C# enum names verbatim).
         if (response.confidence === 'High' && response.candidates.length > 0) {
           const top = response.candidates[0];
           dispatch({ type: 'capture/auto-add', id, printingId: top.printing.id });
@@ -299,8 +214,6 @@ export function ScanScreen() {
               },
               onError: (err) => {
                 if (err instanceof ApiError && err.status === 409) {
-                  // Already in the selection — fine, leave the green check
-                  // on the tile so the user knows it was matched.
                   traceScan('add', 'auto-add skipped: already in selection', { captureId: id, level: 'debug' });
                   return;
                 }
@@ -344,10 +257,6 @@ export function ScanScreen() {
     weightBrightness: settings.weightBrightness,
     onAutoCapture,
   });
-  resumeDetectionRef.current = detection.resume;
-  pauseDetectionRef.current = detection.pause;
-
-  const cameraActive = isFocused && appState === 'active';
   useEffect(() => {
     traceScan('camera', cameraActive ? 'camera active' : 'camera inactive', {
       level: 'debug',
@@ -355,13 +264,9 @@ export function ScanScreen() {
     });
   }, [cameraActive, isFocused, appState]);
 
-  // Sample worklet-thread state into the logs at low frequency.
   const lastSampledStep = useRef<string>('');
   const lastSampledError = useRef<string>('');
   const lastSampledFormat = useRef<string>('');
-  // Last decision reason we appended to the log. Used to de-duplicate — a
-  // long blocked-sharpness stretch should be one entry, not 60 redundant
-  // copies that hide the moment the situation changed.
   const lastSampledReason = useRef<DecisionReason | undefined>(undefined);
   const stall = useRef({ frames: -1, since: 0, reported: false });
   useEffect(() => {
@@ -419,39 +324,27 @@ export function ScanScreen() {
     return () => clearInterval(id);
   }, [detection.metrics, detection.stableFrames, settings.captureThreshold, settings.minStableFrames, appendDecisionLog]);
 
-  // Tile add (manual review) — used by the gallery's modal.
   const onAddFromReview = useCallback(
-    (id: CaptureId, candidate: CardCandidateDto) => {
-      addToSelection.mutate(
-        { candidate, allowDuplicate: false },
-        {
-          onSuccess: () => {
-            hapticSuccess();
-            dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
-          },
-          onError: async (err) => {
-            if (err instanceof ApiError && err.status === 409) {
-              const again = await confirm({
-                title: 'Already in selection',
-                message: 'This printing is already in your current selection. Add another copy?',
-                confirmLabel: 'Add another',
-              });
-              if (!again) return;
-              addToSelection.mutate(
-                { candidate, allowDuplicate: true },
-                {
-                  onSuccess: () => {
-                    hapticSuccess();
-                    dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
-                  },
-                },
-              );
-            } else {
-              toastError((err as Error).message);
-            }
-          },
-        },
-      );
+    async (id: CaptureId, candidate: CardCandidateDto) => {
+      const add = async (allowDuplicate: boolean) => {
+        await addToSelection.mutateAsync({ candidate, allowDuplicate });
+        hapticSuccess();
+        dispatch({ type: 'capture/auto-add', id, printingId: candidate.printing.id });
+      };
+      try {
+        await add(false);
+      } catch (err: unknown) {
+        if (!(err instanceof ApiError && err.status === 409)) {
+          toastError((err as Error).message);
+          return;
+        }
+        const again = await confirm({
+          title: 'Already in selection',
+          message: 'This printing is already in your current selection. Add another copy?',
+          confirmLabel: 'Add another',
+        });
+        if (again) await add(true).catch(() => undefined);
+      }
     },
     [addToSelection, confirm],
   );
@@ -467,7 +360,7 @@ export function ScanScreen() {
     setContainerSize({ width, height });
   }, []);
 
-  const showDebug = useMemo(() => settings.showDebugOverlay, [settings.showDebugOverlay]);
+  const showDebug = settings.showDebugOverlay;
 
   if (!hasPermission) {
     return (
@@ -494,13 +387,10 @@ export function ScanScreen() {
   return (
     <View style={styles.container} onLayout={onCameraLayout}>
       <Camera
-        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        // Camera is active whenever the tab is focused and the app is in the
-        // foreground. No more capture-result modal that needs to gate this.
         isActive={cameraActive}
-        outputs={[photoOutput, detection.frameOutput]}
+        outputs={[detection.frameOutput]}
         enableNativeTapToFocusGesture
         onStarted={() => traceScan('camera', 'session started')}
         onStopped={() => traceScan('camera', 'session stopped', { level: 'debug' })}
@@ -535,21 +425,21 @@ export function ScanScreen() {
             weightSharpness={settings.weightSharpness}
             weightCoverage={settings.weightCoverage}
             autoCaptureEnabled={settings.autoCaptureEnabled}
-            capturing={false}
-            uploadStatus="idle"
           />
         </ErrorBoundary>
       ) : null}
 
       <FrameTheCardHint metrics={detection.metrics} hasRecords={records.length > 0} />
 
-      <View style={styles.lensBadge} pointerEvents="none">
-        <Text style={styles.lensBadgeText}>
-          picked: {device?.id ?? 'none'} ({device?.type ?? '—'}{device?.isVirtualDevice ? ',virtual' : ''})
-          {'\n'}
-          AF: {device?.supportsFocusMetering ? 'yes' : 'NO'} · build-tag: worklet-frame-23
-        </Text>
-      </View>
+      {showDebug ? (
+        <View style={styles.lensBadge} pointerEvents="none">
+          <Text style={styles.lensBadgeText}>
+            picked: {device.id} ({device.type}{device.isVirtualDevice ? ',virtual' : ''})
+            {'\n'}
+            AF: {device.supportsFocusMetering ? 'yes' : 'NO'}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.cameraOverlay} pointerEvents="box-none">
         {selectionCount > 0 ? (
@@ -564,8 +454,6 @@ export function ScanScreen() {
 
       <CaptureGallery records={records} onAdd={onAddFromReview} onDismiss={onDismissTile} />
 
-      {/* Bottom-right "done" button — quick path into the Selection screen
-          when the user is finished sweeping. */}
       <View style={styles.doneBar} pointerEvents="box-none">
         <Pressable
           onPress={goToSelection}
@@ -595,13 +483,14 @@ export function ScanScreen() {
   );
 }
 
-async function logCropFile(captureId: string, uri: string, warpMs: number) {
+function logCropFile(captureId: string, uri: string, warpMs: number) {
   try {
-    const info = await FileSystem.getInfoAsync(uri);
+    const file = new File(uri);
+    const exists = file.exists;
     traceScan('crop', 'crop saved', {
       captureId,
-      level: info.exists ? 'debug' : 'error',
-      data: { uri, exists: info.exists, bytes: info.exists ? info.size : 0, warpMs },
+      level: exists ? 'debug' : 'error',
+      data: { uri, exists, bytes: exists ? file.size : 0, warpMs },
     });
   } catch (e: unknown) {
     traceScan('crop', 'crop stat failed', { captureId, level: 'warning', data: describeError(e) });
@@ -654,21 +543,11 @@ function FrameTheCardHint({
   metrics: ReturnType<typeof useCardDetection>['metrics'];
   hasRecords: boolean;
 }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    let raf: number;
-    const loop = () => {
-      setTick((n) => (n + 1) & 0xffff);
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  const m = metrics.getDirty();
-  // Hide the hint as soon as detection sees a quad OR the user already has
-  // captures in the gallery (they clearly know what they're doing).
-  if (m.hasQuad || m.frameSize.width === 0 || hasRecords) return null;
+  const noCardInView = usePolledValue(() => {
+    const m = metrics.getDirty();
+    return !m.hasQuad && m.frameSize.width > 0;
+  }, 250);
+  if (!noCardInView || hasRecords) return null;
 
   return (
     <View style={styles.frameHintWrap} pointerEvents="none">

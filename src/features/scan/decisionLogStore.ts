@@ -1,19 +1,22 @@
 import { create } from 'zustand';
 import type { DetectionMetrics } from './detection/useCardDetection';
 import { HARD_FLOORS } from './detection/useCardDetection';
-import { SCAN_HYSTERESIS } from '../../store/scan-settings-store';
+import { SCAN_HYSTERESIS_BAND } from '../../store/scan-settings-store';
+import { appendCapped } from './appendCapped';
 
 /**
  * Categorised reason for the *current* decision-policy state. The pill renders one line per kind; the log
  * screen renders the same kind plus structured fields. Structured rather than a free-form string so
  * consumers can colour-code, sort or filter without re-parsing.
  */
+type FloorName = 'coverage' | 'stability' | 'sharpness' | 'brightness';
+
 export type DecisionReason =
   | { kind: 'no-quad'; clipped: boolean }
   | { kind: 'below-band'; composite: number; thresholdLow: number; thresholdHigh: number }
   | {
       kind: 'blocked-floor';
-      floor: 'coverage' | 'stability' | 'sharpness' | 'brightness';
+      floor: FloorName;
       value: number;
       threshold: number;
     }
@@ -65,12 +68,7 @@ export const useDecisionLog = create<LogState>((set) => ({
   entries: [],
   latest: null,
   append: (entry) =>
-    set((s) => {
-      const next = s.entries.length >= MAX_LOG_ENTRIES
-        ? [...s.entries.slice(s.entries.length - MAX_LOG_ENTRIES + 1), entry]
-        : [...s.entries, entry];
-      return { entries: next, latest: entry };
-    }),
+    set((s) => ({ entries: appendCapped(s.entries, entry, MAX_LOG_ENTRIES), latest: entry })),
   clear: () => set({ entries: [], latest: null }),
 }));
 
@@ -96,62 +94,28 @@ export function deriveDecisionReason(
   if (!m.hasQuad) {
     return { kind: 'no-quad', clipped: m.clippedQuadCount > 0 };
   }
-  // Identify the worst-failing hard floor (largest *relative* gap below).
-  const failures: { floor: 'coverage' | 'stability' | 'sharpness' | 'brightness'; value: number; threshold: number; gap: number }[] = [];
-  if (m.coverage < HARD_FLOORS.coverage) {
-    failures.push({
-      floor: 'coverage',
-      value: m.coverage,
-      threshold: HARD_FLOORS.coverage,
-      gap: (HARD_FLOORS.coverage - m.coverage) / HARD_FLOORS.coverage,
-    });
+  // Report the worst-failing hard floor (largest *relative* gap below it).
+  const tooBright = m.brightness > HARD_FLOORS.brightnessMax;
+  const brightnessThreshold = tooBright ? HARD_FLOORS.brightnessMax : HARD_FLOORS.brightnessMin;
+  const floors: [FloorName, number, number, number][] = [
+    ['coverage', m.coverage, HARD_FLOORS.coverage, HARD_FLOORS.coverage - m.coverage],
+    ['stability', m.stability, HARD_FLOORS.stability, HARD_FLOORS.stability - m.stability],
+    ['sharpness', m.sharpness, HARD_FLOORS.sharpness, HARD_FLOORS.sharpness - m.sharpness],
+    ['brightness', m.brightness, brightnessThreshold, tooBright ? m.brightness - brightnessThreshold : brightnessThreshold - m.brightness],
+  ];
+  let worst: { floor: FloorName; value: number; threshold: number; gap: number } | null = null;
+  for (const [floor, value, threshold, shortfall] of floors) {
+    const gap = shortfall / threshold;
+    if (shortfall > 0 && (!worst || gap > worst.gap)) worst = { floor, value, threshold, gap };
   }
-  if (m.stability < HARD_FLOORS.stability) {
-    failures.push({
-      floor: 'stability',
-      value: m.stability,
-      threshold: HARD_FLOORS.stability,
-      gap: (HARD_FLOORS.stability - m.stability) / HARD_FLOORS.stability,
-    });
-  }
-  if (m.sharpness < HARD_FLOORS.sharpness) {
-    failures.push({
-      floor: 'sharpness',
-      value: m.sharpness,
-      threshold: HARD_FLOORS.sharpness,
-      gap: (HARD_FLOORS.sharpness - m.sharpness) / HARD_FLOORS.sharpness,
-    });
-  }
-  if (m.brightness < HARD_FLOORS.brightnessMin) {
-    failures.push({
-      floor: 'brightness',
-      value: m.brightness,
-      threshold: HARD_FLOORS.brightnessMin,
-      gap: (HARD_FLOORS.brightnessMin - m.brightness) / HARD_FLOORS.brightnessMin,
-    });
-  } else if (m.brightness > HARD_FLOORS.brightnessMax) {
-    failures.push({
-      floor: 'brightness',
-      value: m.brightness,
-      threshold: HARD_FLOORS.brightnessMax,
-      gap: (m.brightness - HARD_FLOORS.brightnessMax) / HARD_FLOORS.brightnessMax,
-    });
-  }
-  if (failures.length > 0) {
-    failures.sort((a, b) => b.gap - a.gap);
-    const worst = failures[0];
-    return {
-      kind: 'blocked-floor',
-      floor: worst.floor,
-      value: worst.value,
-      threshold: worst.threshold,
-    };
+  if (worst) {
+    return { kind: 'blocked-floor', floor: worst.floor, value: worst.value, threshold: worst.threshold };
   }
   if (m.cooldownActive) {
     return { kind: 'cooldown', msRemaining: m.cooldownRemainingMs };
   }
   if (!m.inHysteresis) {
-    const thresholdLow = thresholdHigh - (SCAN_HYSTERESIS.HIGH - SCAN_HYSTERESIS.LOW);
+    const thresholdLow = thresholdHigh - SCAN_HYSTERESIS_BAND;
     return { kind: 'below-band', composite: m.score, thresholdHigh, thresholdLow };
   }
   // In the band, hard floors clear, no cooldown — actively progressing.
@@ -185,8 +149,8 @@ export function buildLogEntry(
     largeContourCount: m.largeContourCount,
     candidateQuadCount: m.candidateQuadCount,
     clippedQuadCount: m.clippedQuadCount,
-    largestContourFillPct: m.bestApproxVertexCount,
-    largestContourAspect: m.bestApproxAspect,
+    largestContourFillPct: m.largestContourFillPct,
+    largestContourAspect: m.largestContourAspect,
     lastStep: m.lastStep,
     lastError: m.lastError,
   };

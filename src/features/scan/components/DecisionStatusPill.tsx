@@ -7,6 +7,7 @@ import {
   useDecisionLog,
   type DecisionReason,
 } from '../decisionLogStore';
+import { fmtSignal, reasonTint } from '../scanFormat';
 
 /**
  * Always-on single-line "why is auto-capture blocked / what is it doing" status, pinned just above the
@@ -20,7 +21,8 @@ export function DecisionStatusPill() {
     return null;
   }
 
-  const { tint, label } = renderReason(latest.reason);
+  const tint = reasonTint(latest.reason, d);
+  const label = reasonLabel(latest.reason);
 
   return (
     <View style={[styles.outer, { borderColor: tint }]} pointerEvents="none">
@@ -32,46 +34,21 @@ export function DecisionStatusPill() {
   );
 }
 
-function renderReason(reason: DecisionReason): { tint: string; label: string } {
+function reasonLabel(reason: DecisionReason): string {
   switch (reason.kind) {
     case 'no-quad':
-      return reason.clipped
-        ? { tint: d.warning, label: 'Card past guide edge — move back' }
-        : { tint: d.textSubtle, label: 'No card seen' };
+      return reason.clipped ? 'Card past guide edge — move back' : 'No card seen';
     case 'blocked-floor':
-      return {
-        tint: d.warning,
-        label: `Blocked: ${reason.floor} ${fmt(reason.value)} / ${fmt(reason.threshold)}`,
-      };
-    case 'cooldown': {
-      const seconds = (reason.msRemaining / 1000).toFixed(1);
-      return { tint: d.warning, label: `Cooldown ${seconds}s` };
-    }
+      return `Blocked: ${reason.floor} ${fmtSignal(reason.value)} / ${fmtSignal(reason.threshold)}`;
+    case 'cooldown':
+      return `Cooldown ${(reason.msRemaining / 1000).toFixed(1)}s`;
     case 'below-band':
-      return {
-        tint: d.text,
-        label: `Score ${reason.composite.toFixed(2)} / ${reason.thresholdHigh.toFixed(2)} — too low`,
-      };
+      return `Score ${reason.composite.toFixed(2)} / ${reason.thresholdHigh.toFixed(2)} — too low`;
     case 'progressing':
-      return {
-        tint: d.success,
-        label: 'Stable — capture imminent',
-      };
+      return 'Stable — capture imminent';
     case 'fired':
-      return {
-        tint: d.success,
-        label: 'Fired',
-      };
+      return 'Fired';
   }
-}
-
-/**
- * Format a signal value or threshold. Brightness is in 0..255, everything
- * else is 0..1 — pick precision based on magnitude.
- */
-function fmt(n: number): string {
-  if (Math.abs(n) >= 10) return Math.round(n).toString();
-  return n.toFixed(2);
 }
 
 const styles = StyleSheet.create({

@@ -7,8 +7,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   SCAN_MIN_FRAMES_BOUNDS,
-  SCAN_QUALITY_BOUNDS,
   SCAN_THRESHOLD_BOUNDS,
+  type ScanWeights,
   useScanSettings,
 } from '../../store/scan-settings-store';
 import type { RootStackParamList } from '../../navigation/types';
@@ -17,6 +17,13 @@ import { useConfirm } from '../../ui/components/ConfirmDialog';
 import { spacing, useColors, type Palette } from '../../ui/theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'ScanSettings'>;
+
+const WEIGHT_SLIDERS: [string, keyof ScanWeights][] = [
+  ['Stability', 'weightStability'],
+  ['Sharpness', 'weightSharpness'],
+  ['Coverage', 'weightCoverage'],
+  ['Brightness', 'weightBrightness'],
+];
 
 export function ScanSettingsScreen() {
   const settings = useScanSettings();
@@ -78,85 +85,21 @@ export function ScanSettingsScreen() {
         <Helper>How long the score has to hold before auto-capture fires.</Helper>
 
         <List.Subheader>Score weights</List.Subheader>
-        <SliderRow
-          label="Stability"
-          value={settings.weightStability}
-          min={0}
-          max={1}
-          step={0.05}
-          valueLabel={settings.weightStability.toFixed(2)}
-          onChange={(v) =>
-            void settings.setWeights(
-              v,
-              settings.weightSharpness,
-              settings.weightCoverage,
-              settings.weightBrightness,
-            )
-          }
-        />
-        <SliderRow
-          label="Sharpness"
-          value={settings.weightSharpness}
-          min={0}
-          max={1}
-          step={0.05}
-          valueLabel={settings.weightSharpness.toFixed(2)}
-          onChange={(v) =>
-            void settings.setWeights(
-              settings.weightStability,
-              v,
-              settings.weightCoverage,
-              settings.weightBrightness,
-            )
-          }
-        />
-        <SliderRow
-          label="Coverage"
-          value={settings.weightCoverage}
-          min={0}
-          max={1}
-          step={0.05}
-          valueLabel={settings.weightCoverage.toFixed(2)}
-          onChange={(v) =>
-            void settings.setWeights(
-              settings.weightStability,
-              settings.weightSharpness,
-              v,
-              settings.weightBrightness,
-            )
-          }
-        />
-        <SliderRow
-          label="Brightness"
-          value={settings.weightBrightness}
-          min={0}
-          max={1}
-          step={0.05}
-          valueLabel={settings.weightBrightness.toFixed(2)}
-          onChange={(v) =>
-            void settings.setWeights(
-              settings.weightStability,
-              settings.weightSharpness,
-              settings.weightCoverage,
-              v,
-            )
-          }
-        />
+        {WEIGHT_SLIDERS.map(([label, key]) => (
+          <SliderRow
+            key={key}
+            label={label}
+            value={settings[key]}
+            min={0}
+            max={1}
+            step={0.05}
+            valueLabel={settings[key].toFixed(2)}
+            onChange={(v) => void settings.setWeights({ [key]: v })}
+          />
+        ))}
         <Helper>
           Per-signal contributions to the soft composite score. Each signal also has a hidden hard floor — if any single signal drops below its floor, the auto-capture timer resets regardless of these weights.
         </Helper>
-
-        <List.Subheader>Output</List.Subheader>
-        <SliderRow
-          label="JPEG quality"
-          value={settings.jpegQuality}
-          min={SCAN_QUALITY_BOUNDS.min}
-          max={SCAN_QUALITY_BOUNDS.max}
-          step={5}
-          valueLabel={`${settings.jpegQuality}%`}
-          onChange={(v) => void settings.setJpegQuality(v)}
-        />
-        <Helper>Used when re-encoding the perspective-corrected card before upload.</Helper>
 
         <List.Subheader>Debug</List.Subheader>
         <List.Item

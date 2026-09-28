@@ -3,15 +3,13 @@ import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button as PaperButton, Text } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import {
-  deleteSelectionCard,
-  getSelection,
-} from '../../api/generated/selections/selections';
+import { deleteSelectionCard } from '../../api/generated/selections/selections';
 import type { SelectionEntryDto } from '../../api/generated/models';
 import { useSelection } from '../../store/selection-store';
+import { useCurrentSelectionQuery } from './useCurrentSelection';
 import { ScanStackParamList } from '../../navigation/types';
 import { useConfirm } from '../../ui/components/ConfirmDialog';
 import { HIT_SLOP, cardSurface, radii, spacing, useColors, type Palette } from '../../ui/theme';
@@ -29,11 +27,7 @@ export function SelectionScreen() {
   const c = useColors();
   const styles = useMemo(() => makeStyles(c), [c]);
 
-  const selection = useQuery({
-    queryKey: ['selection', currentSelectionId],
-    queryFn: () => getSelection(currentSelectionId!),
-    enabled: !!currentSelectionId,
-  });
+  const selection = useCurrentSelectionQuery(currentSelectionId);
 
   const removeCard = useMutation({
     mutationFn: (instanceId: string) =>
